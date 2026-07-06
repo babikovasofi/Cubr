@@ -1,0 +1,143 @@
+/* Plain, functional styling for a throwaway CV rig. No product design here —
+   the goal is to see landmarks, state, and numbers clearly while tuning. */
+
+:root {
+  --bg: #14161a;
+  --panel: #1e2127;
+  --line: #2c313a;
+  --ink: #e6e8ec;
+  --muted: #9aa1ac;
+  --accent: #ffd23f;
+  --ok: #39d98a;
+  --bad: #ff5964;
+  font-family: ui-monospace, "SF Mono", "Cascadia Mono", Menlo, Consolas, monospace;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+}
+
+#app {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 20px;
+}
+
+header h1 {
+  margin: 0 0 4px;
+  font-size: 20px;
+}
+
+.disclaimer {
+  margin: 0 0 16px;
+  color: var(--muted);
+  font-size: 13px;
+  max-width: 60ch;
+}
+
+.stage {
+  display: flex;
+  gap: 16px;
+  align-items: flex-start;
+  flex-wrap: wrap;
+}
+
+.video-wrap {
+  position: relative;
+  width: 640px;
+  max-width: 100%;
+  aspect-ratio: 16 / 9;
+  background: #000;
+  border: 1px solid var(--line);
+}
+
+/* Detection runs on the raw frame; only the DISPLAY is mirrored (selfie view). */
+#video,
+#overlay {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  transform: scaleX(-1);
+}
+
+#overlay {
+  pointer-events: none;
+}
+
+#panel {
+  flex: 1 1 260px;
+  min-width: 260px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  padding: 14px;
+}
+
+.row {
+  display: flex;
+  justify-content: space-between;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--line);
+  font-size: 14px;
+}
+
+.row span {
+  color: var(--muted);
+}
+
+.controls {
+  display: grid;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+button {
+  font: inherit;
+  font-size: 13px;
+  padding: 9px 12px;
+  background: #262b33;
+  color: var(--ink);
+  border: 1px solid var(--line);
+  cursor: pointer;
+  text-align: left;
+}
+
+button:hover:not(:disabled) {
+  border-color: var(--accent);
+}
+
+button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.output {
+  margin-top: 20px;
+}
+
+.output h2 {
+  font-size: 15px;
+  margin: 0 0 8px;
+}
+
+#report {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  padding: 14px;
+  font-size: 13px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  min-height: 120px;
+  margin: 0;
+}
