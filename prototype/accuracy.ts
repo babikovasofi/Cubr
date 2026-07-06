@@ -1,13 +1,26 @@
-// Accuracy harness (the R1 risk-killer gate). GROUND TRUTH comes from cubejs
-// applying a KNOWN scramble — never the tester's eyes. We score PER-STICKER over
-// all 54 and build a per-color confusion matrix. PASS iff >= ACCURACY_PASS_FRAC
-// of stickers are correct at normal light.
+// Accuracy harness (the R1 risk-killer gate). Scores PER-STICKER over all 54 and
+// builds a per-color confusion matrix. PASS iff >= ACCURACY_PASS_FRAC of stickers
+// are correct at normal light.
 //
-// This module is pure: it takes an already-read facelet string and the expected
-// one. main.ts wires the camera read; accuracy.ts just scores.
+// GROUND TRUTH — two novice-runnable modes (no notation), see gateHandMix / B:
+//   Mode A "перемешай руками": the user hand-scrambles (no formulas) and shows
+//     the 6 faces. The existing pipeline (assignFacesByCenter -> resolveRotations)
+//     yields a LEGALITY-RESOLVED 54-char state — legality physically pins the
+//     answer. We then score the RAW per-sticker argmin classification against that
+//     resolved state. This measures the CLASSIFIER on a genuinely mixed cube
+//     (adjacent red<->orange = the R1 risk). If resolve is ambiguous/failed we do
+//     NOT score garbage — the caller re-prompts.
+//   Mode B "собранный кубик": score vs the known SOLVED string. Simple sanity;
+//     solid faces don't test adjacency.
+//
+// The old KNOWN-scramble path (scoreRead vs scrambleToFacelets) stays for the
+// product (server side), but is NOT the manual Stage-0 gate.
+//
+// This module is pure: it takes already-read facelet strings. main.ts wires the
+// camera read + pipeline; accuracy.ts just scores.
 
 import { config } from "./config.ts";
-import { FACE_ORDER, type Face, type Facelet } from "./cubeState.ts";
+import { SOLVED, FACE_ORDER, type Face, type Facelet } from "./cubeState.ts";
 
 export interface StickerResult {
   index: number;
@@ -100,4 +113,41 @@ export function formatReport(rep: AccuracyReport): string {
     }
   }
   return lines.join("\n");
+}
+
+// ---- Novice gate modes (no notation) --------------------------------------
+
+/**
+ * Mode A "перемешай руками". Score the RAW per-sticker classification against a
+ * ground truth that was independently RESOLVED to a legal cube by the pipeline
+ * (assignFacesByCenter + resolveRotations, done by the caller).
+ *
+ * @param rawRead  the 54-char argmin classification (what the classifier "saw",
+ *                 unconstrained by quota — the thing under test)
+ * @param resolved the legality-resolved 54-char ground truth from resolveRotations
+ *
+ * Both must be aligned in URFDLB order (the caller assembles rawRead in the same
+ * capture/face order the resolver used). Returns null when `resolved` is not a
+ * usable ground truth, so the caller shows "re-show / change light" instead of
+ * scoring garbage.
+ */
+export function gateHandMix(
+  rawRead: Facelet,
+  resolved: Facelet | null,
+  passFrac: number = config.ACCURACY_PASS_FRAC,
+): AccuracyReport | null {
+  if (!resolved || resolved.length !== 54 || rawRead.length !== 54) return null;
+  return scoreRead(rawRead, resolved, passFrac);
+}
+
+/**
+ * Mode B "собранный кубик". Score the raw classification of a SOLVED cube against
+ * the known SOLVED string. Simple sanity — solid faces, no adjacency test.
+ */
+export function gateSolved(
+  rawRead: Facelet,
+  passFrac: number = config.ACCURACY_PASS_FRAC,
+): AccuracyReport | null {
+  if (rawRead.length !== 54) return null;
+  return scoreRead(rawRead, SOLVED, passFrac);
 }

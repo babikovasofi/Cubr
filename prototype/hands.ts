@@ -185,6 +185,12 @@ function dist2d(a: Landmark, b: Landmark): number {
 
 // ---- Overlay drawing (called from main.ts) --------------------------------
 
+export interface OverlayLabels {
+  guide: string; // over the cube guide-rect, e.g. "Держи кубик здесь"
+  left: string; // over the left hand zone
+  right: string; // over the right hand zone
+}
+
 export function drawOverlay(
   ctx: CanvasRenderingContext2D,
   w: number,
@@ -192,6 +198,7 @@ export function drawOverlay(
   obs: HandObservation,
   zones: { left: Rect; right: Rect },
   guide: Rect,
+  labels?: OverlayLabels,
 ): void {
   ctx.clearRect(0, 0, w, h);
 
@@ -209,6 +216,28 @@ export function drawOverlay(
   // Mark the U-edge (top) so the tester knows which way is up.
   ctx.fillStyle = "#ffd23f";
   ctx.fillRect(guide.x * w, guide.y * h - 6, guide.w * w, 4);
+
+  // Russian labels. The overlay canvas is CSS-mirrored (scaleX(-1)); a plain
+  // fillText would render Cyrillic BACKWARDS. Draw each label inside a local
+  // horizontal-flip transform so the text reads forward on screen. Anchor to the
+  // element's screen-left (which is x*w in the pre-mirror coordinate space).
+  if (labels) {
+    ctx.textBaseline = "bottom";
+    ctx.font = "600 16px system-ui, sans-serif";
+    const label = (text: string, x: number, y: number, color: string) => {
+      ctx.save();
+      ctx.translate(x, y);
+      ctx.scale(-1, 1); // cancel the CSS mirror locally
+      ctx.fillStyle = color;
+      ctx.fillText(text, 0, 0);
+      ctx.restore();
+    };
+    // For each rect, x*w is its post-mirror RIGHT edge; drawing flipped from there
+    // lays the text left-to-right across the rect.
+    label(labels.guide, (guide.x + guide.w) * w, guide.y * h - 8, "#ffd23f");
+    label(labels.left, (zones.left.x + zones.left.w) * w, zones.left.y * h - 4, "#39d98a");
+    label(labels.right, (zones.right.x + zones.right.w) * w, zones.right.y * h - 4, "#39d98a");
+  }
 
   // Landmarks.
   for (const hand of obs.hands) {

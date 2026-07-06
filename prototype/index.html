@@ -16,6 +16,20 @@
         </p>
       </header>
 
+      <section id="guide" aria-live="polite">
+        <div class="guide-head">
+          <h2 id="guide-title">Шаг 1 — включи камеру</h2>
+          <span id="guide-progress" class="guide-progress"></span>
+        </div>
+        <p id="guide-now">Нажми «Включить камеру» и разреши доступ.</p>
+        <p id="guide-next" class="guide-next-text">Дальше откалибруем 6 граней собранного кубика.</p>
+        <div class="guide-mode">
+          <span>Проверка точности:</span>
+          <label><input type="radio" name="gate-mode" value="handmix" checked /> перемешай руками</label>
+          <label><input type="radio" name="gate-mode" value="solved" /> собранный кубик</label>
+        </div>
+      </section>
+
       <section class="stage">
         <div class="video-wrap">
           <video id="video" playsinline muted></video>
@@ -34,6 +48,9 @@
             <button id="btn-confirm" type="button" disabled>Confirm solved (read 6)</button>
             <button id="btn-accuracy" type="button" disabled>Run accuracy gate</button>
           </div>
+          <p id="reset-note" class="reset-note" hidden>
+            Кнопки «Новый разброс» и «Калибровать» сбросят текущий сбор 6 граней.
+          </p>
         </aside>
       </section>
 
