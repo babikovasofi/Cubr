@@ -199,6 +199,29 @@ describe("auto-orientation (plan #6)", () => {
   });
 });
 
+describe("validateFacelets solvability / parity (re-review HIGH)", () => {
+  // Count-valid (9 each), centers correct, but physically ILLEGAL: a single
+  // corner twisted. The OLD gate (Cube.fromString(s).asString() === s) round-
+  // trips and ACCEPTS this; the real solvability check must REJECT it.
+  const TWIST_ILLEGAL = "UUUUUUUUFURRRRRRRRFFRFFFFFFDDDDDDDDDLLLLLLLLLBBBBBBBBB";
+
+  it("rejects a count/center-valid but parity-illegal cube (single corner twist)", () => {
+    // Prove ONLY parity can catch it: counts and centers are valid.
+    const counts: Record<string, number> = {};
+    for (const ch of TWIST_ILLEGAL) counts[ch] = (counts[ch] ?? 0) + 1;
+    expect(Object.values(counts).every((n) => n === 9)).toBe(true);
+    expect([4, 13, 22, 31, 40, 49].map((i) => TWIST_ILLEGAL[i]).join("")).toBe("URFDLB");
+    // cubejs round-trips it -> the old asString() gate was insufficient.
+    expect(Cube.fromString(TWIST_ILLEGAL).asString()).toBe(TWIST_ILLEGAL);
+    // Real solvability check rejects it.
+    expect(validateFacelets(TWIST_ILLEGAL).ok).toBe(false);
+  });
+
+  it("accepts a genuinely legal scrambled cube", () => {
+    expect(validateFacelets(scrambleToFacelets("R U R' U' F2 D L' B")).ok).toBe(true);
+  });
+});
+
 // Minimal move inverter for the round-trip check.
 function invert(seq: string): string {
   return seq

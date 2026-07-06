@@ -116,13 +116,25 @@ export function validateFacelets(s: Facelet): Validation {
       };
     }
   }
-  // Final gate: cubejs must accept it (checks permutation/orientation parity).
+  // Final gate: REAL solvability. Cube.fromString round-trips for parity-ILLEGAL
+  // states (count/center-valid but physically impossible), so asString()===s is
+  // NOT a legality check. Verify the three solvability invariants explicitly:
+  //   - corner-orientation (twist) sum ≡ 0 (mod 3)
+  //   - edge-orientation (flip) sum ≡ 0 (mod 2)
+  //   - corner permutation parity == edge permutation parity
+  let c: Cube;
   try {
-    const c = Cube.fromString(s);
-    // asString round-trips only for legal cubes.
-    if (c.asString() !== s) return { ok: false, reason: "cubejs round-trip mismatch", counts };
+    c = Cube.fromString(s);
   } catch (e) {
     return { ok: false, reason: `cubejs rejected: ${(e as Error).message}`, counts };
+  }
+  if (c.asString() !== s) return { ok: false, reason: "cubejs round-trip mismatch", counts };
+  const twist = c.co.reduce((a, b) => a + b, 0) % 3;
+  const flip = c.eo.reduce((a, b) => a + b, 0) % 2;
+  if (twist !== 0) return { ok: false, reason: "illegal corner-orientation (twist) parity", counts };
+  if (flip !== 0) return { ok: false, reason: "illegal edge-orientation (flip) parity", counts };
+  if (c.cornerParity() !== c.edgeParity()) {
+    return { ok: false, reason: "corner/edge permutation parity mismatch", counts };
   }
   return { ok: true, counts };
 }
