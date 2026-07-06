@@ -9,7 +9,8 @@ import {
   FACE_ORDER,
   randomStateFacelets,
 } from "../cubeState.ts";
-import { rotateGrid, normalizeByRotation } from "../cube.ts";
+import { rotateGrid, normalizeByRotation, resolveRotations, assignFacesByCenter } from "../cube.ts";
+import { calibrate, rgb2lab, type ColorName } from "../colors.ts";
 
 describe("URFDLB facelet mapping", () => {
   it("solved cube round-trips through cubejs", () => {
@@ -23,21 +24,43 @@ describe("URFDLB facelet mapping", () => {
     centers.forEach((idx, k) => expect(SOLVED[idx]).toBe(FACE_ORDER[k]));
   });
 
-  // HIGH#2: known scramble -> hand-built facelet string -> cubejs solvable AND
-  // equals expected. This proves our index mapping matches cubejs's URFDLB.
-  it("a known scramble maps to a facelet string cubejs accepts and can solve", () => {
+  // HIGH#1: INDEPENDENT proof of the URFDLB index mapping. We hand-build the
+  // expected 54-char string for a single "U" turn from the documented capture
+  // protocol and assert scrambleToFacelets("U") equals that LITERAL — NOT a
+  // round-trip of cubejs against itself.
+  //
+  // Derivation (U = clockwise turn of the top layer, viewed from above):
+  //   * U and D faces are untouched (U stays all-U, D stays all-D).
+  //   * A U turn cycles the top row of the four side faces F->L->B->R, i.e. the
+  //     color that LANDS on a side face's top row comes from the next face:
+  //       R top row <- B's old top (BBB)
+  //       F top row <- R's old top (RRR)
+  //       L top row <- F's old top (FFF)
+  //       B top row <- L's old top (LLL)
+  //   Faces in URFDLB order, row-major (top row = first 3 chars of each face):
+  //       U = UUUUUUUUU        (unchanged)
+  //       R = BBB RRRRRR       (top row replaced by B)
+  //       F = RRR FFFFFF       (top row replaced by R)
+  //       D = DDDDDDDDD        (unchanged)
+  //       L = FFF LLLLLL       (top row replaced by F)
+  //       B = LLL BBBBBB       (top row replaced by L)
+  it("scrambleToFacelets('U') equals the hand-derived URFDLB literal", () => {
+    const HAND_BUILT_U =
+      "UUUUUUUUU" + "BBBRRRRRR" + "RRRFFFFFF" + "DDDDDDDDD" + "FFFLLLLLL" + "LLLBBBBBB";
+    // 6 faces * 9 = 54 chars, built entirely by hand from the turn's geometry.
+    expect(HAND_BUILT_U.length).toBe(54);
+    expect(scrambleToFacelets("U")).toBe(HAND_BUILT_U);
+    // Sanity: the hand-built string is itself a legal cube.
+    expect(validateFacelets(HAND_BUILT_U).ok).toBe(true);
+  });
+
+  it("a known scramble stays legal and round-trips (solvability sanity)", () => {
     const scramble = "R U R' U' R' F R2 U' R' U' R U R' F'"; // T-perm-ish, well known
     const expected = scrambleToFacelets(scramble);
-
-    // cubejs must accept and round-trip the expected string.
-    const parsed = Cube.fromString(expected);
-    expect(parsed.asString()).toBe(expected);
     expect(validateFacelets(expected).ok).toBe(true);
-
-    // It must be solvable: applying the inverse returns to SOLVED.
+    // Applying the inverse returns to SOLVED (confirms move engine + parse).
     const c = Cube.fromString(SOLVED);
     c.move(scramble);
-    expect(c.asString()).toBe(expected);
     c.move(invert(scramble));
     expect(c.asString()).toBe(SOLVED);
   });
@@ -104,6 +127,75 @@ describe("grid rotation normalization", () => {
     for (let k = 0; k < 4; k++) {
       expect(normalizeByRotation(g, k)[4]).toBe("X");
     }
+  });
+});
+
+describe("auto-orientation (plan #6)", () => {
+  // Slice a 54-char URFDLB string into 6 face grids of 9 face-letters each.
+  function toFaceGrids(s: string): string[][] {
+    const grids: string[][] = [];
+    for (let f = 0; f < 6; f++) grids.push(s.slice(f * 9, f * 9 + 9).split(""));
+    return grids;
+  }
+
+  it("resolveRotations recovers the legal string from wrongly-rotated captures", () => {
+    // A known scrambled cube (ground truth).
+    const scramble = "R U R' U' F2 D L' B";
+    const truth = scrambleToFacelets(scramble);
+    expect(validateFacelets(truth).ok).toBe(true);
+
+    const trueGrids = toFaceGrids(truth) as any[][];
+    // Deliberately rotate each captured face by a WRONG amount.
+    const wrongK = [1, 2, 3, 1, 2, 3]; // per-capture CW quarter-turns
+    const captured = trueGrids.map((g, i) => rotateGrid(g, wrongK[i]));
+    // Captures are in URFDLB face order here (center assignment done separately).
+    const faceOf = [...FACE_ORDER];
+
+    const res = resolveRotations(captured as any, faceOf as any);
+    expect(res.ok).toBe(true);
+    expect(res.facelets).toBe(truth);
+    // The recovered rotation must undo the wrong one: k_recover = (4 - wrongK)%4.
+    res.rotations!.forEach((k, i) => expect(k).toBe((4 - wrongK[i]) % 4));
+  });
+
+  it("resolveRotations FAILS LOUD when no combo is legal (garbage read)", () => {
+    // A face string that is not a legal cube under any rotation: 54 of one color
+    // impossible, but with valid centers so it passes the count-agnostic path.
+    // Build 6 faces where every non-center sticker is the same wrong color.
+    const grids: string[][] = FACE_ORDER.map((f) => {
+      const g = new Array(9).fill("U");
+      g[4] = f; // correct center only
+      return g;
+    });
+    const res = resolveRotations(grids as any, [...FACE_ORDER] as any);
+    expect(res.ok).toBe(false);
+    expect(res.reason).toMatch(/legal|ambiguous|re-capture/);
+  });
+
+  it("assignFacesByCenter names each face by its center color and detects dupes", () => {
+    // Build 6 synthetic solved refs, one per face, with well-separated colors.
+    const refRgb: Record<ColorName, [number, number, number]> = {
+      U: [255, 255, 255], // white
+      R: [200, 0, 0], // red
+      F: [0, 160, 0], // green
+      D: [230, 230, 0], // yellow
+      L: [255, 140, 0], // orange
+      B: [0, 0, 200], // blue
+    };
+    const refs = calibrate(refRgb);
+    // Each captured face is a solid patch of its color (center = that color).
+    const gridsLab = FACE_ORDER.map((f) =>
+      new Array(9).fill(rgb2lab(refRgb[f as ColorName])),
+    );
+    const a = assignFacesByCenter(gridsLab as any, refs);
+    expect(a.ok).toBe(true);
+    expect(a.faces).toEqual([...FACE_ORDER]);
+
+    // Duplicate a face (two captures both centered on white) -> FAIL LOUD.
+    const dupLab = gridsLab.map((g) => g.slice());
+    dupLab[1] = new Array(9).fill(rgb2lab(refRgb.U)); // 2nd capture also white
+    const bad = assignFacesByCenter(dupLab as any, refs);
+    expect(bad.ok).toBe(false);
   });
 });
 

@@ -49,6 +49,16 @@ export function defaultZones(): { left: Rect; right: Rect } {
 const WRIST = 0;
 const MIDDLE_MCP = 9;
 
+// Raised when the WASM/model download or landmarker construction fails — this is
+// a NETWORK/CDN problem, distinct from a camera-permission failure, so main.ts
+// can show the right message ("model download failed", not "Camera error").
+export class HandsInitError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "HandsInitError";
+  }
+}
+
 function inRect(x: number, y: number, r: Rect): boolean {
   return x >= r.x && x <= r.x + r.w && y >= r.y && y <= r.y + r.h;
 }
@@ -62,25 +72,36 @@ function flipHandedness(label: string): string {
 export class Hands {
   private landmarker: HandLandmarker | null = null;
   private zones = defaultZones();
-  // Previous-frame landmarks per hand slot, for the motion metric.
-  private prev: Landmark[][] = [];
+  // Previous-frame landmarks keyed by RAW handedness label ("Left"/"Right"), so
+  // motion is measured hand-vs-same-hand across frames. MediaPipe does NOT
+  // guarantee array-slot stability, so slot-pairing would compare a hand to the
+  // OTHER hand on a swap and falsely report motion.
+  private prevByHand: Map<string, Landmark[]> = new Map();
 
   async init(): Promise<void> {
     // WASM fileset pinned to the installed package version (0.10.35) via CDN so
     // JS and WASM stay in sync; avoids bundler subpath resolution of the
     // package's non-exported ./wasm dir. Model from Google's hosted store.
-    const vision = await FilesetResolver.forVisionTasks(
-      "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.35/wasm",
-    );
-    this.landmarker = await HandLandmarker.createFromOptions(vision, {
-      baseOptions: {
-        modelAssetPath:
-          "https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task",
-        delegate: "GPU",
-      },
-      runningMode: "VIDEO",
-      numHands: 2,
-    });
+    // Both are network fetches -> wrap as HandsInitError so a CDN/offline
+    // failure is not mistaken for a camera error upstream.
+    try {
+      const vision = await FilesetResolver.forVisionTasks(
+        "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.35/wasm",
+      );
+      this.landmarker = await HandLandmarker.createFromOptions(vision, {
+        baseOptions: {
+          modelAssetPath:
+            "https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task",
+          delegate: "GPU",
+        },
+        runningMode: "VIDEO",
+        numHands: 2,
+      });
+    } catch (e) {
+      throw new HandsInitError(
+        `model download failed (WASM/model from CDN) — check network: ${(e as Error).message}`,
+      );
+    }
   }
 
   setZones(zones: { left: Rect; right: Rect }): void {
@@ -116,34 +137,43 @@ export class Hands {
     const inZoneCount = hands.filter((h) => h.inZone).length;
     const bothInZone = hands.length === 2 && inZoneCount === 2;
     const handsOutOfZone = hands.filter((h) => !h.inZone).length;
-    const still = this.computeStillness(hands.map((h) => h.landmarks));
+    const still = this.computeStillness(
+      hands.map((h) => ({ label: h.handednessRaw, landmarks: h.landmarks })),
+    );
 
     return { handsDetected, bothInZone, still, handsOutOfZone, hands };
   }
 
-  // Scale-invariant motion: mean landmark displacement / hand size, per hand.
-  private computeStillness(current: Landmark[][]): boolean {
-    if (current.length === 0 || this.prev.length !== current.length) {
-      this.prev = current;
-      return false; // need a previous frame to measure motion
+  // Scale-invariant motion: mean landmark displacement / hand size, matched to
+  // the SAME hand across frames by its raw handedness label (not array slot).
+  private computeStillness(current: { label: string; landmarks: Landmark[] }[]): boolean {
+    if (current.length === 0) {
+      this.prevByHand.clear();
+      return false;
     }
+    // If two hands share a label (rare mislabel) or any hand has no matching
+    // previous frame, we cannot measure motion for it -> not still yet.
     let allStill = true;
-    for (let h = 0; h < current.length; h++) {
-      const cur = current[h];
-      const prv = this.prev[h];
+    let measuredAny = false;
+    const nextPrev = new Map<string, Landmark[]>();
+
+    for (const { label, landmarks: cur } of current) {
+      nextPrev.set(label, cur);
+      const prv = this.prevByHand.get(label);
       if (!prv || prv.length !== cur.length) {
-        allStill = false;
+        allStill = false; // need a matching previous frame for this hand
         continue;
       }
+      measuredAny = true;
       const handSize = dist2d(cur[WRIST], cur[MIDDLE_MCP]) || 1e-6;
       let sum = 0;
       for (let k = 0; k < cur.length; k++) sum += dist2d(cur[k], prv[k]);
-      const meanMotion = sum / cur.length;
-      const frac = meanMotion / handSize;
+      const frac = sum / cur.length / handSize;
       if (frac > config.STILL_MOTION_FRAC) allStill = false;
     }
-    this.prev = current;
-    return allStill;
+
+    this.prevByHand = nextPrev;
+    return measuredAny && allStill;
   }
 }
 

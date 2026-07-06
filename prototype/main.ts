@@ -3,7 +3,7 @@
 // This is the one file that is NOT unit-tested — it is the manual-QA surface.
 
 import { Camera, CameraError, type FrameInfo } from "./camera.ts";
-import { Hands, drawOverlay, defaultZones } from "./hands.ts";
+import { Hands, HandsInitError, drawOverlay, defaultZones } from "./hands.ts";
 import { HandsFsm } from "./fsm.ts";
 import {
   calibrate,
@@ -15,13 +15,14 @@ import {
   type Lab,
   deltaE,
 } from "./colors.ts";
-import { readFace, guideRegionLuma } from "./cube.ts";
+import { readFace, guideRegionLuma, assignFacesByCenter, resolveRotations } from "./cube.ts";
 import {
   randomScramble,
   scrambleToFacelets,
   validateFacelets,
   diffFacelets,
-  FACE_ORDER,
+  SOLVED,
+  type Face,
   type Facelet,
 } from "./cubeState.ts";
 import { scoreRead, formatReport } from "./accuracy.ts";
@@ -43,6 +44,8 @@ const els = {
   btnCalibrate: $<HTMLButtonElement>("btn-calibrate"),
   btnScramble: $<HTMLButtonElement>("btn-scramble"),
   btnRead: $<HTMLButtonElement>("btn-read"),
+  btnVerify: $<HTMLButtonElement>("btn-verify"),
+  btnConfirm: $<HTMLButtonElement>("btn-confirm"),
   btnAccuracy: $<HTMLButtonElement>("btn-accuracy"),
 };
 
@@ -58,6 +61,8 @@ let currentScramble = "";
 let expectedFacelets: Facelet | null = null;
 let solveStartTs: number | null = null;
 let solveElapsedMs = 0;
+// True once the pre-solve 6-face verify matched the scramble; gates the timer.
+let scrambleVerified = false;
 
 function log(msg: string): void {
   els.report.textContent = msg;
@@ -77,13 +82,20 @@ els.btnStart.addEventListener("click", async () => {
     els.btnCalibrate.disabled = false;
     els.btnScramble.disabled = false;
     els.btnRead.disabled = false;
+    els.btnVerify.disabled = false;
+    els.btnConfirm.disabled = false;
     els.btnAccuracy.disabled = false;
     log(`Camera running. Calibrate all 6 faces (order: ${COLOR_NAMES.join(" ")}). Next: ${COLOR_NAMES[0]}.`);
   } catch (e) {
-    const err = e as CameraError;
     els.btnStart.disabled = false;
     els.btnStart.textContent = "Start camera";
-    log(`Camera error (${err.kind ?? "unknown"}): ${err.message}`);
+    if (e instanceof HandsInitError) {
+      // Distinct from a camera failure — this is a CDN/network model download.
+      log(`Model download failed: ${e.message}`);
+    } else {
+      const err = e as CameraError;
+      log(`Camera error (${err.kind ?? "unknown"}): ${err.message}`);
+    }
   }
 });
 
@@ -92,6 +104,9 @@ els.btnCalibrate.addEventListener("click", () => {
     log("All 6 faces already calibrated. Use New scramble to continue.");
     return;
   }
+  // Recalibration invalidates any in-flight 6-face collection / verify state.
+  collector = null;
+  scrambleVerified = false;
   const w = video.videoWidth;
   const h = video.videoHeight;
   const face = readFace(video, w, h, work);
@@ -111,78 +126,212 @@ els.btnCalibrate.addEventListener("click", () => {
 const calibrationRefsRgb: Partial<Record<ColorName, RGB>> = {};
 
 els.btnScramble.addEventListener("click", () => {
+  // New scramble also RESETS the whole mini-cycle so it is repeatable without a
+  // page reload: fresh FSM, cleared timer, dropped in-flight 6-face collection.
+  resetCycle();
   currentScramble = randomScramble();
   expectedFacelets = scrambleToFacelets(currentScramble);
   const v = validateFacelets(expectedFacelets);
-  log(`Scramble: ${currentScramble}\nExpected state valid: ${v.ok}${v.reason ? " (" + v.reason + ")" : ""}\nApply it to your cube, then Read each face.`);
+  log(
+    `Scramble: ${currentScramble}\n` +
+      `Expected state valid: ${v.ok}${v.reason ? " (" + v.reason + ")" : ""}\n` +
+      `Apply it, then "Verify scramble (read 6)" BEFORE solving.`,
+  );
 });
 
+// Reset the repeatable cycle: FSM back to NO_HANDS, timer cleared, any partial
+// 6-face collection dropped, verify/confirm gating cleared. Called on New
+// scramble, on Calibrate (session change), and after a completed solve.
+function resetCycle(): void {
+  fsm.reset();
+  solveStartTs = null;
+  solveElapsedMs = 0;
+  scrambleVerified = false;
+  collector = null;
+  els.timer.textContent = "0.000";
+  els.fsmState.textContent = fsm.state;
+}
+
 els.btnRead.addEventListener("click", () => {
-  if (!refs) {
-    log("Calibrate all 6 faces first.");
-    return;
-  }
-  // Sanity gate: frame luma.
-  const luma = guideRegionLuma(video, video.videoWidth, video.videoHeight, work);
-  if (luma < config.MIN_FRAME_LUMA || luma > config.MAX_FRAME_LUMA) {
-    log(`Frame luma ${luma.toFixed(0)} outside [${config.MIN_FRAME_LUMA}, ${config.MAX_FRAME_LUMA}] — change light before reading.`);
-    return;
-  }
+  if (!ensureReadable()) return;
   const face = readFace(video, video.videoWidth, video.videoHeight, work);
   // Single-face independent read (quota needs all 54 — used in accuracy gate).
   const names = face.lab.map((lab) => argminRef(lab, refs!));
   log(`Read (center=${names[4]}): ${names.join(" ")}`);
 });
 
-els.btnAccuracy.addEventListener("click", () => {
-  runAccuracyGate();
+// ---- 6-face collection ----------------------------------------------------
+// A single collector drives all three 6-face flows (verify / confirm / accuracy)
+// so their state can never leak into each other. `expected` is captured at start
+// so a mid-collection scramble change can be detected and rejected.
+
+type CollectPurpose = "verify" | "confirm" | "accuracy";
+interface Collector {
+  purpose: CollectPurpose;
+  faces: Lab[][]; // per-capture 9 Lab cells, in capture order
+  expected: Facelet | null; // ground truth snapshot at collection start
+}
+let collector: Collector | null = null;
+
+function beginCollection(purpose: CollectPurpose, expected: Facelet | null): void {
+  collector = { purpose, faces: [], expected };
+  log(
+    `${purpose}: capture 6 faces (any order — auto-oriented by center color). ` +
+      `Press the same button for each. Face 1/6.`,
+  );
+}
+
+// Push one captured face; returns the assembled read facelets when 6 are in.
+function pushFace(): { read: Facelet } | { pending: true } | { failed: string } {
+  if (!ensureReadable()) return { failed: "not readable (see report)" };
+  const face = readFace(video, video.videoWidth, video.videoHeight, work);
+  collector!.faces.push(face.lab);
+  if (collector!.faces.length < 6) {
+    appendLog(`Captured ${collector!.faces.length}/6. Show the next face.`);
+    return { pending: true };
+  }
+  // 6 faces in. (a) assign each to a face by its center color, then
+  // (b) resolve rotations by global consistency into a legal 54-char string.
+  const assign = assignFacesByCenter(collector!.faces, refs!);
+  if (!assign.ok) {
+    return { failed: `face assignment failed: ${assign.reason}` };
+  }
+  // Per-sticker classify each face to letters (argmin over refs), then resolve.
+  const faceGrids: Face[][] = collector!.faces.map((grid) =>
+    grid.map((lab) => argminRef(lab, refs!) as string as Face),
+  );
+  const res = resolveRotations(faceGrids, assign.faces);
+  if (!res.ok) {
+    return { failed: `rotation resolve failed: ${res.reason}` };
+  }
+  return { read: res.facelets! };
+}
+
+els.btnVerify.addEventListener("click", () => {
+  if (!refs) return void log("Calibrate all 6 faces first.");
+  if (!expectedFacelets) return void log("Generate a scramble first (New scramble).");
+  if (!collector || collector.purpose !== "verify") {
+    beginCollection("verify", expectedFacelets);
+    return;
+  }
+  if (collector.expected !== expectedFacelets) {
+    collector = null;
+    return void log("Scramble changed mid-collection — verify aborted. Start over.");
+  }
+  const r = pushFace();
+  if ("pending" in r) return;
+  if ("failed" in r) {
+    collector = null;
+    appendLog(`\nVERIFY FAILED (FAIL LOUD): ${r.failed}. Re-capture.`);
+    return;
+  }
+  collector = null;
+  const read = r.read;
+  const v = validateFacelets(read);
+  if (!v.ok) {
+    appendLog(`\nRead is not a legal cube: ${v.reason}. Re-capture.`);
+    return;
+  }
+  const diffs = diffFacelets(read, expectedFacelets!);
+  if (diffs.length === 0) {
+    scrambleVerified = true;
+    appendLog("\nSCRAMBLE VERIFIED: read matches expected. Put hands in zones to arm the timer.");
+  } else {
+    scrambleVerified = false;
+    const d = diffs[0];
+    appendLog(
+      `\nSCRAMBLE MISMATCH: ${diffs.length} stickers differ. ` +
+        `First: face ${d.face}[${d.cellInFace}] (idx ${d.globalIndex}) read ${d.read} expected ${d.expected}. ` +
+        `Fix the cube / re-scramble before solving.`,
+    );
+  }
 });
 
-// The accuracy gate reads 6 faces interactively. For a manual run we prompt the
-// tester face-by-face; here we collect 54 stickers then score vs cubejs truth.
-let gateFaces: Lab[][] = [];
-let gateCollecting = false;
+els.btnConfirm.addEventListener("click", () => {
+  if (!refs) return void log("Calibrate all 6 faces first.");
+  if (!collector || collector.purpose !== "confirm") {
+    beginCollection("confirm", SOLVED);
+    return;
+  }
+  const r = pushFace();
+  if ("pending" in r) return;
+  if ("failed" in r) {
+    collector = null;
+    appendLog(`\nCONFIRM FAILED (FAIL LOUD): ${r.failed}. Re-capture.`);
+    return;
+  }
+  collector = null;
+  const read = r.read;
+  const diffs = diffFacelets(read, SOLVED);
+  if (diffs.length === 0) {
+    appendLog("\nSOLVED CONFIRMED: read == SOLVED. Cycle complete. New scramble to go again.");
+  } else {
+    const d = diffs[0];
+    appendLog(
+      `\nNOT SOLVED: ${diffs.length} stickers off. ` +
+        `First: face ${d.face}[${d.cellInFace}] (idx ${d.globalIndex}) read ${d.read} expected ${d.expected}.`,
+    );
+  }
+});
 
-function runAccuracyGate(): void {
-  if (!refs) {
-    log("Calibrate first.");
-    return;
-  }
+els.btnAccuracy.addEventListener("click", () => {
+  if (!refs) return void log("Calibrate first.");
   if (!expectedFacelets) {
-    log("Generate a scramble first (New scramble), then apply it to the cube.");
+    return void log("Generate a scramble first (New scramble), then apply it to the cube.");
+  }
+  if (!collector || collector.purpose !== "accuracy") {
+    beginCollection("accuracy", expectedFacelets);
     return;
   }
-  if (!gateCollecting) {
-    gateFaces = [];
-    gateCollecting = true;
-    log(`Accuracy gate: capture 6 faces in URFDLB order (${FACE_ORDER.join(" ")}). Press Run accuracy gate for each face. Face 1/6: ${FACE_ORDER[0]}.`);
-    return;
+  if (collector.expected !== expectedFacelets) {
+    collector = null;
+    return void log("Scramble changed mid-collection — accuracy gate aborted. Start over.");
   }
+  const expectedSnapshot = collector.expected!;
+  if (!ensureReadable()) return;
   const face = readFace(video, video.videoWidth, video.videoHeight, work);
-  gateFaces.push(face.lab);
-  if (gateFaces.length < 6) {
-    appendLog(`Captured ${FACE_ORDER[gateFaces.length - 1]}. Next face ${gateFaces.length + 1}/6: ${FACE_ORDER[gateFaces.length]}.`);
+  collector.faces.push(face.lab);
+  if (collector.faces.length < 6) {
+    appendLog(`Captured ${collector.faces.length}/6 (URFDLB order). Next face.`);
     return;
   }
-  // All 6 faces captured -> 54 labs. Centers are indices 4,13,22,31,40,49.
-  gateCollecting = false;
-  const labs: Lab[] = gateFaces.flat();
+  // All 6 captured -> 54 labs, centers at 4,13,22,31,40,49 (URFDLB capture order).
+  const labs: Lab[] = collector.faces.flat();
+  collector = null;
   const centerIdx = [4, 13, 22, 31, 40, 49];
   const quota = assignQuota(labs, refs, centerIdx);
   const read: Facelet = quota.assignment.join("");
   const valid = validateFacelets(read);
   if (!quota.balanced || !valid.ok) {
-    // FAIL LOUD — do not silently emit an illegal cube.
     appendLog(`\nQUOTA/VALIDATION FAILED. balanced=${quota.balanced}, valid=${valid.ok} (${valid.reason ?? ""}). counts=${JSON.stringify(quota.counts)}`);
     appendLog("This is an observable data point (greedy missed / bad light), not a crash.");
     return;
   }
-  const rep = scoreRead(read, expectedFacelets);
-  const diffs = diffFacelets(read, expectedFacelets);
+  const rep = scoreRead(read, expectedSnapshot);
+  const diffs = diffFacelets(read, expectedSnapshot);
   appendLog("\n" + formatReport(rep));
   if (diffs.length) {
     appendLog(`\nFirst mismatch: ${diffs[0].face}[${diffs[0].cellInFace}] read ${diffs[0].read} expected ${diffs[0].expected}`);
   }
+});
+
+// Shared gate for any read: refs present, red/orange ΔE ok, frame luma in range.
+function ensureReadable(): boolean {
+  if (!refs) {
+    log("Calibrate all 6 faces first.");
+    return false;
+  }
+  const gate = redOrangeGate(refs);
+  if (!gate.ok) {
+    log(`Refs too close (min ΔE ${gate.de.toFixed(1)} < ${config.MIN_RED_ORANGE_DE}) — change light and re-calibrate before reading.`);
+    return false;
+  }
+  const luma = guideRegionLuma(video, video.videoWidth, video.videoHeight, work);
+  if (luma < config.MIN_FRAME_LUMA || luma > config.MAX_FRAME_LUMA) {
+    log(`Frame luma ${luma.toFixed(0)} outside [${config.MIN_FRAME_LUMA}, ${config.MAX_FRAME_LUMA}] — change light before reading.`);
+    return false;
+  }
+  return true;
 }
 
 function argminRef(lab: Lab, r: Refs): ColorName {
@@ -231,10 +380,23 @@ function onFrame(info: FrameInfo): void {
 
   // Single-clock timer, driven by rVFC's performance.now()-domain timestamp.
   if (res.event === "solve_start") {
-    solveStartTs = nowTs;
+    if (scrambleVerified) {
+      solveStartTs = nowTs;
+    } else {
+      // Guard: never time a solve whose scramble was not verified vs cubejs.
+      appendLog("Timer NOT started: verify the scramble (read 6) first.");
+    }
   } else if (res.event === "solve_stop" && solveStartTs !== null) {
     solveElapsedMs = nowTs - solveStartTs;
     solveStartTs = null;
+    // Do NOT wedge at STOPPED: reset the FSM so the next mini-cycle can run
+    // without a page reload. The recorded time stays on screen.
+    fsm.reset();
+    scrambleVerified = false;
+    appendLog(
+      `\nSOLVE STOPPED at ${(solveElapsedMs / 1000).toFixed(3)}s. ` +
+        `Now "Confirm solved (read 6)", then "New scramble" to go again.`,
+    );
   } else if (res.event === "abort") {
     solveStartTs = null;
     appendLog("FSM ABORT: detection lost — cycle reset.");

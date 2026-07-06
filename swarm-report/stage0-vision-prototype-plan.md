@@ -36,6 +36,13 @@
    `argmin ΔE(Lab(медиана центральных 50% пикселей), ref_i)` по 6 эталонам.
    **ΔE = CIEDE2000 с самого начала** (через config-флаг; CIE76 слаб именно в
    красный↔оранжевый/белый↔жёлтый — не тратить цикл гейта на его провал).
+> **Rework note (retry build):** acceptance #6 auto-orientation is now REAL, not a
+> no-op. `cube.ts`: (a) `assignFacesByCenter` — center-color argmin ΔE assigns each
+> capture to a face (dupes → FAIL LOUD); (b) `resolveRotations` — brute-force 4^6
+> rotation combos, keep the one cubejs validates as a legal cube (zero/ambiguous →
+> FAIL LOUD, re-capture). Covered by `tests/cubestate.test.ts` "auto-orientation
+> (plan #6)". The old `normalizeByRotation` stub is now just a thin CW-rotate helper.
+
 6. **cubejs — явное соответствие facelet:** строка facelet в порядке **URFDLB**;
    в плане/коде зафиксировано: с какого угла начинается index-0 каждой грани и
    направление скана; протокол захвата фиксирует ориентацию (оверлей помечает

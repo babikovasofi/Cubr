@@ -18,20 +18,17 @@
 // of the face that color belongs to. On a solved cube the string is
 // "UUUUUUUUU RRRRRRRRR FFFFFFFFF DDDDDDDDD LLLLLLLLL BBBBBBBBB" (no spaces).
 //
-// CAPTURE ORIENTATION PROTOCOL (documented invariant, enforced by center-
-// normalization in cube.ts):
-//   The tester captures each of the 6 faces with a FIXED convention so that the
-//   grid index 0 is the cube's top-left of that face AS DEFINED by the overlay:
-//     - U (up):    hold Up face to camera, F (front) color pointing DOWN in frame.
-//     - F (front): F to camera, U color pointing UP in frame.
-//     - R (right):  R to camera, U color pointing UP in frame.
-//     - L (left):   L to camera, U color pointing UP in frame.
-//     - B (back):   B to camera, U color pointing UP in frame.
-//     - D (down):   D to camera, F color pointing UP in frame.
-//   Because the overlay marks the U-edge, and because cube.ts rotation-
-//   normalizes each captured face by its center sticker, the human only has to
-//   roughly match the prompt; the code fixes 0/90/180/270 rotation from the
-//   center. index 4 (center) authoritatively names the face's color.
+// CAPTURE ORIENTATION PROTOCOL (auto-oriented in cube.ts — plan #6):
+//   The human roughly holds each of the 6 faces up to the overlay; exact
+//   orientation is RECOVERED by code, in two steps:
+//     (a) assignFacesByCenter — the CENTER sticker color names WHICH face this
+//         capture is (U/R/F/D/L/B) via argmin ΔE vs the 6 refs. A center is a
+//         solid color: it names the face but carries NO in-plane rotation.
+//     (b) resolveRotations — each face's in-plane rotation (0/90/180/270) is
+//         resolved by GLOBAL CONSISTENCY: brute-force all 4^6 rotation combos,
+//         assemble the URFDLB string, keep the one cubejs validates as legal.
+//   None / ambiguous -> FAIL LOUD (re-capture). index 4 (center) authoritatively
+//   names the face's color; rotation is never guessed from a single center.
 
 import Cube from "cubejs";
 
