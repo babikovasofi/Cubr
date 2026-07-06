@@ -1,8 +1,18 @@
-# Testing Conventions
+# Testing Conventions — Cubr
 
-> Test strategy, frameworks, coverage goals. Fill as testing is set up.
+> Прагматично. Не гнаться за покрытием — тестировать то, что ломается тихо.
 
-- **Frameworks:**
-- **What must be tested:**
-- **Coverage goal:**
-- **How to run:**
+- **Frameworks:** Frontend — Vitest (unit чистой логики); Backend — pytest.
+  WS-цикл — скрипт-бот на python `websockets`. (Фиксировать по мере настройки.)
+- **Что обязательно юнит-тестить (чистая логика):**
+  - Зрение: классификация цветов Lab/ΔE, назначение с квотами 9×6.
+  - Подсчёт **Ao5** (WCA average: отбросить лучшее/худшее, DNF-правила).
+  - Серверная валидация последовательности и интервалов событий (анти-чит).
+  - Начисление кубков, unique-constraint попытки турнира.
+- **Что тестим вручную:** UI, зрение на живых людях (разный свет, кубики, руки),
+  ветки отвалов в дуэли (userflow §5.4), состояния из [user-flow §10](../tech-details/user-flow.md).
+- **Coverage goal:** нет числовой цели; приоритет — чистая логика и анти-чит.
+- **How to run:** frontend `pnpm test`, backend `pytest` (уточнить после каркасов
+  Этапов 1–2). Test-gate Stop-hook блокирует «готово», пока тесты не прогнаны.
+- **Гейт Этапа 0:** точность чтения грани ≥ 90% при нормальном свете — иначе стоп
+  и пересмотр подхода к зрению (см. [risks R1](../product-overview/risks.md)).
