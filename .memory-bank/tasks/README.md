@@ -12,8 +12,9 @@
 
 ## In progress
 - **Этап 0 — Прототип зрения (риск-киллер) 🔴** — `/prototype` (Vite+TS).
-  - ✅ Код: camera/hands(HandLandmarker)/fsm/colors(CIEDE2000+квоты)/cube/cubeState(URFDLB)/accuracy.
-  - ✅ Юнит-тесты 30/30 (Vitest), tsc чисто, vite build ок. План+build: [swarm-report](../../swarm-report/).
+  - ✅ Код: camera/hands(HandLandmarker)/fsm/colors(CIEDE2000+квоты)/cube/cubeState(URFDLB+solvability)/accuracy.
+  - ✅ Юнит-тесты 36/36 (Vitest), tsc чисто, vite build ок. Код-ревью пройдено (2 раунда, все findings закрыты).
+  - ✅ plan → build → review → rework: [swarm-report/stage0-*](../../swarm-report/).
   - ⏳ Осталось: ручной прогон браузерного цикла + тюнинг порогов на живых людях.
   - ⏳ **Гейт 0.3:** 3 света × ≥2 кубика × 1–2 человека; точность ≥90% per-sticker vs cubejs.
     <90% → стоп, пересмотр подхода к зрению. DoD стадии закрыт только после гейта.
