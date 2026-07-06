@@ -61,6 +61,13 @@ trophy_log:   id, user_id, delta, reason, created_at
 `@mediapipe/tasks-vision` (HandLandmarker), `cubejs`. Тесты — Vitest. Тот же
 тулчейн, что Этап 1 → порт бесплатный. React/Tailwind/Zustand добавляются в Этапе 1.
 
+**Gotcha (cubejs + Vite 8/Rolldown):** cubejs `lib/solve.js` использует
+`this.Cube || require('./cube')` — top-level `this` в ESM = undefined → краш при
+загрузке в браузере (dev и prod), но НЕ в Node-тестах/build. Пофикшено
+`patch-package` (`prototype/patches/cubejs+1.3.2.patch`, `postinstall`). MediaPipe
+wasm+модель грузятся с CDN (пин 0.10.35) — рантайм требует сети. Vite биндит IPv6
+по умолчанию → dev-запуск с `--host 127.0.0.1`.
+
 ## Ключевые фронт-модули (план Этапа 1)
 `vision/hands.ts` (MediaPipe + зоны/неподвижность) · `vision/cube.ts` (рамка-гид,
 сетка 3×3, чтение наклеек) · `vision/colors.ts` (Lab/ΔE, эталоны сессии, квоты 9×6) ·

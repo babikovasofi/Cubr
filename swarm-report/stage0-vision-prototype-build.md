@@ -61,6 +61,30 @@ FSM (дебаунс/500мс/ABORT), cubejs facelet-маппинг (скрамб�
   вендорить wasm в `public/`.
 - Таргет desktop Chrome (rVFC, GPU delegate). Fallback rAF есть, с пометкой о точности.
 
+## Smoke (браузер, preview) — 2026-07-06
+Поднят `npm run dev` + preview, прогнан load-time smoke (камеру/кубик headless не
+проверить, но load-time баги — да). Найден и починен **реальный рантайм-баг**,
+который юнит-тесты (Node) и `vite build` (не исполняет) пропустили:
+
+- **cubejs падал при загрузке в браузере** (dev И prod): `lib/solve.js` делает
+  `Cube = this.Cube || require('./cube')`. В Node `this`=module.exports; под
+  Vite 8/Rolldown ESM top-level `this`=undefined → `Cannot read properties of
+  undefined (reading 'Cube')` → main.ts бросал на top-level → листенеры не
+  навешивались (кнопки мёртвые).
+- **Fix:** `patch-package` патчит `solve.js` (`patches/cubejs+1.3.2.patch`,
+  `postinstall: patch-package`) — работает и в dev-optimize, и в prod-build.
+  (Первая попытка через `vite.config` `optimizeDeps.esbuildOptions.define` не
+  годится: в Vite 8 опция deprecated/игнорится Rolldown и не влияет на build.)
+
+**Проверено в браузере (dev :5173 и prod dist :4173):** страница грузится (7
+кнопок, video/overlay, FSM NO_HANDS), консоль чистая, ESM-граф резолвится,
+клик Start → `hands.init()` качает MediaPipe wasm+модель с CDN (jsdelivr +
+googleapis `hand_landmarker.task`) → **200**, затем camera-denied обрабатывается
+чисто («Camera error (denied)», кнопка re-enable). Build 0, tests 36/36.
+
+Примечание сети: vite по умолчанию биндит только IPv6 `[::1]` — preview/curl по
+IPv4 не достучались; в `launch.json` добавлен `--host 127.0.0.1`.
+
 ## Следующий шаг
 `/review stage0-vision-prototype` (reviewer против плана; qa-smoke не применим — цикл
 браузерный, headless не прогнать). Затем ручной прогон 0.3 и гейт ≥90%.
