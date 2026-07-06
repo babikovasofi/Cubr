@@ -9,7 +9,7 @@
 | Слой | Выбор | Почему |
 |---|---|---|
 | Фронтенд | **React + TypeScript (Vite) + Tailwind** | Лучшая экосистема для камеры/CV в браузере |
-| Зрение: руки | **MediaPipe Hands (JS)** — в браузере | Готовый детект рук на любом ноуте |
+| Зрение: руки | **MediaPipe Tasks Vision — HandLandmarker (JS)** | Актуальный API (legacy `@mediapipe/hands` устарел); детект рук в браузере |
 | Зрение: кубик | **Своя логика**: canvas + Lab/ΔE классификация цветов | ML/CV-зона проекта; готовых JS-решений нет |
 | Кубик-логика | **cubejs / min2phase (JS)** | Применить скрамбл → эталонное состояние для сверки |
 | Бэкенд | **Python + FastAPI** | WebSockets и async из коробки; серверная CV на OpenCV |
@@ -55,6 +55,11 @@ tournaments:  id, week_start, scramble, status
 attempts:     unique(user_id, tournament_id)  — одна попытка/неделя (enforce в БД)
 trophy_log:   id, user_id, delta, reason, created_at
 ```
+
+## Тулчейн прототипа Этапа 0 (решено 2026-07-06)
+**Vite + TypeScript** (vanilla-ts, без React — throwaway), пакеты через npm:
+`@mediapipe/tasks-vision` (HandLandmarker), `cubejs`. Тесты — Vitest. Тот же
+тулчейн, что Этап 1 → порт бесплатный. React/Tailwind/Zustand добавляются в Этапе 1.
 
 ## Ключевые фронт-модули (план Этапа 1)
 `vision/hands.ts` (MediaPipe + зоны/неподвижность) · `vision/cube.ts` (рамка-гид,

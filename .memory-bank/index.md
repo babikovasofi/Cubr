@@ -32,8 +32,8 @@
 - [Transcripts](transcripts/README.md) — записи встреч → текст
 
 ## Стек (кратко)
-Фронт: React + TS (Vite) + Tailwind · зрение рук MediaPipe Hands (JS) · зрение
-кубика — своя логика (canvas + Lab/ΔE) · cubejs. Бэк: Python + FastAPI +
+Фронт: React + TS (Vite) + Tailwind · зрение рук MediaPipe Tasks Vision
+(HandLandmarker) · зрение кубика — своя логика (canvas + Lab/ΔE) · cubejs. Бэк: Python + FastAPI +
 WebSockets · PostgreSQL + SQLAlchemy · fastapi-users (email+пароль + Google
 OAuth). Хостинг: фронт Vercel, бэк+БД Railway/Render.
 
