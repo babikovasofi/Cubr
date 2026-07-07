@@ -82,6 +82,13 @@ function buildMinimap(): void {
 }
 
 function onKey(e: KeyboardEvent): void {
+  // Don't hijack keys while a control is focused — Space/Arrows there already
+  // activate it; also running next()/prev() would double-fire (advance twice,
+  // or toggle notation AND step).
+  const t = e.target as HTMLElement | null;
+  if (t && (t.tagName === "BUTTON" || t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.isContentEditable)) {
+    return;
+  }
   if (e.key === "ArrowRight" || e.key === " ") {
     e.preventDefault();
     next(w);

@@ -9,7 +9,7 @@ const SCRAMBLE_URL = "https://cdn.cubing.net/v0/js/cubing/scramble";
 const TWISTY_URL = "https://cdn.cubing.net/v0/js/cubing/twisty";
 
 type RandomScrambleForEvent = (eventID: string) => Promise<{ toString(): string }>;
-export type TwistyPlayerEl = HTMLElement & { alg: string };
+export type TwistyPlayerEl = HTMLElement & { alg: string; experimentalSetupAlg: string };
 type TwistyPlayerCtor = new (opts: Record<string, unknown>) => TwistyPlayerEl;
 
 export interface Cubing {
@@ -33,6 +33,12 @@ export function loadCubing(): Promise<Cubing> {
         TwistyPlayer: twisty.TwistyPlayer,
       };
     })();
+    // Don't cache a failed load (offline/CDN down) — otherwise every later call
+    // returns the same rejected promise and the user can't retry without a full
+    // page reload. Drop the cache on rejection so the next call re-attempts.
+    cache.catch(() => {
+      cache = null;
+    });
   }
   return cache;
 }

@@ -11,8 +11,6 @@ export class TwistyView {
     const p = new TwistyPlayer({
       puzzle: "3x3x3",
       alg: "",
-      // white top, green front:
-      experimentalSetupAnchor: "start",
       background: "none",
       controlPanel: "none",
       hintFacelets: "none",
@@ -23,11 +21,14 @@ export class TwistyView {
     slot.replaceChildren(p);
   }
 
-  /** Render the cube state after the first `n` moves of `moves`. */
+  /** Render the cube state after the first `n` moves of `moves` (static). */
   showState(moves: readonly string[], n: number): void {
     if (!this.player) return;
-    // Setting alg to the first n moves (anchor=start) shows the state after them.
-    this.player.alg = moves.slice(0, n).join(" ");
+    // Use setup-alg (not alg) so the position is shown STATICALLY as the end of
+    // the first n moves. n=0 → empty setup → solved cube. `alg` stays "" so the
+    // player doesn't sit at the pre-move start and replay from solved each step.
+    this.player.experimentalSetupAlg = moves.slice(0, n).join(" ");
+    this.player.alg = "";
   }
 
   get ready(): boolean {
