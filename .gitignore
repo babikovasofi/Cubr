@@ -1,0 +1,24 @@
+# Transcription caches
+*.transcribe.json
+*.whisply.json
+
+# Python
+.venv/
+__pycache__/
+*.pyc
+
+# Secrets / env
+.env
+.env.*
+!.env.example
+
+# startpoint skill backups
+.claude/skills/.backups/
+
+# test-gate hook per-session loop-guard counters
+.claude/sessions/
+
+# OS / editor noise
+.DS_Store
+Thumbs.db
+*.swp
