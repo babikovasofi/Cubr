@@ -11,7 +11,7 @@
 | Фронтенд | **React + TypeScript (Vite) + Tailwind** | Лучшая экосистема для камеры/CV в браузере |
 | Зрение: руки | **MediaPipe Tasks Vision — HandLandmarker (JS)** | Актуальный API (legacy `@mediapipe/hands` устарел); детект рук в браузере |
 | Зрение: кубик | **Своя логика**: canvas + Lab/ΔE классификация цветов | ML/CV-зона проекта; готовых JS-решений нет |
-| Кубик-логика | **cubejs / min2phase (JS)** | Применить скрамбл → эталонное состояние для сверки |
+| Кубик-логика | **cubejs** (Этап 0) → **`cubing` / twisty-player** (Этап 1) | Скрамбл→эталон + рендер/анимация ходов; `cubing` даёт и random-state, и рендер — одна зависимость. Замена cubejs при визуальном скрамбле (см. [feature-scramble-visual](../product-overview/feature-scramble-visual.md)) |
 | Бэкенд | **Python + FastAPI** | WebSockets и async из коробки; серверная CV на OpenCV |
 | Реалтайм | **WebSockets (FastAPI)** | Комнаты дуэлей, статусы, синхронный старт |
 | БД | **PostgreSQL + SQLAlchemy** (async; локально можно с SQLite) | Реляционка: игроки, дуэли, результаты, турниры |

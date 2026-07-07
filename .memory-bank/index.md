@@ -19,6 +19,7 @@
   - [Vision / ТЗ](product-overview/vision.md) — мастер-документ: видение, MVP, модель данных
   - [Risks](product-overview/risks.md) — R1–R9, отсортированы по опасности
   - [Roadmap](product-overview/roadmap.md) — бэклог V2/V3/V4 + монетизация
+  - [Feature: визуальный скрамбл](product-overview/feature-scramble-visual.md) — картинки-со-стрелками vs нотация (утв.); `cubing` в Этапе 1
 - [Tech Details](tech-details/README.md) — стек, архитектура, модули
   - [Solutions](tech-details/solutions.md) — КАК решать: зрение, реалтайм, анти-чит (П1–П12)
   - [User Flow](tech-details/user-flow.md) — экраны + mermaid-флоу MVP
