@@ -1,0 +1,27 @@
+/* fonts + темы — verbatim from design-system.md §9 */
+@import url('https://fonts.googleapis.com/css2?family=Rubik:wght@400;500;700;800;900&family=IBM+Plex+Mono:wght@400;600&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --bg:#FBF8F1; --surface:#FFFFFF; --surface-2:#F3EDE0; --line:#EDE5D6;
+  --ink:#221E17; --muted:#8A8172; --faint:#B5A893;
+  --primary:#0051BA; --primary-press:#003C8A;
+  --success:#009E60; --danger:#C41E3A; --warning:#FFCF00; --live:#FF5800;
+}
+.dark {
+  --bg:#232019; --surface:#2D2A22; --surface-2:#37332A; --line:#3E3A30;
+  --ink:#F6F1E6; --muted:#A9A08C; --faint:#7A7264;
+  --primary:#4D8BE8; --primary-press:#3A6FC4;
+  --success:#22C177; --danger:#F0526A; --warning:#FFD84D; --live:#FF7A3D;
+}
+::selection { background: var(--warning); color: #221E17; }
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: 'Rubik', 'Helvetica Neue', Arial, sans-serif;
+}

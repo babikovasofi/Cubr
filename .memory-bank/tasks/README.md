@@ -19,13 +19,24 @@
   - ⏳ **Гейт 0.3:** 3 света × ≥2 кубика × 1–2 человека; точность ≥90% per-sticker vs cubejs.
     <90% → стоп, пересмотр подхода к зрению. DoD стадии закрыт только после гейта.
 
+- **Этап 1.1 — каркас фронта** ✅ — `frontend/` (Vite+React 19+TS+Tailwind v3, роутинг,
+  токены §9, Zustand). Чистые модули зрения/scramble перенесены с тестами; DOM/эффект —
+  хук-заготовки. Review = **ship**. tsc 0, tests 61/61, build 0, браузерный smoke.
+  Ветка `stage-1-frontend`. [swarm-report/stage1-frontend-*](../../swarm-report/).
+
 ## Planned (следующий фокус)
-- Пройти гейт Этапа 0 → **Этап 1** (перенос `prototype/*` → `frontend/vision/*`).
-- Этапы 1–6 — см. [workplan.md](workplan.md).
+- **Этап 1.2 — соло-экран сборки:** полный ритуал (userflow §5.1) в `frontend/` —
+  камера/hands/twisty live, генерация скрамбла, визуальный walkthrough, экран результата.
+  Довести хук-заготовки до рабочих, StrictMode-safe.
+- Прототипы `prototype/`+`prototype2/` заморожены → удалить, когда 1.2 добьёт DOM-порт.
+- Пройти гейт Этапа 0.3 (живьём, ≥90%) — пререквизит, отдельно.
+- Этапы 2–6 — см. [workplan.md](workplan.md).
 
 ## Done
 - Скелет проекта (startpoint): Memory Bank, `.claude/` skills+agents+hooks, first commit.
-- Разбор raw ТЗ/дизайна → структурировано в Memory Bank.
+- Разбор raw ТЗ/дизайна → структурировано в Memory Bank (+ спека визуального скрамбла).
+- Этап 0 прототип зрения + Этап 0 гайд + прототип walkthrough (prototype2) — код готов, review-clean.
+- PR #1 (bootstrap + прототипы) слит в main.
 
 ## Бэклог организационный (не забыть)
 - Переименовать словомарк «CubeDuel» → **Cubr** в дизайне/UI (макеты пока со старым именем).
