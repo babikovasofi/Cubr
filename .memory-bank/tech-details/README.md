@@ -64,7 +64,13 @@ trophy_log:   id, user_id, delta, reason, created_at
 **Gotcha (cubejs + Vite 8/Rolldown):** cubejs `lib/solve.js` использует
 `this.Cube || require('./cube')` — top-level `this` в ESM = undefined → краш при
 загрузке в браузере (dev и prod), но НЕ в Node-тестах/build. Пофикшено
-`patch-package` (`prototype/patches/cubejs+1.3.2.patch`, `postinstall`). MediaPipe
+`patch-package` (`prototype/patches/cubejs+1.3.2.patch`, `postinstall`).
+
+**Gotcha (cubing + Vite):** `cubing` (заменит cubejs в Этапе 1) гоняет solver в
+**module web-worker** — под Vite prod-build инстанцирование воркера падает
+(«Module worker instantiation failed»; dev ок, prod нет; `worker.format:"es"` не
+помог). Решение: грузить `cubing` с **CDN `cdn.cubing.net/v0/js/cubing/{scramble,twisty}`**
+(remote ESM), НЕ бандлить — доказано в `prototype2/` (spike). Рантайм требует сети. MediaPipe
 wasm+модель грузятся с CDN (пин 0.10.35) — рантайм требует сети. Vite биндит IPv6
 по умолчанию → dev-запуск с `--host 127.0.0.1`.
 
