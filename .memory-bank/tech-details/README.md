@@ -89,6 +89,18 @@ StrictMode-safe: все эффекты с getUserMedia/HandLandmarker/`<twisty-p
 идемпотентные `stop()`/`close()`; rVFC — id + `cancelVideoFrameCallback` + `running`-флаг + rAF-fallback
 (Firefox). Mirror = только CSS `scaleX(-1)`; выборка/оверлей в raw-координатах. `numHands:2` явно.
 
+## Backend (реализовано Этап 2.1)
+Пакетник **uv** + Python 3.12. `backend/app/{config,db,models,routers,schemas,services}`.
+- `config.py` — pydantic-settings v2, один `DATABASE_URL` (`postgresql+asyncpg://`), `cors_origins`, `get_settings()`+lru_cache.
+- `db.py` — `create_async_engine` + `async_sessionmaker(expire_on_commit=False)` + `Base(DeclarativeBase)` + `get_session()` Depends.
+- Модели: `User(SQLAlchemyBaseUserTableUUID, Base)` — UUID PK, table `user`, `hashed_password`/`is_*` от базы
+  fastapi-users (задел под 2.2 без rewrite) + app-колонки (nickname/avatar_url/cups/best_*/created_at).
+  `Solve` — `status` VARCHAR (не DB-enum), `user_id` FK→user.id, `duel_id`/`tournament_id` UUID БЕЗ FK (таблицы в 3/5).
+- Alembic **async** env (`connection.run_sync` в `asyncio.run`, `target_metadata=Base.metadata`, импорт `app.models`);
+  `0001_init` hand-written. Postgres локально через `docker-compose` (postgres:16 + healthcheck `pg_isready`).
+- CORS explicit origins + `allow_credentials=True` (без wildcard — 2.2 кладёт JWT в httpOnly cookies).
+- `GET /health` — реальный `SELECT 1`. Решения зафиксированы в `docs/decisions.md`.
+
 ## Внешние сервисы / контракты
 - **WS-протокол** дуэли описать в `docs/ws-protocol.md` (join, status_update, countdown, start, finish, opponent_left).
 - **События честности** (клиент→сервер): `scramble_shown, scramble_verified, hands_ready, solve_start, solve_stop, cube_verified` — сервер ставит свои таймстампы.

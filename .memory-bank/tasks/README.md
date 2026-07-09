@@ -34,8 +34,18 @@
   - ⏳ **Manual QA живьём** (не автоматизируется headless): камера+кубик, полный §5.1,
     StrictMode ×2 → один стрим/player/landmarker, twisty `animateMove` в реальном браузере.
 
+- **Этап 2.1 — каркас бэкенда** ✅ код (⏳ живая миграция) — `backend/`.
+  - ✅ FastAPI + async SQLAlchemy 2.0 + asyncpg → Postgres (docker-compose), alembic **async** env,
+    модели `user` (наследует `SQLAlchemyBaseUserTableUUID`) + `solves`, CORS explicit+credentials,
+    pydantic-settings v2, `GET /health` (реальный `SELECT 1`). Пакетник **uv** + Python 3.12.
+  - ✅ pytest 1/1, ruff/ruff-format/mypy зелёные, review = **ship** (1 LOW косметика).
+    [swarm-report/stage2.1-backend-scaffold-*](../../swarm-report/).
+  - ⏳ Живая миграция (`docker-compose up -d && alembic upgrade head`) — нужен Docker (нет в окружении).
+
 ## Planned (следующий фокус)
 - **Этап 1.2 manual QA** — прогнать §5.1 живьём (см. выше), тюнинг порогов `config.ts`.
+- **Этап 2.2 — авторизация:** fastapi-users (email+пароль argon2, JWT в httpOnly cookies),
+  подтверждение почты (Resend/Brevo), сброс пароля, Google OAuth (`oauth_accounts`), rate-limit.
 - Прототипы `prototype/`+`prototype2/` **удалены** (DOM-порт добит в 1.2; код в `frontend/`).
 - Пройти гейт Этапа 0.3 (живьём, ≥90%) — пререквизит, отдельно.
 - Этапы 2–6 — см. [workplan.md](workplan.md).
