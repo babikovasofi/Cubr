@@ -80,6 +80,15 @@ wasm+модель грузятся с CDN (пин 0.10.35) — рантайм т
 `vision/fsm.ts` (конечный автомат: NO_HANDS→HANDS_IN_ZONE→READY→SOLVING→STOPPED).
 Таймер: `performance.now()` + `requestVideoFrameCallback` (не привязан к кадрам). Состояние UI — Zustand.
 
+## Соло-петля зрения (реализовано Этап 1.2)
+`solo/soloPhase.ts` — чистый reducer фаз (scramble→walkthrough→verify→armed→solving→stopped→
+result); таймер гейтится на `scrambleVerified` (FSM не идёт дальше `HANDS_IN_ZONE` без взвода);
+elapsed = `stop_t − start_t` из `o.t` кадров, НЕ `performance.now()` в React-хендлере.
+`solo/useSoloSession.ts` — оркестратор per-frame петли camera→hands→fsm→timer + verify-сбор 6 граней.
+StrictMode-safe: все эффекты с getUserMedia/HandLandmarker/`<twisty-player>` — `cancelled`-флаг +
+идемпотентные `stop()`/`close()`; rVFC — id + `cancelVideoFrameCallback` + `running`-флаг + rAF-fallback
+(Firefox). Mirror = только CSS `scaleX(-1)`; выборка/оверлей в raw-координатах. `numHands:2` явно.
+
 ## Внешние сервисы / контракты
 - **WS-протокол** дуэли описать в `docs/ws-protocol.md` (join, status_update, countdown, start, finish, opponent_left).
 - **События честности** (клиент→сервер): `scramble_shown, scramble_verified, hands_ready, solve_start, solve_stop, cube_verified` — сервер ставит свои таймстампы.
