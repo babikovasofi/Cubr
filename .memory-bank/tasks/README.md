@@ -24,11 +24,19 @@
   хук-заготовки. Review = **ship**. tsc 0, tests 61/61, build 0, браузерный smoke.
   Ветка `stage-1-frontend`. [swarm-report/stage1-frontend-*](../../swarm-report/).
 
+- **Этап 1.2 — соло-экран сборки** ✅ код (⏳ manual QA) — `/solo` в `frontend/`.
+  - ✅ Хук-заготовки доведены до рабочих StrictMode-safe: `useCamera`/`useHands`/`useTwisty`/
+    `useScramble`/`useCubeReader`. Новый модуль `solo/`: чистый reducer `soloPhase.ts` (гейт
+    таймера на `scrambleVerified`, elapsed из `o.t` кадров) + оркестратор `useSoloSession` +
+    `ScrambleWalkthrough`/`CameraStage`/`ResultScreen`. `SoloPage` phase-driven.
+  - ✅ tsc 0, tests 73/73 (+12 новых), review = **ship** (2 LOW). Lint FAIL = pre-existing
+    infra (eslint без TS-парсера). [swarm-report/stage1.2-solo-screen-*](../../swarm-report/).
+  - ⏳ **Manual QA живьём** (не автоматизируется headless): камера+кубик, полный §5.1,
+    StrictMode ×2 → один стрим/player/landmarker, twisty `animateMove` в реальном браузере.
+
 ## Planned (следующий фокус)
-- **Этап 1.2 — соло-экран сборки:** полный ритуал (userflow §5.1) в `frontend/` —
-  камера/hands/twisty live, генерация скрамбла, визуальный walkthrough, экран результата.
-  Довести хук-заготовки до рабочих, StrictMode-safe.
-- Прототипы `prototype/`+`prototype2/` заморожены → удалить, когда 1.2 добьёт DOM-порт.
+- **Этап 1.2 manual QA** — прогнать §5.1 живьём (см. выше), тюнинг порогов `config.ts`.
+- Прототипы `prototype/`+`prototype2/` заморожены → удалить (DOM-порт добит в 1.2).
 - Пройти гейт Этапа 0.3 (живьём, ≥90%) — пререквизит, отдельно.
 - Этапы 2–6 — см. [workplan.md](workplan.md).
 
