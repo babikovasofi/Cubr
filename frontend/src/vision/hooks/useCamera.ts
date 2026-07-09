@@ -49,6 +49,11 @@ export class Camera {
   private rafHandle: number | null = null;
   private rvfcHandle: number | null = null;
   private running = false;
+  // Set by stop(). start() re-checks it after EACH await so a stop() that landed
+  // mid-acquisition (route-away while getUserMedia/play was pending) tears the
+  // just-resolved stream down instead of going live — otherwise the camera light
+  // stays on (the classic StrictMode/route-away leak).
+  private stopped = false;
 
   constructor(video: HTMLVideoElement) {
     this.video = video;
@@ -72,11 +77,20 @@ export class Camera {
       throw mapGetUserMediaError(e as DOMException);
     }
     this.stream = stream;
+    // Resolved after a stop()? Tear it down now, don't go live.
+    if (this.stopped) {
+      this.stop();
+      return;
+    }
 
     this.video.srcObject = this.stream;
     this.video.playsInline = true;
     this.video.muted = true;
     await this.video.play();
+    if (this.stopped) {
+      this.stop();
+      return;
+    }
 
     this.running = true;
     const anyVideo = this.video as HTMLVideoElement & {
@@ -121,6 +135,7 @@ export class Camera {
   }
 
   stop(): void {
+    this.stopped = true;
     this.running = false;
     if (this.rafHandle !== null) cancelAnimationFrame(this.rafHandle);
     this.rafHandle = null;

@@ -88,6 +88,10 @@ export class Hands {
   // guarantee array-slot stability, so slot-pairing would compare a hand to the
   // OTHER hand on a swap and falsely report motion.
   private prevByHand: Map<string, Landmark[]> = new Map();
+  // Set by close(). init() re-checks it after the async model download so a
+  // close() that landed mid-download (route-away while loading) frees the
+  // just-created landmarker instead of leaking the WASM/GPU delegate.
+  private closed = false;
 
   /** Load WASM + model. Idempotent: a second call is a no-op if already loaded. */
   async init(): Promise<void> {
@@ -98,7 +102,7 @@ export class Hands {
     // for a camera error upstream.
     try {
       const vision = await FilesetResolver.forVisionTasks(MEDIAPIPE_WASM_URL);
-      this.landmarker = await HandLandmarker.createFromOptions(vision, {
+      const lm = await HandLandmarker.createFromOptions(vision, {
         baseOptions: {
           modelAssetPath: HAND_MODEL_URL,
           delegate: "GPU",
@@ -106,6 +110,12 @@ export class Hands {
         runningMode: "VIDEO",
         numHands: 2,
       });
+      // Closed while the model was downloading? Free it, don't keep it alive.
+      if (this.closed) {
+        lm.close();
+        return;
+      }
+      this.landmarker = lm;
     } catch (e) {
       throw new HandsInitError(
         `model download failed (WASM/model from CDN) — check network: ${(e as Error).message}`,
@@ -119,6 +129,7 @@ export class Hands {
 
   /** Free the landmarker + reset stillness history. Safe to call more than once. */
   close(): void {
+    this.closed = true;
     this.landmarker?.close();
     this.landmarker = null;
     this.prevByHand.clear();
