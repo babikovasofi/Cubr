@@ -1,8 +1,8 @@
 import uuid
 from datetime import datetime
 
+from fastapi_users_db_sqlalchemy.generics import GUID
 from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, func
-from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db import Base
@@ -14,16 +14,18 @@ SOLVE_STATUSES = ("valid", "dnf", "rejected")
 class Solve(Base):
     __tablename__ = "solves"
 
-    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    # Portable GUID: renders native UUID on Postgres (0001 migration schema
+    # unchanged) and CHAR(32) on sqlite so the table is unit-testable.
+    id: Mapped[uuid.UUID] = mapped_column(GUID, primary_key=True, default=uuid.uuid4)
     user_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True),
+        GUID,
         ForeignKey("user.id", ondelete="CASCADE"),
         index=True,
     )
     # Plain nullable UUID columns — no ForeignKey: the `duels` / `tournaments`
     # tables do not exist yet (FKs come in stage 3.x/5.x).
-    duel_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)
-    tournament_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)
+    duel_id: Mapped[uuid.UUID | None] = mapped_column(GUID, nullable=True)
+    tournament_id: Mapped[uuid.UUID | None] = mapped_column(GUID, nullable=True)
 
     scramble: Mapped[str] = mapped_column(String(length=512))
     time_ms: Mapped[int] = mapped_column(Integer)

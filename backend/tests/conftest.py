@@ -24,7 +24,7 @@ from sqlalchemy.pool import StaticPool  # noqa: E402
 
 from app.db import Base, get_session  # noqa: E402
 from app.main import app  # noqa: E402
-from app.models import OAuthAccount, User  # noqa: E402
+from app.models import OAuthAccount, Solve, User  # noqa: E402
 from app.services import ratelimit  # noqa: E402
 
 TEST_DATABASE_URL = "sqlite+aiosqlite:///:memory:"
@@ -69,11 +69,11 @@ async def test_engine() -> AsyncGenerator[AsyncEngine, None]:
         connect_args={"check_same_thread": False},
         poolclass=StaticPool,
     )
-    # Only auth-relevant tables; `solves` uses postgresql.UUID (no sqlite DDL).
+    # `solves` now uses the portable GUID type, so it renders on sqlite too.
     async with engine.begin() as conn:
         await conn.run_sync(
             lambda c: Base.metadata.create_all(
-                c, tables=[User.__table__, OAuthAccount.__table__]
+                c, tables=[User.__table__, OAuthAccount.__table__, Solve.__table__]
             )
         )
     yield engine

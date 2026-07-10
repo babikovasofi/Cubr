@@ -52,11 +52,23 @@
     (0 HIGH; MED APP_ENV-footgun захаржен). [swarm-report/stage2.2-auth-*](../../swarm-report/).
   - ⏳ Живьём: миграция 0002 против Postgres, реальные Resend/Google-ключи, OAuth round-trip.
 
+- **Этап 2.3 — фронт: аккаунты** ✅ код (⏳ живьём) — `frontend/` + backend `/solves`.
+  - ✅ Backend: `POST/GET /solves` (auth, свои сборки, `best_single_ms`-апдейт), Solve-модель на
+    портируемом `GUID` (sqlite-тестируемо), OAuth-callback → `/auth/callback?ok/error`.
+  - ✅ Frontend: Vite dev-proxy `/api`→:8000 (+`vercel.json` шаблон), `src/api/{client,auth,solves}`,
+    zustand `authStore` (session через `/users/me`-probe, httpOnly cookie), `ProtectedRoute`/`GuestOnly`,
+    экраны login/register/verify/forgot/reset/oauth-callback/onboarding/profile, solo→`createSolve`.
+  - ✅ backend pytest 27/27, frontend typecheck 0 / tests 100 / lint / build. Review = **ship**
+    (2 LOW захаржены: bootstrap-retry на транзиентном сбое, open-redirect guard на `?next`).
+    Браузер-смоук анон OK. [swarm-report/stage2.3-frontend-accounts-*](../../swarm-report/).
+  - ⏳ Живьём (нужен Postgres+Docker/ключи/камера): цикл register→verify→login→onboarding→solo-save→profile,
+    Google OAuth round-trip, камера-чек. Deviation: DNF шлётся `time_ms=1` (бэк требует >0).
+
 ## Planned (следующий фокус)
 - **Этап 1.2 manual QA** — прогнать §5.1 живьём (см. выше), тюнинг порогов `config.ts`.
-- **Этап 2.3 — фронт: аккаунты:** экраны регистрация/вход/подтверждение/сброс (userflow §1–2),
-  онбординг с камера-чеком, профиль (ник/аватар/рекорды/история), `POST /solves` сохранение.
-  **Same-origin proxy** — фронт проксирует `/api` на бэк (иначе cookie/OAuth не сработают).
+- **Этап 2.4 — профили кубиков** ([feature-cube-profiles](../product-overview/feature-cube-profiles.md)):
+  таблица `cubes` + CRUD, мастер регистрации, «Мои кубики», регистрация в онбординге (заменяет placeholder),
+  селектор кубика, `solve.cube_id`. Требует прототип профилей Этапа 0 (часть A/B).
 - Прототипы `prototype/`+`prototype2/` **удалены** (DOM-порт добит в 1.2; код в `frontend/`).
 - Пройти гейт Этапа 0.3 (живьём, ≥90%) — пререквизит, отдельно.
 - Этапы 2–6 — см. [workplan.md](workplan.md).
