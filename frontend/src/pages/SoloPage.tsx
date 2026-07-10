@@ -67,7 +67,12 @@ export default function SoloPage() {
       ) : null}
 
       {phase === "result" ? (
-        <ResultScreen seconds={s.timerSeconds} dnf={s.state.dnf} onAgain={s.again} />
+        <ResultScreen
+          seconds={s.timerSeconds}
+          dnf={s.state.dnf}
+          onAgain={s.again}
+          saveState={s.saveState}
+        />
       ) : null}
     </div>
   );

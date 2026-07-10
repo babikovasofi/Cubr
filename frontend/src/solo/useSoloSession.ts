@@ -30,6 +30,9 @@ import {
   initialSoloState,
   type SoloState,
 } from "./soloPhase";
+import { buildSolvePayload, saveSoloResult, type SaveState } from "./solveSave";
+import { isAuthed } from "../store/authStore";
+import { createSolve } from "../api/solves";
 
 const ZONES = defaultZones();
 const OVERLAY_LABELS: OverlayLabels = {
@@ -86,6 +89,8 @@ export interface SoloSession {
   again: () => void;
   // Timer.
   timerSeconds: string;
+  // Server persistence of the finished result (plan §B #8).
+  saveState: SaveState;
 }
 
 export function useSoloSession(): SoloSession {
@@ -111,6 +116,8 @@ export function useSoloSession(): SoloSession {
   const [cameraError, setCameraError] = useState<string | null>(null);
   const [verifyError, setVerifyError] = useState<string | null>(null);
   const [liveMs, setLiveMs] = useState(0);
+  const [saveState, setSaveState] = useState<SaveState>("idle");
+  const savedRef = useRef(false);
 
   // Leave the loading gate once the scramble is generated.
   useEffect(() => {
@@ -118,6 +125,26 @@ export function useSoloSession(): SoloSession {
       dispatch({ type: "scramble_ready" });
     }
   }, [scramble.loading, scramble.error]);
+
+  // On entering "result", persist the solve exactly once (plan §B #8). Anonymous =
+  // no-op (solo still works). This is an external-sync effect (a one-shot network
+  // call keyed off the phase), guarded against StrictMode double-run and re-renders.
+  useEffect(() => {
+    if (state.phase !== "result") {
+      savedRef.current = false;
+      return;
+    }
+    if (savedRef.current) return;
+    savedRef.current = true;
+
+    if (!isAuthed()) {
+      setSaveState("anon");
+      return;
+    }
+    setSaveState("saving");
+    const payload = buildSolvePayload(scramble.scramble, state.elapsedMs, state.dnf);
+    void saveSoloResult({ isAuthed: true, payload, create: createSolve }).then(setSaveState);
+  }, [state.phase, state.elapsedMs, state.dnf, scramble.scramble]);
 
   // Per-frame loop. Captured once at startCamera time; reads live refs, so it needs
   // no re-registration on re-render.
@@ -250,6 +277,8 @@ export function useSoloSession(): SoloSession {
     reader.resetVerify();
     setVerifyError(null);
     setLiveMs(0);
+    setSaveState("idle");
+    savedRef.current = false;
     scramble.regenerate();
     dispatch({ type: "again" });
   };
@@ -287,5 +316,6 @@ export function useSoloSession(): SoloSession {
     backToWalkthrough,
     again,
     timerSeconds,
+    saveState,
   };
 }

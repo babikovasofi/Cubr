@@ -117,6 +117,19 @@ fastapi-users **15** (`app/services/{auth,email,ratelimit}.py`, `routers/auth.py
 - Пути: `/auth/{register,login,logout,request-verify-token,verify,forgot-password,reset-password}`,
   `/auth/google/{authorize,callback}`, `/users/me`. Verify НЕ гейтит логин в 2.2. Миграция `0002_oauth_accounts`.
 
+### Solves API + фронт-аккаунты (реализовано Этап 2.3)
+- **Backend:** `POST /solves` (auth, `{scramble,time_ms>0,status:valid|dnf,verify_frames_ok}`, апдейт
+  `best_single_ms`), `GET /solves` (свои, created_at desc). `Solve.id/user_id` на портируемом
+  `fastapi_users_db_sqlalchemy.generics.GUID` (native UUID на Postgres, CHAR(32) на sqlite → юнит-тесты).
+  Client не может слать `status=rejected` (server-only). OAuth-callback → `FRONTEND_URL/auth/callback?ok=1|error=<code>`.
+- **Same-origin proxy (load-bearing):** фронт фетчит ТОЛЬКО относительный `/api/...`; Vite dev-proxy
+  `/api`→`127.0.0.1:8000` (strip `/api`), прод — `vercel.json` rewrite (host-плейсхолдер до 2.6). Иначе
+  `SameSite=Lax` cookie не ходит cross-origin (Vercel≠Railway). login — **form-urlencoded** (`username`=email).
+- **Frontend session:** httpOnly cookie → JS не читает auth; состояние только через `GET /users/me`-probe
+  (401=норма). zustand `authStore` (`bootstrap()` латчит лишь на 200/401, ретрай на транзиентном сбое).
+  `ProtectedRoute` (`?next=`, guard от open-redirect) / `GuestOnlyRoute`. `src/api/client.ts` мэпит
+  fastapi-users ошибки (`string|{code,reason}`) в RU. Онбординг: localStorage `cubr_onboarded` (пока без серверного поля).
+
 ## Внешние сервисы / контракты
 - **WS-протокол** дуэли описать в `docs/ws-protocol.md` (join, status_update, countdown, start, finish, opponent_left).
 - **События честности** (клиент→сервер): `scramble_shown, scramble_verified, hands_ready, solve_start, solve_stop, cube_verified` — сервер ставит свои таймстампы.

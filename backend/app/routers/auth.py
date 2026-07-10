@@ -7,7 +7,7 @@ is set.
 import secrets
 
 import jwt
-from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, status
+from fastapi import APIRouter, Depends, Query, Request, Response, status
 from fastapi.responses import RedirectResponse
 from httpx_oauth.integrations.fastapi import OAuth2AuthorizeCallback
 from httpx_oauth.oauth2 import OAuth2Token
@@ -121,6 +121,15 @@ def _build_google_oauth_router() -> APIRouter:
         )
         return OAuth2AuthorizeResponse(authorization_url=authorization_url)
 
+    def _callback_redirect(*, ok: bool, error: str | None = None) -> RedirectResponse:
+        """Redirect the browser back to the SPA callback route so it can parse
+        the outcome from the query string (?ok=1 or ?error=<code>)."""
+        query = "?ok=1" if ok else f"?error={error}"
+        target = f"{settings.FRONTEND_URL}/auth/callback{query}"
+        response = RedirectResponse(target, status_code=status.HTTP_302_FOUND)
+        response.delete_cookie(_CSRF_COOKIE)
+        return response
+
     @oauth_router.get("/callback", name="oauth:google.cookie.callback")
     async def callback(
         request: Request,
@@ -131,18 +140,16 @@ def _build_google_oauth_router() -> APIRouter:
         try:
             state_data = decode_jwt(state, state_secret, [STATE_TOKEN_AUDIENCE])
         except jwt.PyJWTError:
-            raise HTTPException(status.HTTP_400_BAD_REQUEST, detail=ErrorCode.OAUTH_INVALID_STATE)
+            return _callback_redirect(ok=False, error=ErrorCode.OAUTH_INVALID_STATE)
 
         cookie_csrf = request.cookies.get(_CSRF_COOKIE)
         state_csrf = state_data.get(CSRF_TOKEN_KEY)
         if not cookie_csrf or not state_csrf or not secrets.compare_digest(cookie_csrf, state_csrf):
-            raise HTTPException(status.HTTP_400_BAD_REQUEST, detail=ErrorCode.OAUTH_INVALID_STATE)
+            return _callback_redirect(ok=False, error=ErrorCode.OAUTH_INVALID_STATE)
 
         account_id, account_email = await google_oauth_client.get_id_email(token["access_token"])
         if account_email is None:
-            raise HTTPException(
-                status.HTTP_400_BAD_REQUEST, detail=ErrorCode.OAUTH_NOT_AVAILABLE_EMAIL
-            )
+            return _callback_redirect(ok=False, error=ErrorCode.OAUTH_NOT_AVAILABLE_EMAIL)
 
         try:
             user = await user_manager.oauth_callback(
@@ -157,25 +164,19 @@ def _build_google_oauth_router() -> APIRouter:
                 is_verified_by_default=True,
             )
         except UserAlreadyExists:
-            raise HTTPException(
-                status.HTTP_400_BAD_REQUEST, detail=ErrorCode.OAUTH_USER_ALREADY_EXISTS
-            )
+            return _callback_redirect(ok=False, error=ErrorCode.OAUTH_USER_ALREADY_EXISTS)
 
         if not user.is_active:
-            raise HTTPException(
-                status.HTTP_400_BAD_REQUEST, detail=ErrorCode.LOGIN_BAD_CREDENTIALS
-            )
+            return _callback_redirect(ok=False, error=ErrorCode.LOGIN_BAD_CREDENTIALS)
 
-        # Set the auth cookie, then redirect the browser to the frontend.
+        # Set the auth cookie, then redirect the browser back to the SPA.
         strategy = get_jwt_strategy()
         login_response = await auth_backend.login(strategy, user)
         await user_manager.on_after_login(user, request)
 
-        redirect = RedirectResponse(settings.FRONTEND_URL, status_code=status.HTTP_302_FOUND)
+        redirect = _callback_redirect(ok=True)
         for set_cookie in login_response.headers.getlist("set-cookie"):
             redirect.raw_headers.append((b"set-cookie", set_cookie.encode("latin-1")))
-        # Clear the transient CSRF cookie.
-        redirect.delete_cookie(_CSRF_COOKIE)
         return redirect
 
     return oauth_router
