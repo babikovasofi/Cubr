@@ -10,7 +10,9 @@ def _make(**over: str) -> Settings:
     base = {"SECRET": _GOOD, "RESET_VERIFY_SECRET": _GOOD + "-2"}
     base.update(over)
     # _env_file=None → ignore any local .env so the test is hermetic.
-    return Settings(_env_file=None, **base)  # type: ignore[call-arg]
+    # arg-type: BaseSettings absorbs field kwargs via **values, but mypy checks a
+    # spread dict against the named settings-source params first.
+    return Settings(_env_file=None, **base)  # type: ignore[arg-type]
 
 
 def test_real_secrets_boot() -> None:
@@ -22,7 +24,7 @@ def test_missing_secret_fails_closed(monkeypatch: pytest.MonkeyPatch) -> None:
     # conftest seeds SECRET into os.environ; remove it so "unset" is real.
     monkeypatch.delenv("SECRET", raising=False)
     with pytest.raises(ValidationError):
-        Settings(_env_file=None, RESET_VERIFY_SECRET=_GOOD)  # type: ignore[call-arg]
+        Settings(_env_file=None, RESET_VERIFY_SECRET=_GOOD)
 
 
 def test_short_secret_rejected() -> None:
