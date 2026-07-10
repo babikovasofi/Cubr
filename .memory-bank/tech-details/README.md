@@ -47,9 +47,11 @@ PostgreSQL
 ```
 users:        id, email, password_hash, google_id?, nickname, avatar_url,
               cups, best_single_ms, best_ao5_ms, created_at
+cubes:        id, user_id, name, note?, is_primary, color_profile JSONB (6 Lab-эталонов
+              {W/Y/R/O/B/G:[L,a,b]}), created_at, recalibrated_at  -- лимит 5/аккаунт
 duels:        id, mode (fast|ao5), scramble(s), player1_id, player2_id,
               status, winner_id, created_at
-solves:       id, user_id, duel_id?, tournament_id?, scramble, time_ms,
+solves:       id, user_id, duel_id?, tournament_id?, cube_id? (FK cubes), scramble, time_ms,
               status (valid|dnf|rejected), verify_frames_ok, created_at
 tournaments:  id, week_start, scramble, status
 attempts:     unique(user_id, tournament_id)  — одна попытка/неделя (enforce в БД)
