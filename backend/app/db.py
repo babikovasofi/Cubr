@@ -1,5 +1,9 @@
+import uuid
 from collections.abc import AsyncGenerator
+from typing import TYPE_CHECKING
 
+from fastapi import Depends
+from fastapi_users_db_sqlalchemy import SQLAlchemyUserDatabase
 from sqlalchemy.ext.asyncio import (
     AsyncEngine,
     AsyncSession,
@@ -9,6 +13,9 @@ from sqlalchemy.ext.asyncio import (
 from sqlalchemy.orm import DeclarativeBase
 
 from app.config import get_settings
+
+if TYPE_CHECKING:
+    from app.models import User
 
 
 class Base(DeclarativeBase):
@@ -31,3 +38,16 @@ async def get_session() -> AsyncGenerator[AsyncSession, None]:
     """Yield one `AsyncSession` per request (FastAPI dependency)."""
     async with async_session_maker() as session:
         yield session
+
+
+async def get_user_db(
+    session: AsyncSession = Depends(get_session),
+) -> AsyncGenerator["SQLAlchemyUserDatabase[User, uuid.UUID]", None]:
+    """fastapi-users DB adapter, bound to the request session.
+
+    Imports the models locally to avoid a circular import at module load
+    (models import ``Base`` from here).
+    """
+    from app.models import OAuthAccount, User
+
+    yield SQLAlchemyUserDatabase(session, User, OAuthAccount)

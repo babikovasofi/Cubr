@@ -1,25 +1,96 @@
-from collections.abc import AsyncGenerator
+import os
 
-import pytest_asyncio
-from httpx import ASGITransport, AsyncClient
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+# Secrets MUST exist before importing the app (config fails closed on missing
+# SECRET / RESET_VERIFY_SECRET). APP_ENV stays `local` so cookies are non-Secure
+# and can be stored by the httpx test client over http://.
+os.environ.setdefault("SECRET", "kQ7m2Zt9v-unit-jwt-signing-key-0123456789abcdef")
+os.environ.setdefault("RESET_VERIFY_SECRET", "wX4n8Rb1cY-unit-reset-verify-key-fedcba9876543210")
+os.environ.setdefault("APP_ENV", "local")
+os.environ.setdefault("AUTH_RATE_LIMIT", "10/minute")
+os.environ.setdefault("EMAIL_RATE_LIMIT", "3/hour")
 
-from app.db import get_session
-from app.main import app
+from collections.abc import AsyncGenerator  # noqa: E402
 
-# Lightweight in-memory aiosqlite path — no real Postgres needed. asyncpg-specific
-# types (UUID / timestamptz) are not exercised here; this only proves the DB wiring
-# for the /health SELECT 1.
+import pytest  # noqa: E402
+import pytest_asyncio  # noqa: E402
+from httpx import ASGITransport, AsyncClient  # noqa: E402
+from sqlalchemy.ext.asyncio import (  # noqa: E402
+    AsyncEngine,
+    AsyncSession,
+    async_sessionmaker,
+    create_async_engine,
+)
+from sqlalchemy.pool import StaticPool  # noqa: E402
+
+from app.db import Base, get_session  # noqa: E402
+from app.main import app  # noqa: E402
+from app.models import OAuthAccount, User  # noqa: E402
+from app.services import ratelimit  # noqa: E402
+
 TEST_DATABASE_URL = "sqlite+aiosqlite:///:memory:"
 
 
-@pytest_asyncio.fixture
-async def client() -> AsyncGenerator[AsyncClient, None]:
-    test_engine = create_async_engine(TEST_DATABASE_URL)
-    test_session_maker = async_sessionmaker(test_engine, expire_on_commit=False)
+class EmailSpy:
+    """Records (to, token) for every email that would have been sent."""
 
+    def __init__(self) -> None:
+        self.verifications: list[tuple[str, str]] = []
+        self.resets: list[tuple[str, str]] = []
+
+    async def send_verification_email(self, to: str, token: str) -> None:
+        self.verifications.append((to, token))
+
+    async def send_reset_email(self, to: str, token: str) -> None:
+        self.resets.append((to, token))
+
+
+@pytest.fixture
+def email_spy(monkeypatch: pytest.MonkeyPatch) -> EmailSpy:
+    spy = EmailSpy()
+    # Patch on the email module — auth.py looks the names up on it at call time.
+    monkeypatch.setattr("app.services.email.send_verification_email", spy.send_verification_email)
+    monkeypatch.setattr("app.services.email.send_reset_email", spy.send_reset_email)
+    return spy
+
+
+@pytest_asyncio.fixture(autouse=True)
+async def _reset_rate_limiter() -> AsyncGenerator[None, None]:
+    await ratelimit.reset_limiter_state()
+    yield
+    await ratelimit.reset_limiter_state()
+
+
+@pytest_asyncio.fixture
+async def test_engine() -> AsyncGenerator[AsyncEngine, None]:
+    # StaticPool: a single shared in-memory connection so tables created here are
+    # visible to every request session AND to test-side inspection queries.
+    engine = create_async_engine(
+        TEST_DATABASE_URL,
+        connect_args={"check_same_thread": False},
+        poolclass=StaticPool,
+    )
+    # Only auth-relevant tables; `solves` uses postgresql.UUID (no sqlite DDL).
+    async with engine.begin() as conn:
+        await conn.run_sync(
+            lambda c: Base.metadata.create_all(
+                c, tables=[User.__table__, OAuthAccount.__table__]
+            )
+        )
+    yield engine
+    await engine.dispose()
+
+
+@pytest_asyncio.fixture
+async def session_maker(test_engine: AsyncEngine) -> async_sessionmaker[AsyncSession]:
+    return async_sessionmaker(test_engine, expire_on_commit=False)
+
+
+@pytest_asyncio.fixture
+async def client(
+    session_maker: async_sessionmaker[AsyncSession],
+) -> AsyncGenerator[AsyncClient, None]:
     async def override_get_session() -> AsyncGenerator[AsyncSession, None]:
-        async with test_session_maker() as session:
+        async with session_maker() as session:
             yield session
 
     app.dependency_overrides[get_session] = override_get_session
@@ -29,4 +100,3 @@ async def client() -> AsyncGenerator[AsyncClient, None]:
         yield ac
 
     app.dependency_overrides.clear()
-    await test_engine.dispose()

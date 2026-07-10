@@ -42,10 +42,21 @@
     [swarm-report/stage2.1-backend-scaffold-*](../../swarm-report/).
   - ⏳ Живая миграция (`docker-compose up -d && alembic upgrade head`) — нужен Docker (нет в окружении).
 
+- **Этап 2.2 — авторизация** ✅ код (⏳ живьём) — `backend/` на fastapi-users 15.
+  - ✅ Регистрация email+пароль (argon2/pwdlib), логин JWT в httpOnly cookie (`SameSite=Lax`,
+    same-origin proxy), email-подтверждение (Resend/Brevo, мокаемо), сброс пароля, Google OAuth
+    (`oauth_accounts` + custom `oauth_callback` с `email_verified`-проверкой), slowapi rate-limit
+    (IP через trusted-proxy XFF + отдельный per-email лимит). `SECRET` fail-closed **везде**
+    (reject placeholder + min32); split `RESET_VERIFY_SECRET`. Verify НЕ гейтит логин в 2.2.
+  - ✅ ruff/mypy/pytest 20/20 зелёные (вкл. config-fail-closed + rate-limit 429). Review = **ship**
+    (0 HIGH; MED APP_ENV-footgun захаржен). [swarm-report/stage2.2-auth-*](../../swarm-report/).
+  - ⏳ Живьём: миграция 0002 против Postgres, реальные Resend/Google-ключи, OAuth round-trip.
+
 ## Planned (следующий фокус)
 - **Этап 1.2 manual QA** — прогнать §5.1 живьём (см. выше), тюнинг порогов `config.ts`.
-- **Этап 2.2 — авторизация:** fastapi-users (email+пароль argon2, JWT в httpOnly cookies),
-  подтверждение почты (Resend/Brevo), сброс пароля, Google OAuth (`oauth_accounts`), rate-limit.
+- **Этап 2.3 — фронт: аккаунты:** экраны регистрация/вход/подтверждение/сброс (userflow §1–2),
+  онбординг с камера-чеком, профиль (ник/аватар/рекорды/история), `POST /solves` сохранение.
+  **Same-origin proxy** — фронт проксирует `/api` на бэк (иначе cookie/OAuth не сработают).
 - Прототипы `prototype/`+`prototype2/` **удалены** (DOM-порт добит в 1.2; код в `frontend/`).
 - Пройти гейт Этапа 0.3 (живьём, ≥90%) — пререквизит, отдельно.
 - Этапы 2–6 — см. [workplan.md](workplan.md).
