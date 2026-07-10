@@ -1,6 +1,20 @@
 from functools import lru_cache
+from typing import Literal
 
+from pydantic import Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+# Banned fragments: a secret CONTAINING any of these (even when padded to >=32
+# chars) is rejected as an obvious placeholder / committed default. Enforced in
+# EVERY environment (incl. local) so a deploy that forgets to set APP_ENV cannot
+# boot with the committed `.env.example` placeholders.
+_PLACEHOLDER_FRAGMENTS = (
+    "change-me",
+    "changeme",
+    "change_me",
+    "placeholder",
+    "example",
+)
 
 
 class Settings(BaseSettings):
@@ -11,11 +25,72 @@ class Settings(BaseSettings):
     DATABASE_URL: str = "postgresql+asyncpg://cubr:cubr@localhost:5432/cubr"
     CORS_ORIGINS: str = "http://localhost:5173,http://127.0.0.1:5173"
     APP_ENV: str = "local"
-    SECRET: str = "change-me-in-2.2-auth-stage"
+
+    # --- Secrets (fail-closed: no default → boot raises ValidationError if unset) ---
+    # Auth JWT signing secret.
+    SECRET: str = Field(min_length=32)
+    # Separate secret for password-reset / email-verification tokens (split from auth JWT).
+    RESET_VERIFY_SECRET: str = Field(min_length=32)
+
+    # --- Auth cookie ---
+    JWT_LIFETIME_SECONDS: int = 3600
+    COOKIE_NAME: str = "cubr_auth"
+    COOKIE_SAMESITE: Literal["lax", "strict", "none"] = "lax"
+
+    # --- Frontend / redirect ---
+    FRONTEND_URL: str = "http://localhost:5173"
+
+    # --- Email delivery ---
+    EMAIL_FROM: str = "Cubr <no-reply@cubr.app>"
+    EMAIL_PROVIDER: Literal["resend", "brevo"] = "resend"
+    RESEND_API_KEY: str = ""
+    BREVO_API_KEY: str = ""
+
+    # --- Google OAuth ---
+    GOOGLE_OAUTH_CLIENT_ID: str = ""
+    GOOGLE_OAUTH_CLIENT_SECRET: str = ""
+    GOOGLE_OAUTH_REDIRECT_URL: str = "http://localhost:5173/api/auth/google/callback"
+
+    # --- Rate limiting ---
+    AUTH_RATE_LIMIT: str = "10/minute"
+    EMAIL_RATE_LIMIT: str = "3/hour"
+    # Comma-separated CIDRs / hosts we trust to set X-Forwarded-For.
+    TRUSTED_PROXIES: str = "127.0.0.1,::1"
 
     @property
     def cors_origins(self) -> list[str]:
         return [origin.strip() for origin in self.CORS_ORIGINS.split(",") if origin.strip()]
+
+    @property
+    def is_local(self) -> bool:
+        return self.APP_ENV == "local"
+
+    @property
+    def cookie_secure(self) -> bool:
+        """Cookies are `Secure` everywhere except local dev (which is plain http)."""
+        return not self.is_local
+
+    @property
+    def trusted_proxies(self) -> list[str]:
+        return [p.strip() for p in self.TRUSTED_PROXIES.split(",") if p.strip()]
+
+    @model_validator(mode="after")
+    def _reject_placeholder_secrets(self) -> "Settings":
+        """Secrets must be real (not the committed placeholders) in EVERY env.
+
+        Fail-closed regardless of APP_ENV: a prod deploy that forgets to set
+        APP_ENV must not silently boot with the `.env.example` placeholders.
+        """
+        for name in ("SECRET", "RESET_VERIFY_SECRET"):
+            value: str = getattr(self, name)
+            lowered = value.lower()
+            if any(fragment in lowered for fragment in _PLACEHOLDER_FRAGMENTS):
+                raise ValueError(
+                    f"{name} is set to a placeholder value; refusing to boot. "
+                    "Generate one with "
+                    "`python -c 'import secrets; print(secrets.token_urlsafe(48))'`."
+                )
+        return self
 
 
 @lru_cache

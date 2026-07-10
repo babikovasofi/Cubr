@@ -101,6 +101,20 @@ StrictMode-safe: все эффекты с getUserMedia/HandLandmarker/`<twisty-p
 - CORS explicit origins + `allow_credentials=True` (без wildcard — 2.2 кладёт JWT в httpOnly cookies).
 - `GET /health` — реальный `SELECT 1`. Решения зафиксированы в `docs/decisions.md`.
 
+### Auth (реализовано Этап 2.2)
+fastapi-users **15** (`app/services/{auth,email,ratelimit}.py`, `routers/auth.py`).
+- Argon2 (pwdlib) хеш; JWT в **httpOnly cookie** `cubr_auth` (`SameSite=Lax`, `Secure` в non-local,
+  `max_age=JWT_LIFETIME`). **Топология same-origin proxy** (фронт проксирует `/api`) → CSRF-middleware не нужен.
+- Модель `OAuthAccount(SQLAlchemyBaseOAuthAccountTableUUID)`; Google OAuth с custom `oauth_callback`
+  (проверяет `email_verified` claim перед associate/verify — fail-closed) + `RedirectResponse(FRONTEND_URL)`.
+- Email (Resend/Brevo, `EMAIL_PROVIDER`-свитч) через httpx, mail-outage не 500-ит; мокаемо в тестах.
+- Rate-limit: slowapi через **dependency** (декоратор не композится с fastapi-users роутерами);
+  client-IP из XFF через `ProxyHeadersMiddleware(TRUSTED_PROXIES)`; отдельный per-email лимит на register/forgot/verify.
+- **Секреты fail-closed**: `SECRET`/`RESET_VERIFY_SECRET` required, min32, reject placeholder-фрагментов
+  **в любом env** (`config.py`) — забытый `APP_ENV` в проде не стартует на `.env.example`-плейсхолдерах.
+- Пути: `/auth/{register,login,logout,request-verify-token,verify,forgot-password,reset-password}`,
+  `/auth/google/{authorize,callback}`, `/users/me`. Verify НЕ гейтит логин в 2.2. Миграция `0002_oauth_accounts`.
+
 ## Внешние сервисы / контракты
 - **WS-протокол** дуэли описать в `docs/ws-protocol.md` (join, status_update, countdown, start, finish, opponent_left).
 - **События честности** (клиент→сервер): `scramble_shown, scramble_verified, hands_ready, solve_start, solve_stop, cube_verified` — сервер ставит свои таймстампы.
