@@ -28,8 +28,8 @@ is no auth bypass, just pre-made users. First account comes with a little solve 
 
 | Email | Password | Notes |
 |---|---|---|
-| `test@cubr.local` | `cubr-test-pw-123` | verified, has solve history + best-single |
-| `alice@cubr.local` | `cubr-test-pw-123` | verified |
+| `test@example.com` | `cubr-test-pw-123` | verified, has solve history + best-single |
+| `alice@example.com` | `cubr-test-pw-123` | verified |
 
 Log in via the app (which proxies `/api` to this backend).
 

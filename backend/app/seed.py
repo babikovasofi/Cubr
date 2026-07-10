@@ -38,9 +38,11 @@ class SeedSolve(TypedDict):
 # Shared password for every seed account (local only — safe to hardcode here).
 SEED_PASSWORD = "cubr-test-pw-123"
 
+# NB: use a normal domain, not a reserved TLD like `.local` — email-validator
+# (EmailStr on UserRead) rejects special-use names, which would 500 /users/me.
 SEED_USERS: list[dict[str, str]] = [
-    {"email": "test@cubr.local", "nickname": "tester"},
-    {"email": "alice@cubr.local", "nickname": "alice"},
+    {"email": "test@example.com", "nickname": "tester"},
+    {"email": "alice@example.com", "nickname": "alice"},
 ]
 
 # A little solve history for the first account so /profile isn't empty.
