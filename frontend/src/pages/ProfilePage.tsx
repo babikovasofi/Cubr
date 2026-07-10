@@ -8,6 +8,7 @@ import Button from "../components/Button";
 import Input from "../components/Input";
 import Spinner from "../components/Spinner";
 import { useAuthStore } from "../store/authStore";
+import CubeList from "../cubes/CubeList";
 import { listSolves, type SolveRead } from "../api/solves";
 import { ApiError } from "../api/client";
 
@@ -52,6 +53,8 @@ export default function ProfilePage() {
         initialAvatar={user.avatar_url ?? ""}
         onSave={(nickname, avatar_url) => updateMe({ nickname, avatar_url })}
       />
+
+      <CubeList />
 
       <History />
     </div>

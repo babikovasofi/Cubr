@@ -13,6 +13,7 @@ from collections.abc import AsyncGenerator  # noqa: E402
 
 import pytest  # noqa: E402
 import pytest_asyncio  # noqa: E402
+import sqlalchemy as sa  # noqa: E402
 from httpx import ASGITransport, AsyncClient  # noqa: E402
 from sqlalchemy.ext.asyncio import (  # noqa: E402
     AsyncEngine,
@@ -24,7 +25,7 @@ from sqlalchemy.pool import StaticPool  # noqa: E402
 
 from app.db import Base, get_session  # noqa: E402
 from app.main import app  # noqa: E402
-from app.models import OAuthAccount, Solve, User  # noqa: E402
+from app.models import Cube, OAuthAccount, Solve, User  # noqa: E402
 from app.services import ratelimit  # noqa: E402
 
 TEST_DATABASE_URL = "sqlite+aiosqlite:///:memory:"
@@ -69,11 +70,26 @@ async def test_engine() -> AsyncGenerator[AsyncEngine, None]:
         connect_args={"check_same_thread": False},
         poolclass=StaticPool,
     )
+
+    # sqlite ignores FK actions unless PRAGMA foreign_keys is ON — enable it so
+    # `solves.cube_id` ON DELETE SET NULL fires (matches Postgres behaviour).
+    @sa.event.listens_for(engine.sync_engine, "connect")
+    def _fk_pragma(dbapi_conn: object, _rec: object) -> None:
+        cursor = dbapi_conn.cursor()  # type: ignore[attr-defined]
+        cursor.execute("PRAGMA foreign_keys=ON")
+        cursor.close()
+
     # `solves` now uses the portable GUID type, so it renders on sqlite too.
     async with engine.begin() as conn:
         await conn.run_sync(
             lambda c: Base.metadata.create_all(
-                c, tables=[User.__table__, OAuthAccount.__table__, Solve.__table__]
+                c,
+                tables=[
+                    User.__table__,
+                    OAuthAccount.__table__,
+                    Cube.__table__,
+                    Solve.__table__,
+                ],
             )
         )
     yield engine

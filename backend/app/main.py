@@ -6,7 +6,7 @@ from slowapi.middleware import SlowAPIMiddleware
 from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
 
 from app.config import get_settings
-from app.routers import auth, health, solves
+from app.routers import auth, cubes, health, solves
 from app.services.ratelimit import limiter
 
 settings = get_settings()
@@ -49,3 +49,4 @@ app.include_router(health.router)
 app.include_router(auth.router)
 # Mounted at root (no `/api` prefix): the frontend proxy strips `/api`.
 app.include_router(solves.router)
+app.include_router(cubes.router)

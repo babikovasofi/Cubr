@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   rgb2lab,
+  lab2rgb,
   deltaE76,
   deltaE2000,
   medianOfCentralRegion,
@@ -33,6 +34,28 @@ describe("rgb2lab", () => {
     expect(L).toBeCloseTo(53.24, 1);
     expect(a).toBeCloseTo(80.09, 1);
     expect(b).toBeCloseTo(67.2, 1);
+  });
+});
+
+describe("lab2rgb (inverse of rgb2lab, for swatch rendering)", () => {
+  it.each([
+    [0, 0, 0],
+    [255, 255, 255],
+    [255, 0, 0],
+    [34, 139, 34],
+    [70, 130, 180],
+  ])("round-trips sRGB [%i,%i,%i] within 1 level", (r, g, b) => {
+    const [rr, gg, bb] = lab2rgb(rgb2lab([r, g, b]));
+    expect(Math.abs(rr - r)).toBeLessThanOrEqual(1);
+    expect(Math.abs(gg - g)).toBeLessThanOrEqual(1);
+    expect(Math.abs(bb - b)).toBeLessThanOrEqual(1);
+  });
+
+  it("clamps out-of-gamut Lab into 0..255", () => {
+    for (const c of lab2rgb([50, 120, -120])) {
+      expect(c).toBeGreaterThanOrEqual(0);
+      expect(c).toBeLessThanOrEqual(255);
+    }
   });
 });
 

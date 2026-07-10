@@ -9,6 +9,8 @@ export interface SolveCreate {
   time_ms: number;
   status?: SolveStatus;
   verify_frames_ok?: boolean;
+  /** Optional cube profile this solve was done with (null = none / anon). */
+  cube_id?: string | null;
 }
 
 export interface SolveRead {
@@ -17,6 +19,7 @@ export interface SolveRead {
   time_ms: number;
   status: string;
   verify_frames_ok: boolean;
+  cube_id: string | null;
   created_at: string;
 }
 

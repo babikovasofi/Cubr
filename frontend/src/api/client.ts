@@ -30,6 +30,7 @@ const RU_BY_CODE: Record<string, string> = {
   RESET_PASSWORD_BAD_TOKEN: "Ссылка сброса недействительна или устарела. Запроси новую.",
   VERIFY_USER_BAD_TOKEN: "Ссылка подтверждения недействительна или устарела.",
   VERIFY_USER_ALREADY_VERIFIED: "Почта уже подтверждена. Можно входить.",
+  CUBE_LIMIT: "Достигнут лимит: можно хранить не больше 5 кубиков. Удали лишний, чтобы добавить новый.",
 };
 
 const RU_BY_STATUS: Record<number, string> = {

@@ -32,6 +32,7 @@ import {
 } from "./soloPhase";
 import { buildSolvePayload, saveSoloResult, type SaveState } from "./solveSave";
 import { isAuthed } from "../store/authStore";
+import { getSelectedCubeId } from "../store/cubesStore";
 import { createSolve } from "../api/solves";
 
 const ZONES = defaultZones();
@@ -142,7 +143,12 @@ export function useSoloSession(): SoloSession {
       return;
     }
     setSaveState("saving");
-    const payload = buildSolvePayload(scramble.scramble, state.elapsedMs, state.dnf);
+    const payload = buildSolvePayload(
+      scramble.scramble,
+      state.elapsedMs,
+      state.dnf,
+      getSelectedCubeId(),
+    );
     void saveSoloResult({ isAuthed: true, payload, create: createSolve }).then(setSaveState);
   }, [state.phase, state.elapsedMs, state.dnf, scramble.scramble]);
 

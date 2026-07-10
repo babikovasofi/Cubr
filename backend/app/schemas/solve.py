@@ -19,6 +19,7 @@ class SolveCreate(BaseModel):
     time_ms: int = Field(gt=0)
     status: Literal["valid", "dnf"] = "valid"
     verify_frames_ok: bool = False
+    cube_id: UUID | None = None
 
 
 class SolveRead(BaseModel):
@@ -31,4 +32,5 @@ class SolveRead(BaseModel):
     time_ms: int
     status: str
     verify_frames_ok: bool
+    cube_id: UUID | None
     created_at: datetime

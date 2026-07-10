@@ -130,6 +130,19 @@ fastapi-users **15** (`app/services/{auth,email,ratelimit}.py`, `routers/auth.py
   `ProtectedRoute` (`?next=`, guard от open-redirect) / `GuestOnlyRoute`. `src/api/client.ts` мэпит
   fastapi-users ошибки (`string|{code,reason}`) в RU. Онбординг: localStorage `cubr_onboarded` (пока без серверного поля).
 
+### Профили кубиков (реализовано Этап 2.4, accounts-only)
+- **Backend:** таблица `cubes` (`color_profile` = `sa.JSON().with_variant(JSONB,"postgresql")`, ключи
+  **позиционные грани U/R/F/D/L/B**, НЕ W/Y/R/O/B/G). `routers/cubes.py` CRUD, все инварианты server-side
+  в одной транзакции: лимит 5 → 409 `CUBE_LIMIT`; ровно один `is_primary` (set сбрасывает остальные,
+  первый auto, delete-primary promotes самый свежий); ownership → 404 (не 403). `solve.cube_id` FK
+  `ondelete=SET NULL` (сборки переживают удаление кубика). Миграция `0003_cubes`. `POST /solves` валидирует
+  `cube_id` по владельцу. MVP: инварианты read-then-write без row-lock (concurrency-гонка принята).
+- **Frontend:** `cubesStore` (single-primary + promote optimistic, `selectedCubeId` persist localStorage,
+  `getSelectedCubeId()` возвращает id только если он в загруженном списке — не теряет солв на stale-id).
+  `CubeRegisterWizard` переиспользует `captureCalibration` (6 граней) + `useCubeReader.getProfile()`
+  (ключи U/R/F/D/L/B = backend `ColorProfile`). «Мои кубики» — секция в `/profile`. Селектор в соло =
+  метаданные к результату (зрение НЕ потребляет профиль — отложено на vision-интеграцию/Этап 0).
+
 ## Внешние сервисы / контракты
 - **WS-протокол** дуэли описать в `docs/ws-protocol.md` (join, status_update, countdown, start, finish, opponent_left).
 - **События честности** (клиент→сервер): `scramble_shown, scramble_verified, hands_ready, solve_start, solve_stop, cube_verified` — сервер ставит свои таймстампы.

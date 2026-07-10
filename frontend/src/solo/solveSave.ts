@@ -14,12 +14,14 @@ export function buildSolvePayload(
   scramble: string,
   elapsedMs: number,
   dnf: boolean,
+  cubeId: string | null = null,
 ): SolveCreate {
   return {
     scramble,
     time_ms: Math.max(1, Math.round(elapsedMs)),
     status: dnf ? "dnf" : "valid",
     verify_frames_ok: !dnf,
+    cube_id: cubeId,
   };
 }
 

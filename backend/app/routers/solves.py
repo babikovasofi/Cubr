@@ -2,12 +2,12 @@
 (`GET /solves`). Both require an authenticated active user.
 """
 
-from fastapi import APIRouter, Depends, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db import get_session
-from app.models import Solve, User
+from app.models import Cube, Solve, User
 from app.schemas.solve import SolveCreate, SolveRead
 from app.services.auth import current_active_user
 
@@ -20,10 +20,18 @@ async def create_solve(
     user: User = Depends(current_active_user),
     session: AsyncSession = Depends(get_session),
 ) -> Solve:
+    # If a cube is referenced, it must belong to the caller (else 404 — no
+    # cross-user leak, and never a 500 on an unknown/foreign id).
+    if payload.cube_id is not None:
+        cube = await session.get(Cube, payload.cube_id)
+        if cube is None or cube.user_id != user.id:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Cube not found")
+
     solve = Solve(
         user_id=user.id,
         duel_id=None,
         tournament_id=None,
+        cube_id=payload.cube_id,
         scramble=payload.scramble,
         time_ms=payload.time_ms,
         status=payload.status,
