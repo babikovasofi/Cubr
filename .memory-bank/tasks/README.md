@@ -64,11 +64,23 @@
   - ⏳ Живьём (нужен Postgres+Docker/ключи/камера): цикл register→verify→login→onboarding→solo-save→profile,
     Google OAuth round-trip, камера-чек. Deviation: DNF шлётся `time_ms=1` (бэк требует >0).
 
+- **Этап 2.4 — профили кубиков (accounts-only)** ✅ код (⏳ живьём) — `backend/` + `frontend/`.
+  - ✅ Backend: таблица `cubes` (JSON `color_profile`, ключи U/R/F/D/L/B) + CRUD (лимит 5→409, один
+    `is_primary` в транзакции, delete-primary promotes свежего, ownership-404), `solve.cube_id` FK `SET NULL`,
+    миграция 0003. Frontend: `cubesStore`, `CubeRegisterWizard` (6 граней, reuse `captureCalibration`),
+    «Мои кубики» в профиле, онбординг-мастер (skippable), селектор в соло, `cube_id` в save.
+  - ✅ backend pytest 47/47, frontend typecheck 0 / tests 120 / lint / build. Review = **ship**
+    (MED concurrency-race принят для MVP; LOW `getSelectedCubeId` stale-id захаржен). Живой смоук:
+    limit-409, primary-инвариант, ownership-404, delete+promote, solve+cube_id — всё ок.
+    [swarm-report/stage2.4-cube-profiles-*](../../swarm-report/).
+  - ⏳ Manual QA: 6-гранный захват камерой в мастере; живая миграция 0003 против Postgres.
+
 ## Planned (следующий фокус)
 - **Этап 1.2 manual QA** — прогнать §5.1 живьём (см. выше), тюнинг порогов `config.ts`.
-- **Этап 2.4 — профили кубиков** ([feature-cube-profiles](../product-overview/feature-cube-profiles.md)):
-  таблица `cubes` + CRUD, мастер регистрации, «Мои кубики», регистрация в онбординге (заменяет placeholder),
-  селектор кубика, `solve.cube_id`. Требует прототип профилей Этапа 0 (часть A/B).
+- **Vision-интеграция профилей** (гейт Этап 0): быстрая подстройка 1 гранью (spec B.2) + потребление
+  сохранённого профиля в ритуале + Part A порядок фаз FSM (`CALIBRATE_SOLVED` первым). Отложено из 2.4.
+- **Этап 3 — серверная честность:** серверные скрамблы, поток событий с таймстампами, кадры-доказательства,
+  OpenCV-перепроверка, валидация → `solve.status`.
 - Прототипы `prototype/`+`prototype2/` **удалены** (DOM-порт добит в 1.2; код в `frontend/`).
 - Пройти гейт Этапа 0.3 (живьём, ≥90%) — пререквизит, отдельно.
 - Этапы 2–6 — см. [workplan.md](workplan.md).

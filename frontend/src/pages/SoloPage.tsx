@@ -6,6 +6,7 @@ import { Link } from "react-router-dom";
 import Button from "../components/Button";
 import Timer from "../components/Timer";
 import CameraStage from "../solo/CameraStage";
+import CubeSelect from "../cubes/CubeSelect";
 import ScrambleWalkthrough from "../solo/ScrambleWalkthrough";
 import ResultScreen from "../solo/ResultScreen";
 import { useSoloSession } from "../solo/useSoloSession";
@@ -17,11 +18,14 @@ export default function SoloPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex items-center justify-between gap-4">
+      <div className="flex flex-wrap items-center justify-between gap-4">
         <h2 className="font-sans text-h2 text-ink">Соло — сборка</h2>
-        <Link to="/" className="font-sans text-body font-bold text-primary no-underline">
-          ← На главную
-        </Link>
+        <div className="flex items-center gap-4">
+          <CubeSelect />
+          <Link to="/" className="font-sans text-body font-bold text-primary no-underline">
+            ← На главную
+          </Link>
+        </div>
       </div>
 
       {phase === "loading" ? (

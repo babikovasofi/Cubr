@@ -48,6 +48,36 @@ export function rgb2lab([r, g, b]: RGB): Lab {
   return [L, a, bb];
 }
 
+function linearToSrgb(c: number): number {
+  const v = c <= 0.0031308 ? 12.92 * c : 1.055 * Math.pow(c, 1 / 2.4) - 0.055;
+  return Math.round(Math.min(1, Math.max(0, v)) * 255);
+}
+
+/**
+ * Inverse of {@link rgb2lab}: CIE Lab (D65) -> sRGB, clamped to 0..255. Used only
+ * to render stored colour-profile swatches; not part of the read pipeline.
+ */
+export function lab2rgb([L, a, b]: Lab): RGB {
+  const fy = (L + 16) / 116;
+  const fx = fy + a / 500;
+  const fz = fy - b / 200;
+
+  const fInv = (t: number) => (t > 0.206897 ? t * t * t : (t - 16 / 116) / 7.787);
+  const xr = fInv(fx);
+  const yr = fInv(fy);
+  const zr = fInv(fz);
+
+  const x = xr * 0.95047;
+  const y = yr * 1.0;
+  const z = zr * 1.08883;
+
+  const rl = x * 3.2406 + y * -1.5372 + z * -0.4986;
+  const gl = x * -0.9689 + y * 1.8758 + z * 0.0415;
+  const bl = x * 0.0557 + y * -0.204 + z * 1.057;
+
+  return [linearToSrgb(rl), linearToSrgb(gl), linearToSrgb(bl)];
+}
+
 // ---------------------------------------------------------------------------
 // deltaE: CIE76 (fallback) and CIEDE2000 (default)
 // ---------------------------------------------------------------------------

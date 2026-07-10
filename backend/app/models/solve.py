@@ -26,6 +26,13 @@ class Solve(Base):
     # tables do not exist yet (FKs come in stage 3.x/5.x).
     duel_id: Mapped[uuid.UUID | None] = mapped_column(GUID, nullable=True)
     tournament_id: Mapped[uuid.UUID | None] = mapped_column(GUID, nullable=True)
+    # SET NULL (not CASCADE): a solve survives deletion of the cube it referenced.
+    cube_id: Mapped[uuid.UUID | None] = mapped_column(
+        GUID,
+        ForeignKey("cubes.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
 
     scramble: Mapped[str] = mapped_column(String(length=512))
     time_ms: Mapped[int] = mapped_column(Integer)

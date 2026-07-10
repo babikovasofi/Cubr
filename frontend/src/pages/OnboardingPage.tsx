@@ -1,12 +1,13 @@
 // Onboarding (plan §B): 3 steps — intro, camera check (reuses useCamera+useHands),
-// and a labelled cube-registration placeholder (real flow lands in Stage 2.4).
-// Every step is skippable with a warning; finishing marks the local onboarded flag.
+// and cube registration (CubeRegisterWizard → first cube becomes primary). Every
+// step is skippable; finishing marks the local onboarded flag. The cube step is
+// skippable too — the profile isn't consumed in solo yet, so it's not a play gate.
 
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import Button from "../components/Button";
 import CameraStage from "../solo/CameraStage";
-import Spinner from "../components/Spinner";
+import CubeRegisterWizard from "../cubes/CubeRegisterWizard";
 import { useCameraCheck } from "../onboarding/useCameraCheck";
 import { markOnboarded } from "../auth/onboarding";
 
@@ -142,19 +143,22 @@ function CameraStep({ onNext, onBack }: { onNext: () => void; onBack: () => void
 function CubeStep({ onFinish, onBack }: { onFinish: () => void; onBack: () => void }) {
   return (
     <StepCard title="Регистрация кубика">
-      <div className="flex flex-col items-center gap-3 rounded-md border-2 border-dashed border-line bg-surface-2 p-8 text-center">
-        <Spinner label="" />
-        <p className="font-sans text-body font-bold text-ink">Регистрация кубика — Этап 2.4</p>
-        <p className="font-sans text-small text-muted">
-          Здесь ты снимешь цвет-профиль своего кубика. Пока этот шаг — заглушка, можно
-          продолжить без него.
-        </p>
-      </div>
+      <p className="font-sans text-body text-muted">
+        Сними цвет-профиль своего кубика — это первый и основной кубик. Можно пропустить
+        и добавить позже в профиле.
+      </p>
+      <CubeRegisterWizard defaultPrimary onDone={onFinish} onCancel={onFinish} />
       <div className="flex flex-wrap items-center gap-3">
         <button type="button" onClick={onBack} className="font-sans text-small font-bold text-muted">
           ← Назад
         </button>
-        <Button onClick={onFinish}>Завершить</Button>
+        <button
+          type="button"
+          onClick={onFinish}
+          className="font-sans text-small font-bold text-warning underline"
+        >
+          Пропустить регистрацию
+        </button>
       </div>
     </StepCard>
   );

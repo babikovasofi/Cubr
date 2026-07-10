@@ -9,16 +9,18 @@ const READ: SolveRead = {
   time_ms: 12340,
   status: "valid",
   verify_frames_ok: true,
+  cube_id: null,
   created_at: "2026-07-10T00:00:00Z",
 };
 
 describe("buildSolvePayload", () => {
-  it("rounds elapsedMs and marks a valid solve", () => {
+  it("rounds elapsedMs, marks a valid solve, and defaults cube_id to null", () => {
     expect(buildSolvePayload("R U R'", 12340.7, false)).toEqual({
       scramble: "R U R'",
       time_ms: 12341,
       status: "valid",
       verify_frames_ok: true,
+      cube_id: null,
     });
   });
 
@@ -27,6 +29,15 @@ describe("buildSolvePayload", () => {
     expect(p.status).toBe("dnf");
     expect(p.verify_frames_ok).toBe(false);
     expect(p.time_ms).toBe(1); // backend requires time_ms > 0
+    expect(p.cube_id).toBeNull();
+  });
+
+  it("threads a selected cube_id into the payload", () => {
+    expect(buildSolvePayload("R", 1000, false, "cube-42").cube_id).toBe("cube-42");
+  });
+
+  it("keeps cube_id null when explicitly passed null (no cube / anon)", () => {
+    expect(buildSolvePayload("R", 1000, false, null).cube_id).toBeNull();
   });
 });
 

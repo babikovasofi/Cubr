@@ -125,6 +125,8 @@ export interface CubeReader {
   verifyFacesLength: number; // 0..6, of the in-flight collector
   collecting: boolean;
   captureCalibration: (video: HTMLVideoElement) => void;
+  /** The current calibration output (6 Lab face refs, keys U/R/F/D/L/B), or null. */
+  getProfile: () => Refs | null;
   recalibrate: () => void;
   beginVerify: () => void;
   pushVerifyFace: (video: HTMLVideoElement, expected: Facelet) => VerifyResult;
@@ -225,6 +227,7 @@ export function useCubeReader(workRef: React.RefObject<HTMLCanvasElement | null>
     verifyFacesLength,
     collecting,
     captureCalibration,
+    getProfile: () => refsRef.current,
     recalibrate,
     beginVerify,
     pushVerifyFace,
