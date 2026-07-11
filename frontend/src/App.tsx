@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, lazy, Suspense } from "react";
 import { Routes, Route, Link, useNavigate } from "react-router-dom";
 import HomePage from "./pages/HomePage";
 import SoloPage from "./pages/SoloPage";
@@ -13,6 +13,10 @@ import ProfilePage from "./pages/ProfilePage";
 import { ProtectedRoute, GuestOnlyRoute } from "./auth/ProtectedRoute";
 import { ToastViewport, toast } from "./components/Toast";
 import { useAuthStore } from "./store/authStore";
+
+// DEV-only Stage-0.3 accuracy gate. React.lazy + import.meta.env.DEV so the whole
+// module (camera harness + accuracy panel) tree-shakes out of the prod bundle.
+const AccuracyPage = import.meta.env.DEV ? lazy(() => import("./accuracy/AccuracyPage")) : null;
 
 function AuthMenu() {
   const user = useAuthStore((s) => s.user);
@@ -145,6 +149,17 @@ export default function App() {
         <Routes>
           <Route path="/" element={<HomePage />} />
           <Route path="/solo" element={<SoloPage />} />
+
+          {AccuracyPage ? (
+            <Route
+              path="/accuracy"
+              element={
+                <Suspense fallback={<p className="font-sans text-body text-muted">Загрузка…</p>}>
+                  <AccuracyPage />
+                </Suspense>
+              }
+            />
+          ) : null}
 
           <Route
             path="/login"
