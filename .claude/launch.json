@@ -2,12 +2,6 @@
   "version": "0.0.1",
   "configurations": [
     {
-      "name": "prototype",
-      "runtimeExecutable": "npm",
-      "runtimeArgs": ["--prefix", "prototype", "run", "dev", "--", "--host", "127.0.0.1"],
-      "port": 5173
-    },
-    {
       "name": "frontend",
       "runtimeExecutable": "npm",
       "runtimeArgs": ["--prefix", "frontend", "run", "dev", "--", "--host", "127.0.0.1", "--port", "5174", "--strictPort"],
