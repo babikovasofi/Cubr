@@ -52,9 +52,17 @@ class Camera {
   private rafHandle: number | null = null;
   private rvfcHandle: number | null = null;
   private running = false;
+  private onLost?: () => void;
 
-  constructor(video: HTMLVideoElement) {
+  constructor(video: HTMLVideoElement, onLost?: () => void) {
     this.video = video;
+    this.onLost = onLost;
+  }
+
+  /** True while a stream is attached and its video track is still live. */
+  isLive(): boolean {
+    const track = this.stream?.getVideoTracks()[0];
+    return this.running && track?.readyState === "live";
   }
 
   async start(cb: FrameCallback): Promise<void> {
@@ -64,6 +72,9 @@ class Camera {
     if (!navigator.mediaDevices?.getUserMedia) {
       throw new CameraError("unsupported", "getUserMedia not available in this browser");
     }
+    // Re-acquire cleanly: drop any prior (possibly dead) stream so a retry never
+    // hits NotReadableError "in-use" against our own stale tracks.
+    if (this.stream) this.stop();
     try {
       this.stream = await navigator.mediaDevices.getUserMedia({
         video: {
@@ -83,6 +94,17 @@ class Camera {
     await this.video.play();
 
     this.running = true;
+
+    // If the OS/another app drops the device (or the track otherwise ends), the
+    // stream is dead but our loop can't tell. Surface it so the UI can offer a
+    // restart instead of forcing a page reload.
+    for (const track of this.stream.getVideoTracks()) {
+      track.addEventListener("ended", () => {
+        if (!this.running) return;
+        this.running = false;
+        this.onLost?.();
+      });
+    }
     const v = this.video as VideoWithRvfc;
 
     if (typeof v.requestVideoFrameCallback === "function") {
@@ -154,18 +176,25 @@ function mapGetUserMediaError(e: DOMException): CameraError {
   }
 }
 
-/** Hook: a single Camera behind a ref, constructed lazily against `videoRef`. */
-export function useCamera(videoRef: RefObject<HTMLVideoElement | null>) {
+/**
+ * Hook: a single Camera behind a ref, constructed lazily against `videoRef`.
+ * `onLost` fires if the live track ends (device unplugged, grabbed by another
+ * app, OS sleep) so the caller can reset its "started" flag and offer a restart.
+ */
+export function useCamera(videoRef: RefObject<HTMLVideoElement | null>, onLost?: () => void) {
   const ref = useRef<Camera | null>(null);
+  const onLostRef = useRef(onLost);
+  onLostRef.current = onLost;
   return {
     start: async (cb: FrameCallback): Promise<void> => {
       const el = videoRef.current;
       if (!el) throw new CameraError("unknown", "video element not mounted");
-      if (!ref.current) ref.current = new Camera(el);
+      if (!ref.current) ref.current = new Camera(el, () => onLostRef.current?.());
       await ref.current.start(cb);
     },
     stop: (): void => {
       ref.current?.stop();
     },
+    isLive: (): boolean => ref.current?.isLive() ?? false,
   };
 }

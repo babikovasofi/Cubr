@@ -86,11 +86,14 @@ export function useAccuracySession(): AccuracySession {
   const overlayRef = useRef<HTMLCanvasElement | null>(null);
   const workRef = useRef<HTMLCanvasElement | null>(null);
 
-  const camera = useCamera(videoRef);
+  // If the live track dies (device grabbed/unplugged/asleep), flip back to the
+  // not-started state so the "Включить камеру" button reappears and re-acquires —
+  // no page reload needed.
+  const [cameraStarted, setCameraStarted] = useState(false);
+  const camera = useCamera(videoRef, () => setCameraStarted(false));
   const reader = useCubeReader(workRef);
   const scramble = useScramble();
 
-  const [cameraStarted, setCameraStarted] = useState(false);
   const [cameraError, setCameraError] = useState<string | null>(null);
   const [mode, setMode] = useState<AccuracyMode>("scramble");
   const [condition, setConditionState] = useState<ConditionKey>({
@@ -138,7 +141,7 @@ export function useAccuracySession(): AccuracySession {
   };
 
   const startCamera = async (): Promise<void> => {
-    if (cameraStarted) return;
+    if (cameraStarted && camera.isLive()) return;
     try {
       setCameraError(null);
       await camera.start(onFrame);

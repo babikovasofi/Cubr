@@ -99,7 +99,10 @@ export function useSoloSession(): SoloSession {
   const overlayRef = useRef<HTMLCanvasElement | null>(null);
   const workRef = useRef<HTMLCanvasElement | null>(null);
 
-  const camera = useCamera(videoRef);
+  // Track death (device grabbed/unplugged/asleep) → reset so the UI can restart
+  // without a page reload.
+  const [cameraStarted, setCameraStarted] = useState(false);
+  const camera = useCamera(videoRef, () => setCameraStarted(false));
   const hands = useHands();
   const reader = useCubeReader(workRef);
   const scramble = useScramble();
@@ -113,7 +116,6 @@ export function useSoloSession(): SoloSession {
     stateRef.current = state;
   }, [state]);
 
-  const [cameraStarted, setCameraStarted] = useState(false);
   const [cameraError, setCameraError] = useState<string | null>(null);
   const [verifyError, setVerifyError] = useState<string | null>(null);
   const [liveMs, setLiveMs] = useState(0);
@@ -188,7 +190,7 @@ export function useSoloSession(): SoloSession {
   };
 
   const startCamera = async (): Promise<void> => {
-    if (cameraStarted) return;
+    if (cameraStarted && camera.isLive()) return;
     try {
       setCameraError(null);
       await hands.init();
