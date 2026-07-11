@@ -29,6 +29,11 @@ export default function HomePage() {
           Тема: {theme === "light" ? "светлая" : "тёмная"}
         </Button>
         <Button disabled>Недоступно</Button>
+        {import.meta.env.DEV ? (
+          <Link to="/accuracy">
+            <Button className="bg-surface-2 text-ink">Замер точности (dev)</Button>
+          </Link>
+        ) : null}
       </section>
     </div>
   );

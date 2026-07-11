@@ -106,6 +106,51 @@ function argminRef(lab: Lab, refs: Refs): ColorName {
   return best;
 }
 
+// Shared 6-face resolve (skeptic HIGH#1): compute the RAW per-sticker argmin face
+// grids ONCE, then run the legality pipeline (assignFacesByCenter → resolveRotations
+// → validate) for the product/verify path. The accuracy harness consumes rawFaceGrids
+// directly (it needs the pre-resolve read); verify consumes `resolved`.
+type ResolveReason = "assign" | "ambiguous" | "resolve" | "illegal";
+interface SixFaceResolve {
+  rawFaceGrids: Face[][]; // 6 × 9 argmin face-letters, in the order given
+  resolved: Facelet | null; // legality-resolved URFDLB string, or null on failure
+  reason?: ResolveReason; // set iff resolve/validate did not produce a legal cube
+}
+
+function resolveSixFaces(faces: Lab[][], refs: Refs): SixFaceResolve {
+  const rawFaceGrids: Face[][] = faces.map((grid) =>
+    grid.map((lab) => argminRef(lab, refs) as string as Face),
+  );
+  const assign = assignFacesByCenter(faces, refs);
+  if (!assign.ok) return { rawFaceGrids, resolved: null, reason: "assign" };
+  const res = resolveRotations(rawFaceGrids, assign.faces);
+  if (!res.ok) {
+    return {
+      rawFaceGrids,
+      resolved: null,
+      reason: res.reason?.includes("ambiguous") ? "ambiguous" : "resolve",
+    };
+  }
+  const read = res.facelets!;
+  if (!validateFacelets(read).ok) return { rawFaceGrids, resolved: read, reason: "illegal" };
+  return { rawFaceGrids, resolved: read };
+}
+
+// An accuracy capture outcome (fixed capture order, known ground truth). Drift is
+// checked per-face at capture so the tester re-shows a drifted face instead of
+// silently measuring calibration error. `complete` carries the raw grids for the
+// harness to assemble + score against an INDEPENDENT ground truth.
+export type AccuracyCapture =
+  | { kind: "pending"; facesLength: number }
+  | { kind: "unreadable" } // luma/refs gate failed
+  | { kind: "drift"; face: Face; de: number } // captured face center drifted → re-show
+  | {
+      kind: "complete";
+      rawFaceGrids: Face[][]; // 6 × 9 in fixed capture order URFDLB
+      resolved: Facelet | null; // informational legality-resolve (NOT scored)
+      resolveReason?: ResolveReason;
+    };
+
 // A verify capture outcome. `pending` while <6 faces are in; then a terminal.
 export type VerifyResult =
   | { kind: "pending"; facesLength: number }
@@ -131,6 +176,13 @@ export interface CubeReader {
   beginVerify: () => void;
   pushVerifyFace: (video: HTMLVideoElement, expected: Facelet) => VerifyResult;
   resetVerify: () => void;
+  // Accuracy-harness collector (Stage 0.3): fixed capture order, per-face drift
+  // gate, raw grids exposed pre-resolve. Independent of the verify collector.
+  accFacesLength: number; // 0..6, of the in-flight accuracy collector
+  collectingAccuracy: boolean;
+  beginAccuracy: () => void;
+  pushAccuracyFace: (video: HTMLVideoElement) => AccuracyCapture;
+  resetAccuracy: () => void;
 }
 
 /** Stateful reader bound to a work-canvas ref. */
@@ -138,9 +190,12 @@ export function useCubeReader(workRef: React.RefObject<HTMLCanvasElement | null>
   const [calibrationStep, setCalibrationStep] = useState(0);
   const [verifyFacesLength, setVerifyFacesLength] = useState(0);
   const [collecting, setCollecting] = useState(false);
+  const [accFacesLength, setAccFacesLength] = useState(0);
+  const [collectingAccuracy, setCollectingAccuracy] = useState(false);
   const refsRef = useRef<Refs | null>(null);
   const calibRgbRef = useRef<Partial<Record<ColorName, RGB>>>({});
   const collectorRef = useRef<Lab[][] | null>(null);
+  const accCollectorRef = useRef<Lab[][] | null>(null);
 
   const readable = (video: HTMLVideoElement, work: HTMLCanvasElement): boolean => {
     if (!refsRef.current) return false;
@@ -203,20 +258,60 @@ export function useCubeReader(workRef: React.RefObject<HTMLCanvasElement | null>
     setCollecting(false);
     setVerifyFacesLength(0);
 
-    const assign = assignFacesByCenter(faces, refs);
-    if (!assign.ok) return { kind: "assign" };
-    const faceGrids: Face[][] = faces.map((grid) =>
-      grid.map((lab) => argminRef(lab, refs) as string as Face),
-    );
-    const res = resolveRotations(faceGrids, assign.faces);
-    if (!res.ok) {
-      return { kind: res.reason?.includes("ambiguous") ? "ambiguous" : "resolve" };
-    }
-    const read = res.facelets!;
-    if (!validateFacelets(read).ok) return { kind: "illegal" };
+    const { resolved, reason } = resolveSixFaces(faces, refs);
+    if (reason === "assign") return { kind: "assign" };
+    if (reason === "ambiguous") return { kind: "ambiguous" };
+    if (reason === "resolve") return { kind: "resolve" };
+    if (reason === "illegal") return { kind: "illegal" };
+    const read = resolved!;
     const diffs = diffFacelets(read, expected);
     if (diffs.length === 0) return { kind: "ok" };
     return { kind: "mismatch", face: diffs[0].face, count: diffs.length };
+  };
+
+  // ---- Accuracy collector (fixed capture order URFDLB) ----------------------
+
+  const beginAccuracy = (): void => {
+    accCollectorRef.current = [];
+    setAccFacesLength(0);
+    setCollectingAccuracy(true);
+  };
+
+  const resetAccuracy = (): void => {
+    accCollectorRef.current = null;
+    setAccFacesLength(0);
+    setCollectingAccuracy(false);
+  };
+
+  const pushAccuracyFace = (video: HTMLVideoElement): AccuracyCapture => {
+    const work = workRef.current;
+    const refs = refsRef.current;
+    if (!work || !refs || !accCollectorRef.current) return { kind: "unreadable" };
+    if (!readable(video, work)) return { kind: "unreadable" };
+
+    // Fixed order: the i-th captured face IS COLOR_NAMES[i] (== FACE_ORDER[i]).
+    // Enforce CENTER_DRIFT_DE against that known ref so we re-show a drifted face
+    // instead of measuring calibration drift as a vision error (skeptic MED).
+    const faceIndex = accCollectorRef.current.length;
+    const expectedColor = COLOR_NAMES[faceIndex];
+    const face = readFace(video, video.videoWidth, video.videoHeight, work);
+    const de = deltaE(face.lab[4], refs[expectedColor]);
+    if (de > config.CENTER_DRIFT_DE) {
+      return { kind: "drift", face: expectedColor as string as Face, de };
+    }
+
+    accCollectorRef.current.push(face.lab);
+    const n = accCollectorRef.current.length;
+    setAccFacesLength(n);
+    if (n < 6) return { kind: "pending", facesLength: n };
+
+    const faces = accCollectorRef.current;
+    accCollectorRef.current = null;
+    setCollectingAccuracy(false);
+    setAccFacesLength(0);
+
+    const { rawFaceGrids, resolved, reason } = resolveSixFaces(faces, refs);
+    return { kind: "complete", rawFaceGrids, resolved, resolveReason: reason };
   };
 
   return {
@@ -232,5 +327,10 @@ export function useCubeReader(workRef: React.RefObject<HTMLCanvasElement | null>
     beginVerify,
     pushVerifyFace,
     resetVerify,
+    accFacesLength,
+    collectingAccuracy,
+    beginAccuracy,
+    pushAccuracyFace,
+    resetAccuracy,
   };
 }
