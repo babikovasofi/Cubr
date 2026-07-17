@@ -18,7 +18,8 @@ and merge their output. No code edits here.
    if it exists. If it does not, tell the user: "No Memory Bank found — plan will rest
    only on your description." and continue.
 3. **Spawn 2 subagents in parallel** — one message, two `Task` calls,
-   `subagent_type: general-purpose`. Prefix EACH prompt with:
+   `subagent_type: general-purpose`, **`model: opus`** (planning needs the strongest
+   reasoning; do not ask the user which model — always opus here). Prefix EACH prompt with:
    > Answer TERSE: terse, drop filler, keep all technical substance.
 
    - **planner** — "Read `.claude/agents/planner.md` and follow it exactly. Feature: <verbatim>."

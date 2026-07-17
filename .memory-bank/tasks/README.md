@@ -77,12 +77,116 @@
     [swarm-report/stage2.4-cube-profiles-*](../../swarm-report/).
   - ⏳ Manual QA: 6-гранный захват камерой в мастере; живая миграция 0003 против Postgres.
 
+- **Vision-интеграция профилей** ✅ код (⏳ manual QA живой камерой) — `frontend/`.
+  - ✅ FSM переупорядочен: `CALIBRATE_SOLVED → SCRAMBLE_SHOWN → SCRAMBLE_VERIFY → READY →
+    SOLVING → STOPPED → SOLVE_VERIFY → result`. Собранный кубик показывается ПЕРВЫМ,
+    `calibrate_ok` — единственный выход из calibrate (таймер не взводится раньше).
+  - ✅ Quick-adjust: профиль выбранного кубика сидит refs, подстройка ОДНОЙ белой гранью
+    (von-Kries per-channel gain, linear-sRGB, НЕ аддитивный Lab-сдвиг) → `~3с` вместо
+    20с. Гейт «сошлось» — на наблюдаемой грани (кластер+margin), не на сдвинутых эталонах.
+    Не белая грань / не сошлось → полная 6-гранная перекалибровка (fallback).
+  - ✅ **Контракт `validated`:** seeded+quick-adjusted профиль = `validated:false` (одна грань
+    физически не валидирует red/orange — R1). Полная 6-гранная калибровка = `validated:true`.
+    Флаг session/solve-level, НЕ в схеме БД. Ranked (Этап 4) потребует `validated:true` /
+    accuracy-гейт — этот флаг и есть точка врезки.
+  - ✅ Accuracy-режим (`/accuracy`, гейт 0.3) получил явный honesty-барьер: НИКОГДА не сидит
+    из профиля, всегда мерит свежую полную калибровку — иначе гейт 0.3 измерял бы не то.
+  - ✅ tests 169 (+26), typecheck/lint/build чисто. Review = **ship** (0 findings).
+    [swarm-report/vision-profile-integration-*](../../swarm-report/).
+  - ⏳ Manual QA живой камерой: quick-adjust реальным кубиком, wrong-face/diverged UX,
+    exposure/WB-lock по браузерам.
+
+- **Серверная генерация скрамблов** ✅ код (первый кирпич Этапа 3) — `backend/` + `frontend/`.
+  - ✅ `GET /scramble` — публичный (без auth, соло/accuracy работают анонимно), рейт-лимит
+    60/minute per-IP (`services/ratelimit.py`, тот же паттерн что `AUTH_RATE_LIMIT`). Отдаёт
+    `{scramble, event:"333"}`, random-MOVE 25 ходов (порт TS `randomScramble()` из
+    `cubeState.ts` 1:1, без граневого повтора/редундантной opp-пары; `secrets.choice`).
+    **НЕ** WCA random-STATE (нужен солвер) — сознательный MVP-компромисс.
+  - ✅ Скоуп сознательно узкий: **только смена источника строки**, БЕЗ персистентности/
+    `scramble_id`/честностной привязки solve↔scramble (нужна отдельная миграция +
+    снятие `extra="forbid"` с `SolveCreate` — отдельный тикет Этапа 3).
+  - ✅ Фронт: `useScramble` теперь бьёт `/api/scramble` вместо CDN `randomScrambleForEvent`;
+    twisty-рендер (`useTwisty`) по-прежнему грузит cubing с CDN — это не убрало
+    CDN-зависимость, только добавило бэкенд-зависимость для строки. Офлайн/dev-без-бэка
+    фолбэк: при неудаче фетча — локальный `randomScramble()`/`randomStateFacelets()`
+    (двухуровневый, без сети), ритуал не залипает на "Готовлю скрамбл…".
+  - ✅ tests: backend pytest 51 (+4), frontend vitest 172 (+3), typecheck/lint чисты обе
+    стороны. Review = **ship** (0 findings), qa-smoke = **pass** (живой curl-прогон,
+    легальность 50×25 ходов, рейт-лимит подтверждён живьём). Полностью автономный цикл
+    plan→build→review без участия пользователя.
+    [swarm-report/server-scramble-generation-*](../../swarm-report/).
+- **Персистентность скрамбла + `solve.scramble_id`** ✅ код (⏳ живая миграция) — `backend/` + `frontend/`.
+  - ✅ Стратегия **signed HMAC token** (не store-on-GET — ноль роста таблицы/DoS на публичном
+    роуте). GET /scramble отдаёт `{scramble, event, scramble_token}` (`services/scramble_token.py`:
+    HMAC-SHA256, canonical JSON payload `sort_keys`, nonce+exp, base64url), **без записи в БД**.
+  - ✅ POST /solves принимает **явное** опциональное `scramble_token` (SolveCreate **сохраняет**
+    `extra="forbid"` — снятие было бы регрессом). Валидный → лениво пишет строку в `scrambles`
+    (только реальный solve), `solve.scramble` берётся из **верифицированного** токена (сервер
+    авторитетен, клиентский `scramble` игнорится), `solve.scramble_id` линкуется. Bad/expired sig
+    → 422, reused nonce → 409 (SELECT + IntegrityError race-guard, one-time-use на UNIQUE), omit → 201 null.
+  - ✅ Таблица `scrambles` (GUID pk, event, scramble, `nonce` UNIQUE, created_at), `solve.scramble_id`
+    FK SET NULL nullable indexed, миграция **0004**. `SCRAMBLE_SIGN_SECRET` fail-closed (min32 +
+    placeholder-reject, отдельный от auth `SECRET`), `SCRAMBLE_TOKEN_TTL=3600`.
+  - ✅ backend pytest 65, frontend vitest 194, ruff/mypy(scope)/tsc/lint чисто. Review = **ship**
+    (0 findings, крипта проверена в полном объёме). Полностью автономный цикл plan→build→review.
+    [swarm-report/scramble-persistence-*](../../swarm-report/).
+  - ⏳ Живая миграция 0004 против Postgres (нет Docker); end-to-end /scramble→solo→save с живым линком.
+- **Честностные оси — design-note** ✅ (не код) — `solutions.md` §П5.
+  - ✅ Разведены 4 оси: `status`(valid/dnf/rejected, PB-ключ) ⊥ `verify_frames_ok`(сырой bool) ⊥
+    **`honesty`**(pending/verified/rejected, только сервер, появится с frame-кирпичом) ⊥
+    `validated`(качество калибровки, не в БД). Прецедент Ranked = `validated==true И honesty=="verified"`.
+    Заморожен инвариант: PB остаётся honesty-агностичным. Решение: `honesty`-колонку НЕ шипить
+    отдельной мёртвой схемой — land вместе с первым сеттером. [swarm-report/solve-status-plan.md].
+  - 🚧 **proof-frames — BLOCKED** (skeptic block, 2026-07-17). Presence-only honesty = мёртвая колонка
+    (verified недостижим без OpenCV) + хранение PII-кадров без читателя = привязка П10 + storage/DoS,
+    ноль сдерживания. Вывод: кадры + OpenCV = ОДИН кирпич, не два. [swarm-report/proof-frames-plan.md].
+  - 🧭 **Решение (2026-07-17): scramble-binding = честностный пол Этапа 3 MVP; pivot на Этап 5.** Остаток
+    честности не чистая автономная очередь: (a) frames+OpenCV = большой R&D, завязан на R1 (цвета кубика),
+    нужен свой accuracy-гейт (даже браузерный 0.3 не пройден); (b) event-stream + server-таймстампы =
+    Этап 4 (WS/дуэли), не соло-POST. Возвращаться к честности после ресурса на R1/камеру.
+
+- **Этап 5 — турнир недели: attempt-lifecycle** ✅ код (⏳ живая миграция) — `backend/` (backend-only).
+  - ✅ Поглотил foundation (skeptic зарезал отдельный weekly-tournament как premature — таблица без
+    attempt-кирпича ничего не зарабатывает + публичный GET со скрамблом = регрессия П8).
+  - ✅ `tournaments` (GUID pk, iso_year/iso_week, event, scramble; UNIQUE iso_year,iso_week) +
+    `tournament_attempts` (user_id/tournament_id FK CASCADE, status started/valid/dnf, `honesty` default
+    pending, time_ms, started_at/submitted_at; UNIQUE user_id,tournament_id), миграция **0005**.
+  - ✅ Authed `POST /tournament/current/attempt/{start,submit}` (401 аноним). start = get-or-create
+    турнир+attempt, скрамбл раскрывается **только** в authed-ответе (П8, публичного GET со скрамблом нет),
+    идемпотентен (повтор → тот же attempt+скрамбл, без re-roll). submit: 404 нет attempt, 409 terminal,
+    forced dnf если past `TOURNAMENT_ATTEMPT_WINDOW_SECONDS`(600). Гонки на обоих UNIQUE — `begin_nested()`
+    SAVEPOINT + IntegrityError-reselect (не откат всей сессии). ISO-неделя = UTC isocalendar, week_label
+    zero-pad, naive/aware datetime нормализован (sqlite vs PG).
+  - ✅ **Скоуп = plumbing, НЕ анти-чит** (skeptic HIGH): time_ms self-reported, `honesty=pending` с 1-го
+    дня, будущий лидерборд НЕ читает pending как доверенный. `solves`/best_single_ms/GET /solves нетронуты
+    (замороженный П5 PB-инвариант). abandon→DNF = только дедлайн (realtime = WS/Этап 4); зависшие started
+    подметёт finalize-cron (вне скоупа).
+  - ✅ backend pytest 86 (+21), ruff/mypy(scope) чисто. Review = **ship** (0 findings, savepoint/П8/
+    state-machine верифицированы). Автономный цикл plan→build→review. [swarm-report/tournament-attempt-*],
+    предыстория [weekly-tournament-plan.md].
+  - ⏳ Живая миграция 0005 против Postgres. Дальше Этапа 5: finalize-cron (started→dnf, ролловер недели),
+    лидерборд/результаты (гейт на honesty-кирпич!).
+
+- **Этап 5 — фронт турнира «Челлендж недели»** ✅ код (⏳ live click-through) — `frontend/` + backend GET.
+  - ✅ Backend: `GET /tournament/current` authed (401 аноним), БЕЗ скрамбла, read-only (ничего не создаёт),
+    отдаёт week_label + attempt_status(started/valid/dnf/null) + time_ms + deadline_at. Решает skeptic
+    HIGH#1 (без него start-on-mount = утечка скрамбла + запуск дедлайна пассивному визитёру = регрессия П8).
+  - ✅ Frontend: страница `/tournament` под ProtectedRoute. Mount → getCurrent → precommit|resume|terminal.
+    Скрамбл раскрывается **только** из POST start и **только** после явного two-step confirm — `ActiveRitual`
+    (и значит useScramble/useSoloSession) монтируется лишь после commit → П8 enforced структурно, не UI-гейтом.
+    Соло-ритуал переиспользован параметризацией (`useScramble({fixed})`, `useSoloSession({fixedScramble,
+    onResult,disableSoloSave})`) + извлечён `SolveRitual.tsx` (camera hidden-vs-unmount сохранён) — БЕЗ форка,
+    соло регресс-фри. State-machine: 409 recover, 401 keep+retry-в-окне, forced-late-DNF объяснён, countdown.
+    Фрейминг «Челлендж недели» (без фейковых standings — их нет), honesty скрыт, тихая DNF-карта (design §1).
+  - ✅ backend pytest 89, frontend vitest 220 (+26, 194 без регрессий), tsc/lint/mypy чисто. Review = **ship**
+    (0 findings). Автономный plan→build→review. [swarm-report/tournament-ui-*].
+  - ⏳ Live click-through (нужен запущенный backend+Postgres+камера): start→ритуал→submit, resume, terminal.
+
 ## Planned (следующий фокус)
 - **Этап 1.2 manual QA** — прогнать §5.1 живьём (см. выше), тюнинг порогов `config.ts`.
-- **Vision-интеграция профилей** (гейт Этап 0): быстрая подстройка 1 гранью (spec B.2) + потребление
-  сохранённого профиля в ритуале + Part A порядок фаз FSM (`CALIBRATE_SOLVED` первым). Отложено из 2.4.
 - **Этап 3 — серверная честность:** серверные скрамблы, поток событий с таймстампами, кадры-доказательства,
-  OpenCV-перепроверка, валидация → `solve.status`.
+  OpenCV-перепроверка, валидация → `solve.status`. Ranked-гейт (accuracy / `validated:true` перед
+  соревновательным таймером) — часть Этапа 4, врезка на готовый флаг `validated`.
 - Прототипы `prototype/`+`prototype2/` **удалены** (DOM-порт добит в 1.2; код в `frontend/`).
 - Пройти гейт Этапа 0.3 (живьём, ≥90%) — пререквизит, отдельно.
 - Этапы 2–6 — см. [workplan.md](workplan.md).

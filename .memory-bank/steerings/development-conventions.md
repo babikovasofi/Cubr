@@ -26,3 +26,26 @@
 - **File-size limit / decomposition rule:** 400 строк (опциональный PostToolUse size-hook,
   `--wire-size-hook`, тюнинг через `$FILE_LINE_LIMIT`).
 - **Секреты:** только в `.env` (git-ignored); в код/Memory Bank — никогда.
+  Настройка: скопировать `.env.example` → `.env` и заполнить (HuggingFace-токен
+  для transcribe и т.п.).
+- **Bundled skills:** проект возит свои копии в `.claude/skills/` — внешний
+  маркетплейс не нужен. Utility: memory-bank, memory-bank-defrag, transcribe,
+  design-process, anti-ai-slop-writing, anti-slop-design, mattermost, solidtime,
+  reflect. Dev-loop: plan, build, review, debug. Обновление:
+  `bash <startpoint>/scripts/bootstrap.sh --upgrade-skills . --force`.
+- **Модель саб-агентов dev-loop — фиксирована в самих skill-файлах, вручную
+  переключать не нужно:** `/plan` спавнит planner+skeptic на **opus** (самое сложное
+  рассуждение), `/build` и `/debug` — исполняющих/debugger-агентов на **sonnet**
+  (дефолт реализации), `/review` — reviewer/qa-smoke на **haiku** (дёшево/быстро;
+  ревьюер вправе поднять себя до sonnet на большом/HIGH-риск диффе). Задано через
+  параметр `model:` вызова `Task`/`Agent` — см.
+  `.claude/skills/{plan,build,review,debug}/SKILL.md`. Модель ОСНОВНОЙ сессии
+  (оркестратора) не меняется — это только про саб-агентов, которые делают
+  фактическую работу.
+- **Memory Bank index = микро-дайджест (правила поддержки):**
+  - `index.md` — только указатели, максимум 25 строк; инжектится хуком в каждую
+    сессию. Формат строки карты: `путь — хук-фраза` (3–8 слов о темах файла).
+  - Новый факт → тематический файл; в index добавляется/обновляется только его
+    строка карты. Переименовал/перепрофилировал файл → обнови его строку там же.
+  - Index превысил 25 строк → сначала вынести контент в файлы, потом добавлять.
+    Хук инжектит максимум 40 строк и печатает предупреждение при превышении.

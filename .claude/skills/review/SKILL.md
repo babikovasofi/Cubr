@@ -14,7 +14,10 @@ neither of them fixes anything.
 ## Steps
 1. **Gather**: plan `swarm-report/<slug>-plan.md` + build report `swarm-report/<slug>-build.md`
    + the diff (`git diff` for staged + unstaged, or vs the branch point).
-2. **Spawn 1 reviewer** (`Task`, `general-purpose`). Prompt:
+2. **Spawn 1 reviewer** (`Task`, `general-purpose`, **`model: haiku`** — review is
+   cheap/fast tier by default; do not ask the user which model. If the diff is large or
+   the plan flagged HIGH-risk items, upgrade this one call to `model: sonnet` — use
+   judgment, but haiku is the default). Prompt:
    > Answer TERSE. Read `.claude/agents/reviewer.md` and follow it exactly.
    > Plan: swarm-report/<slug>-plan.md
    > Diff below:
@@ -23,7 +26,7 @@ neither of them fixes anything.
    Paste the diff INTO the prompt — the reviewer must not re-read the whole repo.
 3. **Smoke-test (user-facing features only).** If the change is something a user can
    see or click (UI, endpoints, CLI commands) AND the project is runnable, spawn a
-   second subagent in the same message as the reviewer:
+   second subagent in the same message as the reviewer, **`model: haiku`**:
    > Answer TERSE. Read `.claude/agents/qa-smoke.md` and follow it exactly.
    > Plan: swarm-report/<slug>-plan.md. Build report: swarm-report/<slug>-build.md.
    Pure internal refactors / library code → skip this step and say so. A qa-smoke

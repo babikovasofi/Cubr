@@ -69,6 +69,28 @@ Confirm the actual stack from the repo (`package.json`, `pubspec.yaml`, `pyproje
 No scope matches → ask the user which exec agent should own the change. Edit these globs to
 fit each project's real layout.
 
+## Model + reasoning tiers (agreed 2026-07-17)
+
+Each loop stage runs on a fixed model tier at **medium** reasoning effort:
+
+| Loop | Model | Reasoning |
+|------|-------|-----------|
+| `/plan` (planner + skeptic) | `opus`   | medium |
+| `/build` (exec agents)      | `sonnet` | medium |
+| `/review` (reviewer + qa-smoke) | `haiku` (→ `sonnet` if diff large / HIGH-risk) | medium |
+| `/debug` (debugger)         | `sonnet` | medium |
+
+Model tier is enforced via the `model:` override in each SKILL. Reasoning effort is not a
+per-`Task` parameter — "medium" here is the standing default (not max); no per-subagent knob
+exists in the harness, so treat it as guidance, not an enforced setting.
+
+**Terse subagent output.** Every `.claude/agents/*.md` declaration carries a `TERSE-OUTPUT-GOVERNANCE`
+block at its top; because skills spawn subagents with "Read `.claude/agents/<x>.md` and follow it
+exactly", each subagent inherits it. When spawning any workflow subagent, ALSO prepend that block (or a
+tight paraphrase) to the top of the spawn prompt — Caveman mode does not propagate into subagents, and
+this keeps their output compact. Exception per the block itself: user-facing artifacts (plans, reports,
+commit messages, PR text) stay in normal prose.
+
 ## Working agreement (every agent respects)
 
 - **Accuracy > speed.** Verify before claiming done. Tests pass ≠ feature works.

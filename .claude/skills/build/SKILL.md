@@ -20,7 +20,8 @@ main loop.
    table in `AGENTS.md` (frontend / backend / devops / mobile). Group files by agent.
    No match for a file → ask the user which agent owns it.
 4. **Spawn the matched exec agents** — one `Task` call each, in parallel when a feature
-   spans several layers (single message, N calls, `subagent_type: general-purpose`).
+   spans several layers (single message, N calls, `subagent_type: general-purpose`,
+   **`model: sonnet`** — implementation's default tier; do not ask the user which model).
    Prompt each:
    > Answer TERSE. Read `.claude/agents/<scope>.md` and follow it exactly.
    > Plan: swarm-report/<slug>-plan.md. Your scope: <the files for this agent>.
