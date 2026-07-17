@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, lazy, Suspense } from "react";
 import { Routes, Route, Link, useNavigate } from "react-router-dom";
 import HomePage from "./pages/HomePage";
 import SoloPage from "./pages/SoloPage";
+import TournamentPage from "./pages/TournamentPage";
 import LoginPage from "./pages/LoginPage";
 import RegisterPage from "./pages/RegisterPage";
 import VerifyEmailPage from "./pages/VerifyEmailPage";
@@ -202,6 +203,14 @@ export default function App() {
             element={
               <ProtectedRoute>
                 <ProfilePage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/tournament"
+            element={
+              <ProtectedRoute>
+                <TournamentPage />
               </ProtectedRoute>
             }
           />

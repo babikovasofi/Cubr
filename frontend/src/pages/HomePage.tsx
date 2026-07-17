@@ -21,6 +21,20 @@ export default function HomePage() {
         <Timer value="0.00" phase="ready" />
       </section>
 
+      {/* §6.2 "Турнир недели" card — surface + 1px line, live "идёт запись" badge. */}
+      <Link
+        to="/tournament"
+        className="flex items-center justify-between rounded-md border border-line bg-surface px-4.5 py-3.5 no-underline transition-[border] duration-150 ease-linear hover:border-2 hover:border-ink"
+      >
+        <div className="flex flex-col gap-1">
+          <span className="font-sans text-body font-bold text-ink">Челлендж недели</span>
+          <span className="font-sans text-small text-muted">
+            Общий скрамбл, одна попытка — без турнирной таблицы.
+          </span>
+        </div>
+        <span className="font-sans text-caption font-black uppercase text-live">● идёт запись</span>
+      </Link>
+
       <section className="flex flex-wrap items-center gap-4">
         <Link to="/solo">
           <Button>Соло-тренировка</Button>

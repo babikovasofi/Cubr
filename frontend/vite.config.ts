@@ -30,6 +30,8 @@ export default defineConfig({
   test: {
     environment: "node",
     globals: true,
-    include: ["tests/**/*.test.ts"],
+    // .tsx added for RTL page tests (tests/tournament/TournamentPage.test.tsx);
+    // existing .ts tests are untouched by this glob widening.
+    include: ["tests/**/*.test.ts", "tests/**/*.test.tsx"],
   },
 });
