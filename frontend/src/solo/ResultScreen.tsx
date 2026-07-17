@@ -11,6 +11,13 @@ import type { SaveState } from "./solveSave";
 interface ResultScreenProps {
   seconds: string; // e.g. "12.34"
   dnf: boolean;
+  // false = seeded profile + one-white-face quick-adjust (casual only). A full
+  // 6-face registration is validated=true. Solo is casual now, so a non-validated
+  // result is still saved, but flagged honestly (skeptic HIGH#4).
+  validated: boolean;
+  // false = the tester used "Пропустить" on a verify screen after repeated camera
+  // read failures (demo escape hatch) — the result was NOT confirmed by the camera.
+  cameraVerified: boolean;
   onAgain: () => void;
   saveState: SaveState;
 }
@@ -51,7 +58,14 @@ function SaveStatus({ saveState }: { saveState: SaveState }) {
   }
 }
 
-export default function ResultScreen({ seconds, dnf, onAgain, saveState }: ResultScreenProps) {
+export default function ResultScreen({
+  seconds,
+  dnf,
+  validated,
+  cameraVerified,
+  onAgain,
+  saveState,
+}: ResultScreenProps) {
   return (
     <section className="flex flex-col items-center gap-6 rounded-lg border-2 border-ink bg-surface p-7 text-center">
       <span className="font-sans text-overline uppercase text-muted">
@@ -64,6 +78,16 @@ export default function ResultScreen({ seconds, dnf, onAgain, saveState }: Resul
           : "Готово! Хочешь ещё разброс — жми кнопку."}
       </p>
       <SaveStatus saveState={saveState} />
+      {!dnf && !cameraVerified ? (
+        <p role="alert" className="max-w-prose font-sans text-small text-danger">
+          Без проверки камерой: скрамбл/сборка не подтверждены (нажата «Пропустить»).
+        </p>
+      ) : null}
+      {!dnf && !validated ? (
+        <p className="max-w-prose font-sans text-small text-muted">
+          Casual-результат: цвета подстроены по одной белой грани, без полной калибровки. Для рейтинга нужна полная калибровка по 6 граням.
+        </p>
+      ) : null}
       <Button onClick={onAgain}>Ещё раз</Button>
     </section>
   );

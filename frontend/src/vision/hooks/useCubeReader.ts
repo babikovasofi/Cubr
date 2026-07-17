@@ -16,8 +16,9 @@ import {
   type Refs,
   type RGB,
 } from "../colors";
-import { config, type Rect } from "../config";
-import { assignFacesByCenter, resolveRotations } from "../cubeGrid";
+import { quickAdjust as colorsQuickAdjust } from "../quickAdjust";
+import { config, squareGuidePx, type Rect } from "../config";
+import { assignFacesByCenter, resolveRotations, lenientVerify } from "../cubeGrid";
 import { diffFacelets, validateFacelets, type Face, type Facelet } from "../cubeState";
 
 export interface FaceSample {
@@ -37,10 +38,14 @@ export function readFace(
   guide: Rect = config.GUIDE_RECT,
   centerFrac: number = config.CELL_CENTER_FRAC,
 ): FaceSample {
-  const gx = Math.round(guide.x * w);
-  const gy = Math.round(guide.y * h);
-  const gw = Math.round(guide.w * w);
-  const gh = Math.round(guide.h * h);
+  // Sample a CENTERED SQUARE (side = min of the guide's px dimensions). The 3x3
+  // grid below assumes a square cube face fills the region; if the sampled region
+  // is wider than tall (guide rect aspect and/or a landscape camera), the left/
+  // right sticker COLUMNS fall off the cube onto the background — which is why a
+  // solved cube read ~70% wrong at verify while calibration (which only reads the
+  // CENTER cell) always worked first try. Forcing a square makes all 9 cells land
+  // on the cube like the center one.
+  const { gx, gy, gw, gh } = squareGuidePx(guide, w, h);
 
   work.width = gw;
   work.height = gh;
@@ -76,10 +81,7 @@ export function guideRegionLuma(
   work: HTMLCanvasElement,
   guide: Rect = config.GUIDE_RECT,
 ): number {
-  const gx = Math.round(guide.x * w);
-  const gy = Math.round(guide.y * h);
-  const gw = Math.round(guide.w * w);
-  const gh = Math.round(guide.h * h);
+  const { gx, gy, gw, gh } = squareGuidePx(guide, w, h);
   work.width = gw;
   work.height = gh;
   const ctx = work.getContext("2d", { willReadFrequently: true })!;
@@ -151,6 +153,15 @@ export type AccuracyCapture =
       resolveReason?: ResolveReason;
     };
 
+// Quick-adjust outcome (one white face). `ok` applied a session-local von-Kries
+// gain; `wrong-face`/`diverged` leave the seeded refs untouched and the caller
+// routes to full 6-face recalibration (skeptic HIGH#3). `unreadable` = light/refs gate.
+export type QuickAdjustResult =
+  | { kind: "ok" }
+  | { kind: "wrong-face"; de: number; nearestColor: ColorName }
+  | { kind: "diverged"; reason: "cluster" | "margin" }
+  | { kind: "unreadable" };
+
 // A verify capture outcome. `pending` while <6 faces are in; then a terminal.
 export type VerifyResult =
   | { kind: "pending"; facesLength: number }
@@ -167,14 +178,20 @@ export interface CubeReader {
   guideRegionLuma: typeof guideRegionLuma;
   calibrationStep: number; // 0..6
   calibrated: boolean;
+  seeded: boolean; // refs came from a stored profile (not a fresh 6-face read)
+  validated: boolean; // refs passed a full 6-face registration (accuracy-worthy)
   verifyFacesLength: number; // 0..6, of the in-flight collector
   collecting: boolean;
   captureCalibration: (video: HTMLVideoElement) => void;
+  /** Seed refs from a stored cube profile (session-local clone). validated=false. */
+  seedProfile: (profile: Refs) => void;
+  /** One-white-face session white-balance over seeded refs. In-memory only. */
+  quickAdjust: (video: HTMLVideoElement) => QuickAdjustResult;
   /** The current calibration output (6 Lab face refs, keys U/R/F/D/L/B), or null. */
   getProfile: () => Refs | null;
   recalibrate: () => void;
   beginVerify: () => void;
-  pushVerifyFace: (video: HTMLVideoElement, expected: Facelet) => VerifyResult;
+  pushVerifyFace: (video: HTMLVideoElement, expected: Facelet, tolerant?: boolean) => VerifyResult;
   resetVerify: () => void;
   // Accuracy-harness collector (Stage 0.3): fixed capture order, per-face drift
   // gate, raw grids exposed pre-resolve. Independent of the verify collector.
@@ -188,6 +205,8 @@ export interface CubeReader {
 /** Stateful reader bound to a work-canvas ref. */
 export function useCubeReader(workRef: React.RefObject<HTMLCanvasElement | null>): CubeReader {
   const [calibrationStep, setCalibrationStep] = useState(0);
+  const [seeded, setSeeded] = useState(false);
+  const [validated, setValidated] = useState(false);
   const [verifyFacesLength, setVerifyFacesLength] = useState(0);
   const [collecting, setCollecting] = useState(false);
   const [accFacesLength, setAccFacesLength] = useState(0);
@@ -216,14 +235,53 @@ export function useCubeReader(workRef: React.RefObject<HTMLCanvasElement | null>
     calibRgbRef.current[COLOR_NAMES[step]] = face.rgb[4]; // center sticker
     const next = step + 1;
     if (next >= COLOR_NAMES.length) {
+      // A full 6-face registration → accuracy-worthy refs (skeptic HIGH#4).
       refsRef.current = calibrate(calibRgbRef.current as Record<ColorName, RGB>);
+      setSeeded(false);
+      setValidated(true);
     }
     setCalibrationStep(next);
+  };
+
+  // Seed from a stored profile: clone so quick-adjust mutates a session-local copy,
+  // never the stored profile. seeded=true, validated=false — one white face cannot
+  // validate red/orange separability, so this path stays casual-only (skeptic HIGH#4).
+  const seedProfile = (profile: Refs): void => {
+    const clone = {} as Refs;
+    for (const name of COLOR_NAMES) clone[name] = [...profile[name]] as Lab;
+    refsRef.current = clone;
+    calibRgbRef.current = {};
+    setSeeded(true);
+    setValidated(false);
+    setCalibrationStep(COLOR_NAMES.length); // fully "calibrated" (6/6) from the profile
+    resetVerify();
+  };
+
+  // One white face → von-Kries session white-balance. STRICTLY in-memory: never
+  // calls the cubes API / PATCH color_profile (skeptic constraint #4).
+  const quickAdjust = (video: HTMLVideoElement): QuickAdjustResult => {
+    const work = workRef.current;
+    const refs = refsRef.current;
+    if (!work || !refs) return { kind: "unreadable" };
+    if (!readable(video, work)) return { kind: "unreadable" };
+    const face = readFace(video, video.videoWidth, video.videoHeight, work);
+    const decision = colorsQuickAdjust(refs, face.rgb);
+    switch (decision.kind) {
+      case "ok":
+        refsRef.current = decision.refs; // session-local mutation only
+        return { kind: "ok" };
+      case "wrong-face":
+        return { kind: "wrong-face", de: decision.nearestDE, nearestColor: decision.nearestColor };
+      case "diverged":
+        return { kind: "diverged", reason: decision.reason };
+    }
   };
 
   const recalibrate = (): void => {
     calibRgbRef.current = {};
     refsRef.current = null;
+    setSeeded(false);
+    setValidated(false);
     setCalibrationStep(0);
     resetVerify();
   };
@@ -240,7 +298,11 @@ export function useCubeReader(workRef: React.RefObject<HTMLCanvasElement | null>
     setCollecting(false);
   };
 
-  const pushVerifyFace = (video: HTMLVideoElement, expected: Facelet): VerifyResult => {
+  const pushVerifyFace = (
+    video: HTMLVideoElement,
+    expected: Facelet,
+    tolerant = false,
+  ): VerifyResult => {
     const work = workRef.current;
     const refs = refsRef.current;
     if (!work || !refs || !collectorRef.current) return { kind: "unreadable" };
@@ -258,7 +320,21 @@ export function useCubeReader(workRef: React.RefObject<HTMLCanvasElement | null>
     setCollecting(false);
     setVerifyFacesLength(0);
 
-    const { resolved, reason } = resolveSixFaces(faces, refs);
+    const { rawFaceGrids, resolved, reason } = resolveSixFaces(faces, refs);
+
+    // Casual solo (tolerant): don't demand a globally-legal cube. Score the real
+    // per-sticker read against `expected` face-by-face and accept within tolerance,
+    // so one colour misread doesn't nuke the whole 6-face read (R1). Only OK or
+    // MISMATCH ever come back here — never unreadable/assign/ambiguous/resolve.
+    // Ranked (Stage 4) uses the strict path below (tolerant=false).
+    if (tolerant) {
+      const centers = assignFacesByCenter(faces, refs).faces;
+      const lm = lenientVerify(rawFaceGrids, centers, expected);
+      const correctFrac = (lm.totalStickers - lm.mismatches) / lm.totalStickers;
+      if (correctFrac >= config.CASUAL_VERIFY_MIN_CORRECT_FRAC) return { kind: "ok" };
+      return { kind: "mismatch", face: lm.worstFace, count: lm.mismatches };
+    }
+
     if (reason === "assign") return { kind: "assign" };
     if (reason === "ambiguous") return { kind: "ambiguous" };
     if (reason === "resolve") return { kind: "resolve" };
@@ -319,9 +395,13 @@ export function useCubeReader(workRef: React.RefObject<HTMLCanvasElement | null>
     guideRegionLuma,
     calibrationStep,
     calibrated: refsRef.current !== null,
+    seeded,
+    validated,
     verifyFacesLength,
     collecting,
     captureCalibration,
+    seedProfile,
+    quickAdjust,
     getProfile: () => refsRef.current,
     recalibrate,
     beginVerify,

@@ -5,6 +5,7 @@
 // output of the reader's calibrate() (see useCubeReader.getProfile).
 
 import { request } from "./client";
+import type { Refs } from "../vision/colors";
 
 export const CUBE_FACES = ["U", "R", "F", "D", "L", "B"] as const;
 export type CubeFace = (typeof CUBE_FACES)[number];
@@ -36,6 +37,25 @@ export interface CubeUpdate {
   name?: string;
   note?: string | null;
   is_primary?: boolean;
+}
+
+// ---------------------------------------------------------------------------
+// Profile ↔ reader refs. Structurally identical (both keyed U/R/F/D/L/B by the
+// POSITIONAL face, value = one Lab [L,a,b]); these converters just fix the tuple
+// vs. Lab type seam and clone so a seeded reader can mutate its copy session-locally
+// without touching the stored profile.
+// ---------------------------------------------------------------------------
+
+export function profileToRefs(p: ColorProfile): Refs {
+  const refs = {} as Refs;
+  for (const f of CUBE_FACES) refs[f] = [p[f][0], p[f][1], p[f][2]];
+  return refs;
+}
+
+export function refsToProfile(r: Refs): ColorProfile {
+  const p = {} as ColorProfile;
+  for (const f of CUBE_FACES) p[f] = [r[f][0], r[f][1], r[f][2]];
+  return p;
 }
 
 export function listCubes(): Promise<CubeRead[]> {

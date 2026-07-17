@@ -7,7 +7,8 @@
 
 import { useEffect, useRef, useState } from "react";
 import { config } from "../vision/config";
-import { useCamera, CameraError, type FrameInfo, type CameraErrorKind } from "../vision/hooks/useCamera";
+import { useCamera, CameraError, type FrameInfo } from "../vision/hooks/useCamera";
+import { cameraErrorRu } from "../vision/cameraErrors";
 import { useCubeReader } from "../vision/hooks/useCubeReader";
 import { useScramble } from "../scramble/hooks/useScramble";
 import { scoreRead, formatReport, type AccuracyReport } from "../vision/accuracy";
@@ -24,22 +25,6 @@ import { SOLVED, type Facelet } from "../vision/cubeState";
 import { cameraDeniedRu, faceUnreadableRu } from "../vision/guide";
 
 export type AccuracyMode = "scramble" | "solved";
-
-function cameraErrorRu(kind: CameraErrorKind): string {
-  switch (kind) {
-    case "not-found":
-      return "Камера не найдена. Подключи камеру и попробуй снова.";
-    case "in-use":
-      return "Камера занята другим приложением. Закрой его и попробуй снова.";
-    case "insecure":
-      return "Камера работает только по https (или на localhost). Открой страницу по защищённому адресу.";
-    case "unsupported":
-      return "Этот браузер не умеет работать с камерой. Открой в свежем Chrome или Firefox.";
-    case "denied":
-    default:
-      return cameraDeniedRu();
-  }
-}
 
 export interface AccuracySession {
   videoRef: React.RefObject<HTMLVideoElement | null>;
@@ -93,6 +78,13 @@ export function useAccuracySession(): AccuracySession {
   const camera = useCamera(videoRef, () => setCameraStarted(false));
   const reader = useCubeReader(workRef);
   const scramble = useScramble();
+
+  // HONESTY BARRIER (skeptic constraint #6): the accuracy harness measures a FRESH
+  // full 6-face calibration and NEVER seeds from a stored profile — seeding would
+  // fold a prior light's baseline (or a quick-adjust) into the very error we claim
+  // to measure, inflating the accuracy gate. `reader.seedProfile`/`reader.quickAdjust`
+  // are intentionally NOT called anywhere in this hook. A regression test asserts it.
+  void reader.seedProfile; // referenced only to make the barrier explicit; never invoked
 
   const [cameraError, setCameraError] = useState<string | null>(null);
   const [mode, setMode] = useState<AccuracyMode>("scramble");

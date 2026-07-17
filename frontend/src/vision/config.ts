@@ -14,6 +14,32 @@ export interface Rect {
   h: number;
 }
 
+/**
+ * Resolve a guide Rect (frame fractions) to a CENTERED PIXEL-SQUARE region of a
+ * `w`x`h` frame. Side = min(guide.w*w, guide.h*h), centered inside the guide rect.
+ * The 3x3 face sampler assumes a SQUARE cube fills the region; a wider-than-tall
+ * region (equal fractions on a landscape frame, or a deliberately wide rect) makes
+ * the left/right sticker columns sample the background instead of the cube — which
+ * read a solved cube ~70% wrong at verify while calibration (center cell only)
+ * always worked. Both the sampler (readFace/guideRegionLuma) and the overlay use
+ * this, so the drawn yellow box is EXACTLY the region that gets read.
+ */
+export function squareGuidePx(
+  guide: Rect,
+  w: number,
+  h: number,
+): { gx: number; gy: number; gw: number; gh: number } {
+  const rw = guide.w * w;
+  const rh = guide.h * h;
+  const side = Math.min(rw, rh);
+  return {
+    gx: Math.round(guide.x * w + (rw - side) / 2),
+    gy: Math.round(guide.y * h + (rh - side) / 2),
+    gw: Math.round(side),
+    gh: Math.round(side),
+  };
+}
+
 export interface Config {
   // ---- Hands FSM timing (milliseconds) --------------------------------------
   ZONE_ENTER_MS: number; // both hands inside zones this long -> HANDS_IN_ZONE
@@ -47,8 +73,25 @@ export interface Config {
   MAX_FRAME_LUMA: number;
   CENTER_DRIFT_DE: number; // per-face: face center drift from calibration beyond this -> reprompt
 
+  // ---- Quick-adjust (one-white-face session white-balance) ------------------
+  // Distinct named thresholds — NOT overloaded onto MIN_RED_ORANGE_DE. A seeded
+  // profile is nudged by a single WHITE face (von-Kries gain). These gate the
+  // decision on the OBSERVED face (skeptic HIGH#1/#3), never on the shifted refs.
+  QUICK_ADJUST_MATCH_DE: number; // max ΔE of the shown face's median to the white (U) ref; over → wrong face/cube
+  QUICK_ADJUST_CLUSTER_DE: number; // max intra-cluster ΔE spread of the 9 stickers; over → loose read, recalibrate
+  QUICK_ADJUST_MARGIN_DE: number; // min (2nd-best − nearest) ΔE margin; under → not a confident white match
+
   // ---- Accuracy gate --------------------------------------------------------
   ACCURACY_PASS_FRAC: number; // fraction of the 54 stickers that must be correct (0.90)
+
+  // ---- Casual-solo verify tolerance -----------------------------------------
+  // Solo is casual (validated:false). The strict verify demands a globally-LEGAL
+  // 54-sticker read (a single colour misread → whole read rejected → R1 pain).
+  // For casual solo we instead score the real read against the expected facelets
+  // per-face (best rotation) and accept if at least this FRACTION of the 54
+  // stickers match — one misread no longer nukes the read. Ranked (Stage 4) keeps
+  // the strict legal-cube path. HMR-tunable: lower it if a demo still trips.
+  CASUAL_VERIFY_MIN_CORRECT_FRAC: number;
 
   // ---- Camera ---------------------------------------------------------------
   CAMERA_FRAMERATE_IDEAL: number;
@@ -65,7 +108,12 @@ export const config: Config = {
 
   START_RULE: "first",
 
-  GUIDE_RECT: { x: 0.34, y: 0.22, w: 0.32, h: 0.32 },
+  // Large, roughly PIXEL-SQUARE on a 16:9 frame so all 9 sticker cells land on the
+  // cube (squareGuidePx enforces the exact centered square). On 1280x720: w*W≈384,
+  // h*H≈396 → ~384px square. Centered horizontally; vertical band covers chest
+  // height. Was previously {w:0.36,h:0.20} — a 3.2:1 strip whose side columns read
+  // the background, so a solved cube verified ~70% wrong.
+  GUIDE_RECT: { x: 0.35, y: 0.24, w: 0.3, h: 0.55 },
   CELL_CENTER_FRAC: 0.5,
 
   QUOTA: 9,
@@ -76,7 +124,13 @@ export const config: Config = {
   MAX_FRAME_LUMA: 230,
   CENTER_DRIFT_DE: 12,
 
+  QUICK_ADJUST_MATCH_DE: 25,
+  QUICK_ADJUST_CLUSTER_DE: 12,
+  QUICK_ADJUST_MARGIN_DE: 10,
+
   ACCURACY_PASS_FRAC: 0.9,
+
+  CASUAL_VERIFY_MIN_CORRECT_FRAC: 0.7,
 
   CAMERA_FRAMERATE_IDEAL: 60,
 };

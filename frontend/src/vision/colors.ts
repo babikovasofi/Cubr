@@ -207,7 +207,7 @@ export function medianOfCentralRegion(
   return [median(rs), median(gs), median(bs)];
 }
 
-function median(arr: number[]): number {
+export function median(arr: number[]): number {
   if (arr.length === 0) return 0;
   const s = [...arr].sort((a, b) => a - b);
   const mid = s.length >> 1;
@@ -251,6 +251,68 @@ export function classifyFace(
     return best;
   });
 }
+
+// ---------------------------------------------------------------------------
+// Quick-adjust: one-WHITE-face session white-balance (multiplicative von-Kries)
+//
+// Skeptic HIGH#1: the correction is a per-channel MULTIPLICATIVE gain applied in
+// LINEAR-sRGB (lab→rgb→linearize→×gain→delinearize→lab), NOT an additive Lab
+// offset. An additive Lab shift is a rigid translation → every pairwise ΔE is
+// preserved → any convergence gate computed on the refs would be a no-op. See
+// the regression test in colors.test.ts. The "converged" decision here is taken
+// on the OBSERVED white face (cluster tightness + single-ref match margin,
+// HIGH#2/#3), never on the shifted refs.
+// ---------------------------------------------------------------------------
+
+// Per-channel linear-sRGB (0..1) of an sRGB triplet, and back to 0..255 sRGB.
+function linRGB([r, g, b]: RGB): [number, number, number] {
+  return [srgbToLinear(r), srgbToLinear(g), srgbToLinear(b)];
+}
+function delinRGB([r, g, b]: [number, number, number]): RGB {
+  return [linearToSrgb(r), linearToSrgb(g), linearToSrgb(b)];
+}
+
+// Gain is clamped so a near-black/blown white channel can't produce a runaway
+// factor that warps every ref past recognition.
+const GAIN_MIN = 0.25;
+const GAIN_MAX = 4;
+const clampGain = (g: number): number => Math.min(GAIN_MAX, Math.max(GAIN_MIN, g));
+
+/**
+ * Per-channel von-Kries gain in linear-sRGB mapping the profile's white (refWhite,
+ * i.e. refs.U under calibration light A) onto the observed white under the current
+ * light B. gain = observedWhiteLinear / refWhiteLinear.
+ */
+export function vonKriesGain(observedWhite: RGB, refWhite: Lab): [number, number, number] {
+  const wObs = linRGB(observedWhite);
+  const wRef = linRGB(lab2rgb(refWhite));
+  return [
+    clampGain(wObs[0] / Math.max(wRef[0], 1e-4)),
+    clampGain(wObs[1] / Math.max(wRef[1], 1e-4)),
+    clampGain(wObs[2] / Math.max(wRef[2], 1e-4)),
+  ];
+}
+
+function applyGainToRef(ref: Lab, g: [number, number, number]): Lab {
+  const lin = linRGB(lab2rgb(ref));
+  return rgb2lab(delinRGB([lin[0] * g[0], lin[1] * g[1], lin[2] * g[2]]));
+}
+
+/** Apply a linear-sRGB per-channel gain to all six refs (session-local white-balance). */
+export function applyVonKries(refs: Refs, g: [number, number, number]): Refs {
+  const out = {} as Refs;
+  for (const name of COLOR_NAMES) out[name] = applyGainToRef(refs[name], g);
+  return out;
+}
+
+/** Simulate a global illuminant change: linear-sRGB per-channel gain on an sRGB color. */
+export function applyLightGain(rgb: RGB, g: [number, number, number]): RGB {
+  const lin = linRGB(rgb);
+  return delinRGB([lin[0] * g[0], lin[1] * g[1], lin[2] * g[2]]);
+}
+
+// The observed-face stats + the quick-adjust decision (gate order, convergence)
+// live in ./quickAdjust to keep this module focused on core colour primitives.
 
 // ---------------------------------------------------------------------------
 // 9x6 quota assignment (the P1 layer-3 constraint)

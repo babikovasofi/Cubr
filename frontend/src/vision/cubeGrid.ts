@@ -117,6 +117,63 @@ export interface RotationResolution {
   facelets?: Facelet; // assembled legal URFDLB string
 }
 
+/**
+ * CASUAL-solo lenient match (NOT for ranked). The strict resolveRotations demands
+ * a globally-legal cube: a single misread sticker makes every rotation combo
+ * illegal and the whole read is rejected (the R1 pain the accuracy gate measures).
+ *
+ * For casual solo we instead score the REAL per-sticker read against the expected
+ * facelets, face by face: assign each captured face to a slot by its center color,
+ * pick the rotation (0..3) that best matches that slot's 9 expected stickers, and
+ * count mismatches. The caller accepts if the correct fraction clears
+ * CASUAL_VERIFY_MIN_CORRECT_FRAC. A wildly wrong cube still fails (structural
+ * differences dwarf colour noise); a correctly-scrambled cube with a few misreads
+ * passes. Honesty tradeoff is explicit and confined to casual solo.
+ *
+ * @param faceGrids  faceGrids[c] = 9 per-sticker face-letters (row-major) of capture c
+ * @param faceOf     faceOf[c]    = which Face capture c is (center-color assignment)
+ * @param expected   54-char URFDLB expected facelets
+ */
+export interface LenientMatch {
+  totalStickers: number; // always 54 for a full 6-face read
+  mismatches: number; // 0..totalStickers
+  worstFace: Face; // face contributing the most mismatches
+  worstCount: number; // its mismatch count (0..9)
+}
+
+export function lenientVerify(
+  faceGrids: Face[][],
+  faceOf: Face[],
+  expected: Facelet,
+): LenientMatch {
+  const slotOf: Record<Face, number> = { U: 0, R: 1, F: 2, D: 3, L: 4, B: 5 };
+  const expSlots: Face[][] = [];
+  for (let i = 0; i < 6; i++) {
+    expSlots.push(expected.slice(i * 9, (i + 1) * 9).split("") as Face[]);
+  }
+  let total = 0;
+  let mismatches = 0;
+  let worstFace: Face = "U";
+  let worstCount = -1;
+  for (let cap = 0; cap < faceGrids.length; cap++) {
+    const exp = expSlots[slotOf[faceOf[cap]]];
+    let bestHamming = 9;
+    for (let k = 0; k < 4; k++) {
+      const rotated = rotateGrid(faceGrids[cap], k);
+      let h = 0;
+      for (let j = 0; j < 9; j++) if (rotated[j] !== exp[j]) h++;
+      if (h < bestHamming) bestHamming = h;
+    }
+    total += 9;
+    mismatches += bestHamming;
+    if (bestHamming > worstCount) {
+      worstCount = bestHamming;
+      worstFace = faceOf[cap];
+    }
+  }
+  return { totalStickers: total, mismatches, worstFace, worstCount };
+}
+
 export function resolveRotations(
   faceGrids: Face[][],
   faceOf: Face[],

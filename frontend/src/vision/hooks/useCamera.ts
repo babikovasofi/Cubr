@@ -93,6 +93,12 @@ class Camera {
     this.video.muted = true;
     await this.video.play();
 
+    // Best-effort: pin exposure + white balance so a seeded colour profile / quick
+    // adjust isn't chased by the camera's auto-WB drifting the observed white after
+    // calibration. Unsupported constraints reject or no-op on most devices — we
+    // swallow every failure (never crash the camera over a nice-to-have lock).
+    void lockExposureAndWhiteBalance(this.stream);
+
     this.running = true;
 
     // If the OS/another app drops the device (or the track otherwise ends), the
@@ -157,6 +163,29 @@ class Camera {
     this.stream?.getTracks().forEach((t) => t.stop());
     this.stream = null;
     this.video.srcObject = null;
+  }
+}
+
+// Best-effort manual exposure/WB lock. These are non-standard MediaTrack
+// constraints (ImageCapture spec, partial Chromium support). We probe the track
+// capabilities and only request modes it advertises, then swallow any rejection —
+// on Safari/Firefox/most cameras this is simply a no-op.
+async function lockExposureAndWhiteBalance(stream: MediaStream): Promise<void> {
+  const track = stream.getVideoTracks()[0];
+  if (!track || typeof track.applyConstraints !== "function") return;
+  try {
+    const caps = (track.getCapabilities?.() ?? {}) as Record<string, unknown>;
+    const advanced: Record<string, unknown>[] = [];
+    if (Array.isArray(caps.exposureMode) && caps.exposureMode.includes("manual")) {
+      advanced.push({ exposureMode: "manual" });
+    }
+    if (Array.isArray(caps.whiteBalanceMode) && caps.whiteBalanceMode.includes("manual")) {
+      advanced.push({ whiteBalanceMode: "manual" });
+    }
+    if (advanced.length === 0) return;
+    await track.applyConstraints({ advanced } as MediaTrackConstraints);
+  } catch {
+    /* unsupported / overconstrained — auto mode stays; not fatal. */
   }
 }
 

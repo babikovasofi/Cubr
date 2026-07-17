@@ -18,6 +18,7 @@ import { listCubes, createCube, updateCube, deleteCube } from "../../src/api/cub
 import {
   useCubesStore,
   getSelectedCubeId,
+  getSelectedProfile,
   __resetCubesForTests,
 } from "../../src/store/cubesStore";
 
@@ -138,6 +139,25 @@ describe("cubesStore.remove", () => {
     expect(list.map((c) => c.id)).toEqual(["c", "b"]);
     expect(list.filter((c) => c.is_primary).map((c) => c.id)).toEqual(["c"]);
     expect(selectedCubeId).toBe("c"); // selection followed the new primary
+  });
+});
+
+describe("getSelectedProfile", () => {
+  it("returns the selected cube's profile when it is present in the list", () => {
+    const c = cube("xyz", true, "2026-07-01");
+    c.color_profile = { U: [96, 0, 2], R: [50, 60, 40], F: [55, -45, 30], D: [90, -5, 80], L: [62, 40, 55], B: [40, 10, -45] };
+    useCubesStore.setState({ list: [c], selectedCubeId: "xyz", status: "ready" });
+    expect(getSelectedProfile()).toEqual(c.color_profile);
+  });
+
+  it("returns null for a stale/absent selection (mirrors getSelectedCubeId vouching)", () => {
+    useCubesStore.setState({ list: [], selectedCubeId: "ghost", status: "error" });
+    expect(getSelectedProfile()).toBeNull();
+  });
+
+  it("returns null when nothing is selected", () => {
+    useCubesStore.setState({ list: [cube("a", true, "2026-07-01")], selectedCubeId: null });
+    expect(getSelectedProfile()).toBeNull();
   });
 });
 

@@ -16,15 +16,26 @@ import {
 } from "../vision/accuracyRun";
 import type { AccuracySession } from "./useAccuracySession";
 
-// Short per-step orientation hints (белый верх, зелёный к себе). The full ritual
-// lives in docs/qa/stage-0.3-vision-accuracy.md — this is just the in-frame nudge.
+// Short per-step orientation hints: which STICKER COLOUR faces the camera, plus
+// which colour ends up on top — colour-first phrasing (no U/R/F/D/L/B jargon),
+// so the tester doesn't need to know cube notation to follow along.
+//
+// Geometry (verified two ways — physical "tip toward/away from viewer" + the
+// standard whole-cube rotations x/x'): spinning around the vertical axis to
+// show R/F/L/B keeps white on top unchanged. Showing U or D is a PIVOT, not a
+// spin, and the two pivots go in OPPOSITE directions:
+//   x'  (U to front): white->front, green->bottom, BLUE->top.
+//   x   (D to front): yellow->front, white->bottom, GREEN->top.
+// An earlier version of this copy had U/D's top-colour swapped, which fed the
+// reader a mismatched orientation on exactly those two steps — the likely root
+// cause of drift errors reported downstream (e.g. on L, right after D).
 const CAPTURE_HINTS: { face: string; ru: string }[] = [
-  { face: "U", ru: "Верх (белый) в камеру, зелёный — к верхнему краю рамки." },
-  { face: "R", ru: "Право (красный) в камеру, белый — вверху." },
-  { face: "F", ru: "Фронт (зелёный) в камеру, белый — вверху." },
-  { face: "D", ru: "Низ (жёлтый) в камеру, зелёный — к нижнему краю рамки." },
-  { face: "L", ru: "Лево (оранжевый) в камеру, белый — вверху." },
-  { face: "B", ru: "Тыл (синий) в камеру, белый — вверху." },
+  { face: "U", ru: "Покажи БЕЛУЮ грань в камеру. Сверху окажется синяя, снизу — зелёная." },
+  { face: "R", ru: "Покажи КРАСНУЮ грань в камеру. Сверху — белая." },
+  { face: "F", ru: "Покажи ЗЕЛЁНУЮ грань в камеру. Сверху — белая." },
+  { face: "D", ru: "Покажи ЖЁЛТУЮ грань в камеру. Сверху окажется зелёная, снизу — белая." },
+  { face: "L", ru: "Покажи ОРАНЖЕВУЮ грань в камеру. Сверху — белая." },
+  { face: "B", ru: "Покажи СИНЮЮ грань в камеру. Сверху — белая." },
 ];
 
 function pct(x: number): string {

@@ -109,6 +109,18 @@ export function dnfRu(): string {
   return "Сбор потерян: руки/кубик пропали из кадра. Начни цикл заново.";
 }
 
+// ---- Quick-adjust (one white face) copy -------------------------------------
+
+export function quickAdjustWrongFaceRu(): string {
+  return "Это не похоже на белую грань этого кубика — возможно, другой кубик или не та грань. Выбери профиль этого кубика или откалибруй заново по 6 граням.";
+}
+export function quickAdjustDivergedRu(): string {
+  return "Не получилось уверенно снять белую грань (блики или наклейки читаются вразнобой). Откалибруй по 6 граням.";
+}
+export function solveVerifyMismatchRu(count: number): string {
+  return `Кубик ещё не собран: расходится ${count} наклеек. Дособерись и покажи 6 граней собранного кубика.`;
+}
+
 // ---- The step machine -------------------------------------------------------
 
 export function guideStateFor(s: GuideSnapshot): GuideState {
