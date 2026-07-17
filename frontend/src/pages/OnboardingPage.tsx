@@ -92,31 +92,31 @@ function CameraStep({ onNext, onBack }: { onNext: () => void; onBack: () => void
         можно продолжать.
       </p>
 
-      {cam.started ? (
-        <>
-          <CameraStage
-            videoRef={cam.videoRef}
-            overlayRef={cam.overlayRef}
-            workRef={cam.workRef}
-            error={cam.error}
-            onRetry={cam.start}
-          />
-          <p
-            className={`font-sans text-small font-bold ${ready ? "text-success" : "text-muted"}`}
-            aria-live="polite"
-          >
-            {ready ? "Камера и руки распознаются — отлично!" : "Ищу руки в кадре…"}
-          </p>
-        </>
+      {/*
+        CameraStage (and the <video> it owns) is mounted from the very first
+        render — same fix as CubeRegisterWizard. useCameraCheck.start() needs
+        cam.videoRef.current attached to the DOM *before* it calls
+        camera.start(); gating the element behind `cam.started` was a
+        chicken-and-egg dead end (start() always failed with "video element
+        not mounted", and the retry could never succeed either).
+      */}
+      <CameraStage
+        videoRef={cam.videoRef}
+        overlayRef={cam.overlayRef}
+        workRef={cam.workRef}
+        error={cam.error}
+        onRetry={cam.start}
+      />
+
+      {!cam.started ? (
+        <Button onClick={cam.start}>Включить камеру</Button>
       ) : (
-        <div className="flex flex-col gap-3">
-          {cam.error ? (
-            <p role="alert" className="font-sans text-small text-danger">
-              {cam.error}
-            </p>
-          ) : null}
-          <Button onClick={cam.start}>Включить камеру</Button>
-        </div>
+        <p
+          className={`font-sans text-small font-bold ${ready ? "text-success" : "text-muted"}`}
+          aria-live="polite"
+        >
+          {ready ? "Камера и руки распознаются — отлично!" : "Ищу руки в кадре…"}
+        </p>
       )}
 
       <div className="flex flex-wrap items-center gap-3">

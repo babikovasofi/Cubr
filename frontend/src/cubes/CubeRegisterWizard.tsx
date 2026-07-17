@@ -58,36 +58,15 @@ export default function CubeRegisterWizard({ defaultPrimary = false, onDone, onC
     }
   }
 
-  // Stage 1: camera not yet enabled.
-  if (!reg.started) {
-    return (
-      <div className="flex flex-col gap-4">
-        <p className="font-sans text-body text-muted">
-          Поднеси собранный кубик к камере: снимем цвет каждой из 6 граней, чтобы
-          Cubr узнавал именно твой кубик.
-        </p>
-        {reg.error ? (
-          <p role="alert" className="font-sans text-small text-danger">
-            {reg.error}
-          </p>
-        ) : null}
-        <div className="flex flex-wrap items-center gap-3">
-          <Button onClick={reg.start}>Включить камеру</Button>
-          <button
-            type="button"
-            onClick={onCancel}
-            className="font-sans text-small font-bold text-muted"
-          >
-            Отмена
-          </button>
-        </div>
-      </div>
-    );
-  }
-
   const done = reg.calibrated;
   const nextFace = Math.min(reg.calibrationStep + 1, REGISTER_FACES);
 
+  // CameraStage (and the <video> it owns) stays mounted from the very first
+  // render — same pattern as SolveRitual. useCubeRegister.start() needs
+  // videoRef.current attached to the DOM *before* it calls camera.start(), so
+  // the video element can't be gated behind `reg.started`: that was a
+  // chicken-and-egg (start() always failed with "video element not mounted",
+  // surfaced as a permission-denied-looking error with no way forward).
   return (
     <div className="grid gap-6 md:grid-cols-[minmax(0,1fr)_20rem]">
       <CameraStage
@@ -99,7 +78,24 @@ export default function CubeRegisterWizard({ defaultPrimary = false, onDone, onC
       />
 
       <aside className="flex flex-col gap-4">
-        {!done ? (
+        {!reg.started ? (
+          <div className="flex flex-col gap-4 rounded-lg border-2 border-ink bg-surface p-4.5">
+            <p className="font-sans text-body text-muted">
+              Поднеси собранный кубик к камере: снимем цвет каждой из 6 граней,
+              чтобы Cubr узнавал именно твой кубик.
+            </p>
+            <div className="flex flex-wrap items-center gap-3">
+              <Button onClick={reg.start}>Включить камеру</Button>
+              <button
+                type="button"
+                onClick={onCancel}
+                className="font-sans text-small font-bold text-muted"
+              >
+                Отмена
+              </button>
+            </div>
+          </div>
+        ) : !done ? (
           <div className="flex flex-col gap-3 rounded-lg border-2 border-ink bg-surface p-4.5">
             <h3 className="font-sans text-h3 text-ink">Снимаем грани</h3>
             <p className="font-sans text-small text-muted">
