@@ -15,11 +15,16 @@ export interface UserRead {
   cups: number;
   best_single_ms: number | null;
   best_ao5_ms: number | null;
+  // Deliberately-set opt-in name shown to other players on the tournament
+  // standings board. NEVER derived from email/nickname; null = shown as
+  // "Аноним" there. See tournament/TournamentStandings.tsx.
+  public_handle: string | null;
 }
 
 export interface UserUpdate {
   nickname?: string | null;
   avatar_url?: string | null;
+  public_handle?: string | null;
 }
 
 export function register(email: string, password: string, nickname?: string): Promise<UserRead> {

@@ -12,6 +12,8 @@ import Spinner from "../components/Spinner";
 import SolveRitual from "../solo/SolveRitual";
 import { useSoloSession } from "../solo/useSoloSession";
 import TournamentResult from "../tournament/TournamentResult";
+import TournamentStandings from "../tournament/TournamentStandings";
+import { useTournamentStandings } from "../tournament/useTournamentStandings";
 import {
   useTournamentAttempt,
   type RitualResult,
@@ -158,6 +160,7 @@ function ErrorCard({
 export default function TournamentPage() {
   const { state, commit, submit, retrySubmit, retryLoad } = useTournamentAttempt();
   const { phase, current, attempt, terminal, error, submitErrorKind } = state;
+  const standings = useTournamentStandings();
 
   const onResult = (r: RitualResult): void => {
     void submit(r);
@@ -212,6 +215,13 @@ export default function TournamentPage() {
       ) : null}
 
       {phase === "terminal" && terminal ? <TournamentResult result={terminal} /> : null}
+
+      <TournamentStandings
+        data={standings.data}
+        loading={standings.loading}
+        error={standings.error}
+        reload={standings.reload}
+      />
     </div>
   );
 }

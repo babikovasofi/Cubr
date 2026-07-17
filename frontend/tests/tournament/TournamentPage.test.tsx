@@ -12,16 +12,18 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, waitFor, fireEvent, act } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 
-const { getCurrentMock, startAttemptMock, submitAttemptMock } = vi.hoisted(() => ({
+const { getCurrentMock, startAttemptMock, submitAttemptMock, getStandingsMock } = vi.hoisted(() => ({
   getCurrentMock: vi.fn(),
   startAttemptMock: vi.fn(),
   submitAttemptMock: vi.fn(),
+  getStandingsMock: vi.fn(),
 }));
 
 vi.mock("../../src/api/tournament", () => ({
   getCurrent: getCurrentMock,
   startAttempt: startAttemptMock,
   submitAttempt: submitAttemptMock,
+  getStandings: getStandingsMock,
 }));
 
 // Stub the ritual hook: TournamentPage's own wiring is under test, not the
@@ -117,10 +119,23 @@ function renderPage() {
   );
 }
 
+const EMPTY_STANDINGS = {
+  iso_year: 2026,
+  iso_week: 29,
+  week_label: "2026-W29",
+  event: "333",
+  entries: [],
+  your_entry: null,
+  valid_count: 0,
+  dnf_count: 0,
+};
+
 beforeEach(() => {
   getCurrentMock.mockReset();
   startAttemptMock.mockReset();
   submitAttemptMock.mockReset();
+  getStandingsMock.mockReset();
+  getStandingsMock.mockResolvedValue(EMPTY_STANDINGS);
   capturedOnResult = undefined;
 });
 
@@ -130,7 +145,9 @@ describe("TournamentPage — precommit (П8)", () => {
     renderPage();
 
     const commitButton = await screen.findByRole("button", { name: "Сделать попытку" });
-    expect(screen.getByText(/2026-W29/)).toBeTruthy();
+    // Both the precommit card and the standings board render the week label —
+    // assert at least one instance rather than a single unique match.
+    expect(screen.getAllByText(/2026-W29/).length).toBeGreaterThan(0);
     // The scramble string must never appear anywhere in the DOM pre-commit.
     expect(screen.queryByText(ATTEMPT.scramble)).toBeNull();
     expect(startAttemptMock).not.toHaveBeenCalled();

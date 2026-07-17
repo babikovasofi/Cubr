@@ -51,7 +51,10 @@ export default function ProfilePage() {
       <EditForm
         initialNickname={user.nickname ?? ""}
         initialAvatar={user.avatar_url ?? ""}
-        onSave={(nickname, avatar_url) => updateMe({ nickname, avatar_url })}
+        initialPublicHandle={user.public_handle ?? ""}
+        onSave={(nickname, avatar_url, public_handle) =>
+          updateMe({ nickname, avatar_url, public_handle })
+        }
       />
 
       <CubeList />
@@ -113,14 +116,21 @@ function Records({
 function EditForm({
   initialNickname,
   initialAvatar,
+  initialPublicHandle,
   onSave,
 }: {
   initialNickname: string;
   initialAvatar: string;
-  onSave: (nickname: string, avatarUrl: string | null) => Promise<unknown>;
+  initialPublicHandle: string;
+  onSave: (
+    nickname: string,
+    avatarUrl: string | null,
+    publicHandle: string | null,
+  ) => Promise<unknown>;
 }) {
   const [nickname, setNickname] = useState(initialNickname);
   const [avatar, setAvatar] = useState(initialAvatar);
+  const [publicHandle, setPublicHandle] = useState(initialPublicHandle);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
@@ -131,7 +141,7 @@ function EditForm({
     setError(null);
     setSaved(false);
     try {
-      await onSave(nickname.trim(), avatar.trim() || null);
+      await onSave(nickname.trim(), avatar.trim() || null, publicHandle.trim() || null);
       setSaved(true);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Не удалось сохранить изменения.");
@@ -157,8 +167,21 @@ function EditForm({
           maxLength={512}
           value={avatar}
           onChange={(e) => setAvatar(e.target.value)}
-          error={error}
         />
+        <div className="flex flex-col gap-1.5">
+          <Input
+            label="Публичное имя в турнире"
+            placeholder="Не задано — покажем как «Аноним»"
+            maxLength={64}
+            value={publicHandle}
+            onChange={(e) => setPublicHandle(e.target.value)}
+            error={error}
+          />
+          <p className="font-sans text-small text-muted">
+            Это имя увидят другие участники турнира в таблице недели. Оставь поле пустым — и там
+            будет стоять «Аноним».
+          </p>
+        </div>
         <div className="flex items-center gap-3">
           <Button type="submit" disabled={busy}>
             {busy ? "Сохраняю…" : "Сохранить"}

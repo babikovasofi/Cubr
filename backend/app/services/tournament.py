@@ -17,16 +17,21 @@ the same request).
 """
 
 import uuid
+from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.tournament import Tournament, TournamentAttempt
+from app.models.user import User
+from app.schemas.tournament import StandingEntry
 from app.services.scramble import random_scramble
 
 EVENT = "333"
+
+ANONYMOUS_DISPLAY_NAME = "Аноним"
 
 
 def now_utc() -> datetime:
@@ -177,3 +182,130 @@ def is_past_deadline(attempt: TournamentAttempt, now: datetime, window_seconds: 
         now = now.replace(tzinfo=timezone.utc)
     deadline = started_at + timedelta(seconds=window_seconds)
     return now > deadline
+
+
+def display_name_for(public_handle: str | None) -> str:
+    """The de-ranked board's display name for a user.
+
+    ALWAYS ``public_handle`` (deliberately, opt-in set by the user) or the
+    literal "Аноним" when unset — NEVER the account email or the
+    email-derived ``nickname`` (П10 / privacy). Callers must not substitute
+    any other user field here.
+    """
+    return public_handle or ANONYMOUS_DISPLAY_NAME
+
+
+@dataclass
+class TournamentStandings:
+    """Raw result of ``get_current_standings``, converted to
+    ``app.schemas.tournament.TournamentStandingsRead`` by the router (which
+    adds the derived ``week_label``).
+    """
+
+    iso_year: int
+    iso_week: int
+    event: str
+    entries: list[StandingEntry]
+    your_entry: StandingEntry | None
+    valid_count: int
+    dnf_count: int
+
+
+async def get_current_standings(
+    session: AsyncSession, viewer_id: uuid.UUID, limit: int, now: datetime | None = None
+) -> TournamentStandings:
+    """Read-only current-ISO-week participation board.
+
+    NEVER selects ``User.email`` or ``User.nickname`` — only
+    ``User.public_handle`` (П10). No tournament yet this week -> empty board,
+    zero counts, ``your_entry`` ``None`` (never a 404/500).
+
+    Entries are ``status=="valid"`` attempts ordered by ``submitted_at ASC,
+    id ASC``, capped at ``limit``. ``your_entry`` is the caller's own valid
+    attempt regardless of whether it falls within that ``limit`` window.
+    """
+    iso_year, iso_week = current_iso_week(now)
+
+    tournament_result = await session.execute(
+        select(Tournament).where(Tournament.iso_year == iso_year, Tournament.iso_week == iso_week)
+    )
+    tournament = tournament_result.scalar_one_or_none()
+    if tournament is None:
+        return TournamentStandings(
+            iso_year=iso_year,
+            iso_week=iso_week,
+            event=EVENT,
+            entries=[],
+            your_entry=None,
+            valid_count=0,
+            dnf_count=0,
+        )
+
+    entries_result = await session.execute(
+        select(TournamentAttempt.user_id, TournamentAttempt.time_ms, User.public_handle)
+        .join(User, TournamentAttempt.user_id == User.id)
+        .where(
+            TournamentAttempt.tournament_id == tournament.id,
+            TournamentAttempt.status == "valid",
+        )
+        .order_by(TournamentAttempt.submitted_at.asc(), TournamentAttempt.id.asc())
+        .limit(limit)
+    )
+    entries = [
+        StandingEntry(
+            display_name=display_name_for(public_handle),
+            time_ms=time_ms if time_ms is not None else 0,
+            is_self=(user_id == viewer_id),
+        )
+        for user_id, time_ms, public_handle in entries_result.all()
+    ]
+
+    valid_count_result = await session.execute(
+        select(func.count())
+        .select_from(TournamentAttempt)
+        .where(
+            TournamentAttempt.tournament_id == tournament.id,
+            TournamentAttempt.status == "valid",
+        )
+    )
+    valid_count = valid_count_result.scalar_one()
+
+    dnf_count_result = await session.execute(
+        select(func.count())
+        .select_from(TournamentAttempt)
+        .where(
+            TournamentAttempt.tournament_id == tournament.id,
+            TournamentAttempt.status == "dnf",
+        )
+    )
+    dnf_count = dnf_count_result.scalar_one()
+
+    your_result = await session.execute(
+        select(TournamentAttempt.time_ms, User.public_handle)
+        .join(User, TournamentAttempt.user_id == User.id)
+        .where(
+            TournamentAttempt.tournament_id == tournament.id,
+            TournamentAttempt.user_id == viewer_id,
+            TournamentAttempt.status == "valid",
+        )
+    )
+    your_row = your_result.one_or_none()
+    your_entry = (
+        StandingEntry(
+            display_name=display_name_for(your_row.public_handle),
+            time_ms=your_row.time_ms if your_row.time_ms is not None else 0,
+            is_self=True,
+        )
+        if your_row is not None
+        else None
+    )
+
+    return TournamentStandings(
+        iso_year=iso_year,
+        iso_week=iso_week,
+        event=tournament.event,
+        entries=entries,
+        your_entry=your_entry,
+        valid_count=valid_count,
+        dnf_count=dnf_count,
+    )

@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { getCurrent, startAttempt, submitAttempt } from "../../src/api/tournament";
+import { getCurrent, startAttempt, submitAttempt, getStandings } from "../../src/api/tournament";
 import { ApiError } from "../../src/api/client";
 
 function res(opts: { status: number; json?: unknown; text?: string }): Response {
@@ -103,5 +103,49 @@ describe("tournament api", () => {
     const err = (await submitAttempt({ time_ms: 1, status: "valid" }).catch((e) => e)) as ApiError;
     expect(err).toBeInstanceOf(ApiError);
     expect(err.status).toBe(0);
+  });
+
+  it("GET /tournament/current/standings hits the proxied /api path with credentials", async () => {
+    const STANDINGS = {
+      iso_year: 2026,
+      iso_week: 29,
+      week_label: "2026-W29",
+      event: "333",
+      entries: [],
+      your_entry: null,
+      valid_count: 0,
+      dnf_count: 0,
+    };
+    fetchMock.mockResolvedValueOnce(res({ status: 200, json: STANDINGS }));
+    const out = await getStandings();
+    expect(out).toEqual(STANDINGS);
+    const [url, init] = fetchMock.mock.calls[0];
+    expect(url).toBe("/api/tournament/current/standings");
+    expect(init.credentials).toBe("include");
+    expect(init.method ?? "GET").toBe("GET");
+  });
+
+  it("GET /tournament/current/standings forwards limit query param", async () => {
+    const STANDINGS = {
+      iso_year: 2026,
+      iso_week: 29,
+      week_label: "2026-W29",
+      event: "333",
+      entries: [],
+      your_entry: null,
+      valid_count: 0,
+      dnf_count: 0,
+    };
+    fetchMock.mockResolvedValueOnce(res({ status: 200, json: STANDINGS }));
+    await getStandings(50);
+    const [url] = fetchMock.mock.calls[0];
+    expect(url).toBe("/api/tournament/current/standings?limit=50");
+  });
+
+  it("401 on GET /tournament/current/standings surfaces as ApiError", async () => {
+    fetchMock.mockResolvedValueOnce(res({ status: 401, json: { detail: "Unauthorized" } }));
+    const err = (await getStandings().catch((e) => e)) as ApiError;
+    expect(err).toBeInstanceOf(ApiError);
+    expect(err.status).toBe(401);
   });
 });

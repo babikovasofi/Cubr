@@ -44,6 +44,40 @@ class TournamentAttemptRead(BaseModel):
     scramble: str
 
 
+class StandingEntry(BaseModel):
+    """One row on the de-ranked participation board.
+
+    Deliberately has NO rank/position field (true ranking waits for the
+    honesty-verification brick) and NO email/nickname — ``display_name`` is
+    always ``public_handle`` or the literal "Аноним"
+    (``app.services.tournament.display_name_for``).
+    """
+
+    model_config = ConfigDict(from_attributes=True)
+
+    display_name: str
+    time_ms: int
+    is_self: bool
+
+
+class TournamentStandingsRead(BaseModel):
+    """Current-ISO-week participation board: `status=="valid"` completers
+    ordered by `submitted_at ASC, id ASC`. Read-only (creates nothing, no
+    scramble). Absent/empty tournament -> empty entries + zero counts, not 404.
+    """
+
+    model_config = ConfigDict(from_attributes=True)
+
+    iso_year: int
+    iso_week: int
+    week_label: str
+    event: str
+    entries: list[StandingEntry]
+    your_entry: StandingEntry | None
+    valid_count: int
+    dnf_count: int
+
+
 class TournamentCurrentRead(BaseModel):
     """Read-only state of the caller's current-week tournament, deliberately
     WITHOUT a ``scramble`` field — this schema backs the ``GET

@@ -70,6 +70,10 @@ class Settings(BaseSettings):
     # Window from POST .../attempt/start to a still-accepted
     # POST .../attempt/submit; a submit arriving later is forced to "dnf".
     TOURNAMENT_ATTEMPT_WINDOW_SECONDS: int = 600
+    # GET /tournament/current/standings `limit` query param: default when
+    # omitted, hard ceiling it is always clamped to.
+    TOURNAMENT_STANDINGS_LIMIT_DEFAULT: int = 50
+    TOURNAMENT_STANDINGS_LIMIT_MAX: int = 200
 
     @property
     def cors_origins(self) -> list[str]:

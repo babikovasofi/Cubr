@@ -25,6 +25,10 @@ class User(SQLAlchemyBaseUserTableUUID, Base):
     # a nickname. A NOT NULL nickname would make that INSERT fail.
     nickname: Mapped[str | None] = mapped_column(String(length=64), nullable=True)
     avatar_url: Mapped[str | None] = mapped_column(String(length=512), nullable=True)
+    # Deliberately-set, opt-in display name for public surfaces (e.g. the
+    # weekly tournament standings board). Never derived from email/nickname —
+    # unset renders as "Аноним" (see app.services.tournament.display_name_for).
+    public_handle: Mapped[str | None] = mapped_column(String(length=64), nullable=True)
     cups: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
     best_single_ms: Mapped[int | None] = mapped_column(Integer, nullable=True)
     best_ao5_ms: Mapped[int | None] = mapped_column(Integer, nullable=True)

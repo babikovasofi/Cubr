@@ -44,8 +44,37 @@ export interface TournamentAttemptSubmit {
   status: "valid" | "dnf";
 }
 
+// GET /tournament/current/standings — de-ranked participation board (no rank/
+// position field on the wire, by design — see TournamentStandings.tsx). Never
+// carries email or the account nickname, only the opt-in `public_handle`
+// (surfaced here as `display_name`, already "Аноним"-substituted server-side).
+export interface StandingEntry {
+  display_name: string;
+  time_ms: number;
+  is_self: boolean;
+}
+
+export interface TournamentStandingsRead {
+  iso_year: number;
+  iso_week: number;
+  week_label: string;
+  event: string;
+  entries: StandingEntry[];
+  your_entry: StandingEntry | null;
+  valid_count: number;
+  dnf_count: number;
+}
+
 export function getCurrent(signal?: AbortSignal): Promise<TournamentCurrentRead> {
   return request<TournamentCurrentRead>("/tournament/current", { signal });
+}
+
+export function getStandings(
+  limit?: number,
+  signal?: AbortSignal,
+): Promise<TournamentStandingsRead> {
+  const query = limit != null ? `?limit=${encodeURIComponent(String(limit))}` : "";
+  return request<TournamentStandingsRead>(`/tournament/current/standings${query}`, { signal });
 }
 
 // Idempotent: a second call in the same week reloads the existing attempt (and

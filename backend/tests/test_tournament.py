@@ -460,3 +460,353 @@ def test_week_label_zero_pads() -> None:
 
 def test_now_utc_is_timezone_aware() -> None:
     assert tournament_service.now_utc().tzinfo is not None
+
+
+# --- standings: anonymous access ----
+
+
+async def test_standings_anonymous_401(client: AsyncClient) -> None:
+    """Standings endpoint requires auth."""
+    resp = await client.get("/tournament/current/standings")
+    assert resp.status_code == 401, resp.text
+
+
+# --- standings: empty board ----
+
+
+async def test_standings_empty_board(client: AsyncClient, email_spy: EmailSpy) -> None:
+    """No tournament yet → 200, empty entries, zero counts, your_entry null."""
+    await _register_and_login(client, email_spy, "standings-empty@example.com")
+    resp = await client.get("/tournament/current/standings")
+    assert resp.status_code == 200, resp.text
+    body = resp.json()
+    assert body["entries"] == []
+    assert body["your_entry"] is None
+    assert body["valid_count"] == 0
+    assert body["dnf_count"] == 0
+    assert "rank" not in body
+    assert "position" not in body
+
+
+# --- standings: valid attempts ordering ----
+
+
+async def test_standings_valid_ordered_by_submitted_at(
+    client: AsyncClient, email_spy: EmailSpy, session_maker: async_sessionmaker[AsyncSession]
+) -> None:
+    """Valid attempts ordered by submitted_at ASC, id ASC; is_self only for caller."""
+    await _register_and_login(client, email_spy, "alice@example.com")
+    alice_start = await client.post("/tournament/current/attempt/start")
+    assert alice_start.status_code == 200, alice_start.text
+
+    # Alice submits with time 5000
+    alice_submit = await client.post(
+        "/tournament/current/attempt/submit", json={"time_ms": 5000, "status": "valid"}
+    )
+    assert alice_submit.status_code == 200, alice_submit.text
+
+    await _register_and_login(client, email_spy, "bob@example.com")
+    bob_start = await client.post("/tournament/current/attempt/start")
+    assert bob_start.status_code == 200, bob_start.text
+
+    bob_submit = await client.post(
+        "/tournament/current/attempt/submit", json={"time_ms": 3000, "status": "valid"}
+    )
+    assert bob_submit.status_code == 200, bob_submit.text
+
+    await _register_and_login(client, email_spy, "charlie@example.com")
+    charlie_start = await client.post("/tournament/current/attempt/start")
+    assert charlie_start.status_code == 200, charlie_start.text
+
+    charlie_submit = await client.post(
+        "/tournament/current/attempt/submit", json={"time_ms": 7000, "status": "valid"}
+    )
+    assert charlie_submit.status_code == 200, charlie_submit.text
+
+    # Charlie is logged in; get standings as Charlie
+    resp = await client.get("/tournament/current/standings")
+    assert resp.status_code == 200, resp.text
+    body = resp.json()
+
+    # All three valid entries, in submitted_at order (alice, bob, charlie)
+    assert len(body["entries"]) == 3
+    assert body["entries"][0]["time_ms"] == 5000
+    assert body["entries"][0]["is_self"] is False
+    assert body["entries"][1]["time_ms"] == 3000
+    assert body["entries"][1]["is_self"] is False
+    assert body["entries"][2]["time_ms"] == 7000
+    assert body["entries"][2]["is_self"] is True  # Charlie is the caller
+    assert body["valid_count"] == 3
+    assert body["dnf_count"] == 0
+
+
+# --- standings: excludes dnf and started ----
+
+
+async def test_standings_excludes_dnf_and_started(
+    client: AsyncClient, email_spy: EmailSpy
+) -> None:
+    """DNF appears in dnf_count only; started excluded from both; valid appears."""
+    await _register_and_login(client, email_spy, "valid@example.com")
+    await client.post("/tournament/current/attempt/start")
+    resp = await client.post(
+        "/tournament/current/attempt/submit", json={"time_ms": 5000, "status": "valid"}
+    )
+    assert resp.status_code == 200, resp.text
+
+    await _register_and_login(client, email_spy, "dnf@example.com")
+    await client.post("/tournament/current/attempt/start")
+    resp = await client.post(
+        "/tournament/current/attempt/submit", json={"time_ms": 1, "status": "dnf"}
+    )
+    assert resp.status_code == 200, resp.text
+
+    await _register_and_login(client, email_spy, "started@example.com")
+    await client.post("/tournament/current/attempt/start")
+    # No submit; attempt remains "started"
+
+    resp = await client.get("/tournament/current/standings")
+    assert resp.status_code == 200, resp.text
+    body = resp.json()
+
+    assert len(body["entries"]) == 1  # Only valid
+    assert body["entries"][0]["time_ms"] == 5000
+    assert body["valid_count"] == 1
+    assert body["dnf_count"] == 1
+
+
+# --- standings: only dnf ----
+
+
+async def test_standings_only_dnf(client: AsyncClient, email_spy: EmailSpy) -> None:
+    """All dnf → entries [], dnf_count N."""
+    await _register_and_login(client, email_spy, "dnf1@example.com")
+    await client.post("/tournament/current/attempt/start")
+    resp = await client.post("/tournament/current/attempt/submit", json={"time_ms": 1, "status": "dnf"})
+    assert resp.status_code == 200, resp.text
+    assert resp.json()["status"] == "dnf"
+
+    await _register_and_login(client, email_spy, "dnf2@example.com")
+    await client.post("/tournament/current/attempt/start")
+    resp = await client.post("/tournament/current/attempt/submit", json={"time_ms": 1, "status": "dnf"})
+    assert resp.status_code == 200, resp.text
+    assert resp.json()["status"] == "dnf"
+
+    resp = await client.get("/tournament/current/standings")
+    assert resp.status_code == 200, resp.text
+    body = resp.json()
+
+    assert body["entries"] == []
+    assert body["valid_count"] == 0
+    assert body["dnf_count"] == 2
+    assert body["your_entry"] is None
+
+
+# --- standings: no rank field ----
+
+
+async def test_standings_no_rank_field(client: AsyncClient, email_spy: EmailSpy) -> None:
+    """Response JSON has no rank/position key."""
+    await _register_and_login(client, email_spy, "norank@example.com")
+    await client.post("/tournament/current/attempt/start")
+    await client.post("/tournament/current/attempt/submit", json={"time_ms": 5000, "status": "valid"})
+
+    resp = await client.get("/tournament/current/standings")
+    assert resp.status_code == 200, resp.text
+    body = resp.json()
+
+    assert "rank" not in body
+    assert "position" not in body
+    for entry in body["entries"]:
+        assert "rank" not in entry
+        assert "position" not in entry
+
+
+# --- standings: privacy (no email/nickname leak) ----
+
+
+async def test_standings_no_email_no_nickname_leak(
+    client: AsyncClient, email_spy: EmailSpy, session_maker: async_sessionmaker[AsyncSession]
+) -> None:
+    """Email "leaky@example.com" + nickname "Leaky" + public_handle=None → display_name "Аноним", no leak."""
+    await _register_and_login(client, email_spy, "leaky@example.com")
+    await client.post("/tournament/current/attempt/start")
+    await client.post("/tournament/current/attempt/submit", json={"time_ms": 5000, "status": "valid"})
+
+    # Manually set nickname (register doesn't usually expose it, but it's there on the model)
+    async with session_maker() as session:
+        user_result = await session.execute(
+            select(User).where(User.email == "leaky@example.com")
+        )
+        user = user_result.scalars().first()
+        assert user is not None
+        user.nickname = "Leaky"
+        session.add(user)
+        await session.commit()
+
+    resp = await client.get("/tournament/current/standings")
+    assert resp.status_code == 200, resp.text
+    body = resp.json()
+    response_text = str(body)
+
+    # No email, no nickname, no "@" anywhere
+    assert "leaky@example.com" not in response_text
+    assert "Leaky" not in response_text
+    assert "@" not in response_text
+    assert body["entries"][0]["display_name"] == "Аноним"
+
+
+# --- standings: public_handle shown ----
+
+
+async def test_standings_public_handle_shown(
+    client: AsyncClient, email_spy: EmailSpy, session_maker: async_sessionmaker[AsyncSession]
+) -> None:
+    """public_handle "SpeedCuber" → display_name "SpeedCuber"."""
+    await _register_and_login(client, email_spy, "speedcuber@example.com")
+    await client.post("/tournament/current/attempt/start")
+    await client.post("/tournament/current/attempt/submit", json={"time_ms": 5000, "status": "valid"})
+
+    # Set public_handle via PATCH
+    resp = await client.patch("/users/me", json={"public_handle": "SpeedCuber"})
+    assert resp.status_code == 200, resp.text
+
+    resp = await client.get("/tournament/current/standings")
+    assert resp.status_code == 200, resp.text
+    body = resp.json()
+
+    assert len(body["entries"]) == 1
+    assert body["entries"][0]["display_name"] == "SpeedCuber"
+    assert body["your_entry"]["display_name"] == "SpeedCuber"
+
+
+# --- standings: no scramble in response ----
+
+
+async def test_standings_no_scramble_in_body(
+    client: AsyncClient, email_spy: EmailSpy
+) -> None:
+    """DB scramble string absent from response body."""
+    await _register_and_login(client, email_spy, "noscramble@example.com")
+    start_resp = await client.post("/tournament/current/attempt/start")
+    assert start_resp.status_code == 200, start_resp.text
+    scramble_from_start = start_resp.json()["scramble"]
+    assert scramble_from_start  # Start returns the scramble
+
+    await client.post("/tournament/current/attempt/submit", json={"time_ms": 5000, "status": "valid"})
+
+    resp = await client.get("/tournament/current/standings")
+    assert resp.status_code == 200, resp.text
+    body = resp.json()
+    response_text = str(body)
+
+    assert scramble_from_start not in response_text
+
+
+# --- standings: limit clamping ----
+
+
+async def test_standings_limit_clamped(
+    client: AsyncClient, email_spy: EmailSpy
+) -> None:
+    """limit bounds the result; limit<=0 → 422."""
+    # Create 5 valid attempts
+    for i in range(5):
+        await _register_and_login(client, email_spy, f"user{i}@example.com")
+        await client.post("/tournament/current/attempt/start")
+        await client.post("/tournament/current/attempt/submit", json={"time_ms": 1000 + i, "status": "valid"})
+
+    # Request limit=2, should get exactly 2 even though 5 valid attempts exist
+    resp = await client.get("/tournament/current/standings?limit=2")
+    assert resp.status_code == 200, resp.text
+    body = resp.json()
+    assert len(body["entries"]) == 2
+    assert body["valid_count"] == 5  # Total count unchanged, but entries limited
+
+    # Request limit > MAX should clamp to MAX
+    resp = await client.get("/tournament/current/standings?limit=9999")
+    assert resp.status_code == 200, resp.text
+    body = resp.json()
+    # All 5 entries returned (< TOURNAMENT_STANDINGS_LIMIT_MAX which is 200)
+    assert len(body["entries"]) == 5
+
+    # limit <= 0 should reject
+    resp = await client.get("/tournament/current/standings?limit=0")
+    assert resp.status_code == 422, resp.text
+
+    resp = await client.get("/tournament/current/standings?limit=-1")
+    assert resp.status_code == 422, resp.text
+
+
+# --- display_name_for (unit test) ----
+
+
+def test_display_name_for_unit() -> None:
+    """Pure: handle→handle; None→'Аноним'; never email/nickname."""
+    assert tournament_service.display_name_for("SpeedCuber") == "SpeedCuber"
+    assert tournament_service.display_name_for("") == "Аноним"  # Empty string treated as falsy
+    assert tournament_service.display_name_for(None) == "Аноним"
+    # Never called with email/nickname, but the function is simple and just returns the handle or default
+
+
+# --- public_handle setting via PATCH /users/me ----
+
+
+async def test_set_public_handle_via_patch_me(client: AsyncClient, email_spy: EmailSpy) -> None:
+    """PATCH /users/me {public_handle:"X"} → GET /users/me shows it; ""→null; >64→422."""
+    await _register_and_login(client, email_spy, "handle-test@example.com")
+
+    # Set public_handle
+    resp = await client.patch("/users/me", json={"public_handle": "MyHandle"})
+    assert resp.status_code == 200, resp.text
+    body = resp.json()
+    assert body["public_handle"] == "MyHandle"
+
+    # Read it back
+    resp = await client.get("/users/me")
+    assert resp.status_code == 200, resp.text
+    body = resp.json()
+    assert body["public_handle"] == "MyHandle"
+
+    # Empty string → null
+    resp = await client.patch("/users/me", json={"public_handle": ""})
+    assert resp.status_code == 200, resp.text
+    body = resp.json()
+    assert body["public_handle"] is None
+
+    # Confirm it's null after read
+    resp = await client.get("/users/me")
+    assert resp.status_code == 200, resp.text
+    body = resp.json()
+    assert body["public_handle"] is None
+
+    # > 64 chars → 422
+    long_handle = "x" * 65
+    resp = await client.patch("/users/me", json={"public_handle": long_handle})
+    assert resp.status_code == 422, resp.text
+
+    # Whitespace trim
+    resp = await client.patch("/users/me", json={"public_handle": "  TrimMe  "})
+    assert resp.status_code == 200, resp.text
+    body = resp.json()
+    assert body["public_handle"] == "TrimMe"
+
+
+# --- public_handle not leaked to others ----
+
+
+async def test_public_handle_not_leaked_to_others(
+    client: AsyncClient, email_spy: EmailSpy
+) -> None:
+    """GET /users/me never exposes another user."""
+    await _register_and_login(client, email_spy, "alice@example.com")
+    resp = await client.patch("/users/me", json={"public_handle": "AliceHandle"})
+    assert resp.status_code == 200, resp.text
+
+    # Alice cannot read anyone else via /users/me
+    await _register_and_login(client, email_spy, "bob@example.com")
+    resp = await client.get("/users/me")
+    assert resp.status_code == 200, resp.text
+    body = resp.json()
+    assert body["email"] == "bob@example.com"
+    assert body["public_handle"] is None  # Bob hasn't set one

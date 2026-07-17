@@ -1,19 +1,28 @@
-"""Weekly-tournament attempt routes.
+"""Weekly-tournament attempt + standings routes.
 
-All endpoints require an authenticated active user (`current_active_user`).
-`POST .../start` and `POST .../submit` are the ONLY places in the app that
-ever reveal the shared weekly scramble (П8) — both authed, neither public.
-`GET /current` is authed too but its `TournamentCurrentRead` schema has no
-scramble field at all, and it is read-only: it never creates a tournament or
-attempt row and never starts the deadline clock (see
-`tournament_service.get_current_attempt`). No public (anon) route exists in
-this brick and none may be added without re-checking that invariant.
+All endpoints require an authenticated active user (`current_active_user`);
+anon callers get 401. `POST .../start` and `POST .../submit` are the ONLY
+places in the app that ever reveal the shared weekly scramble (П8) — both
+authed, neither public. `GET /current` is authed too but its
+`TournamentCurrentRead` schema has no scramble field at all, and it is
+read-only: it never creates a tournament or attempt row and never starts the
+deadline clock (see `tournament_service.get_current_attempt`).
+
+`GET /current/standings` is likewise authed and strictly read-only: it
+creates nothing, starts no clock, and returns NO scramble. Its
+`TournamentStandingsRead` response is also privacy-scoped (П10) — it never
+selects or serializes `email` or `nickname`, only the caller-chosen
+`public_handle` (or "Аноним"), and is deliberately de-ranked: no rank/position
+field anywhere in the payload.
+
+No public (anon) route exists in this brick and none may be added without
+re-checking that invariant.
 
 Plumbing only: `honesty` is set to "pending" on every attempt and this brick
 never transitions it — see `app.models.tournament` / the plan.
 """
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -28,6 +37,7 @@ from app.schemas.tournament import (
     TournamentAttemptRead,
     TournamentAttemptSubmit,
     TournamentCurrentRead,
+    TournamentStandingsRead,
 )
 from app.services import tournament as tournament_service
 from app.services.auth import current_active_user
@@ -115,6 +125,38 @@ async def get_current(
     """
     tournament, attempt = await tournament_service.get_current_attempt(session, user.id)
     return _to_current_read(tournament, attempt)
+
+
+@router.get(
+    "/current/standings",
+    response_model=TournamentStandingsRead,
+    dependencies=[_ip_limit],
+)
+async def get_current_standings(
+    limit: int = Query(default=settings.TOURNAMENT_STANDINGS_LIMIT_DEFAULT, gt=0),
+    user: User = Depends(current_active_user),
+    session: AsyncSession = Depends(get_session),
+) -> TournamentStandingsRead:
+    """De-ranked current-week participation board.
+
+    Authed (401 anon), rate-limited, strictly read-only: creates nothing,
+    starts no clock, returns NO scramble. NEVER selects/serializes `email` or
+    `nickname` — only `public_handle` (or "Аноним", П10) — and carries NO
+    rank/position field (de-ranked by design; true ranking is a future brick).
+    `limit` is clamped to `TOURNAMENT_STANDINGS_LIMIT_MAX`.
+    """
+    clamped_limit = min(limit, settings.TOURNAMENT_STANDINGS_LIMIT_MAX)
+    standings = await tournament_service.get_current_standings(session, user.id, clamped_limit)
+    return TournamentStandingsRead(
+        iso_year=standings.iso_year,
+        iso_week=standings.iso_week,
+        week_label=tournament_service.week_label(standings.iso_year, standings.iso_week),
+        event=standings.event,
+        entries=standings.entries,
+        your_entry=standings.your_entry,
+        valid_count=standings.valid_count,
+        dnf_count=standings.dnf_count,
+    )
 
 
 @router.post(

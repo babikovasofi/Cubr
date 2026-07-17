@@ -181,6 +181,22 @@
   - ✅ backend pytest 89, frontend vitest 220 (+26, 194 без регрессий), tsc/lint/mypy чисто. Review = **ship**
     (0 findings). Автономный plan→build→review. [swarm-report/tournament-ui-*].
   - ⏳ Live click-through (нужен запущенный backend+Postgres+камера): start→ритуал→submit, resume, terminal.
+  - ✅ **Живьём:** локальный Postgres 16 (brew, не Docker), миграции 0004+0005+0006 применены (upgrade/
+    downgrade проверены), бэк :8000 + фронт :5173 подняты; smoke `/scramble` 200+token, `/tournament/*` 401 аноним.
+
+- **Этап 5 — participation board (de-ranked)** ✅ код — `backend/` + `frontend/`.
+  - ✅ **Решение:** рейтинговый лидерборд = преждевременный театр (всё `honesty=pending`, self-reported,
+    #1=кто соврал; противоречит записанному honesty-гейту). Шипнут **de-ranked participation board**:
+    список прошедших неделю по `submitted_at` (БЕЗ мест/№), «N куберов прошли», своё время лично.
+    Настоящий рейтинг — после honesty-кирпича.
+  - ✅ **Privacy (П10) opt-in:** новое поле `User.public_handle` (String(64) nullable, миграция **0006**),
+    ставится через `PATCH /users/me` из профиля с пометкой «имя публично». Борд показывает `public_handle`
+    или «Аноним» — **никогда email/nickname** (nickname по умолчанию = email-фрагмент, поэтому не берём).
+  - ✅ `GET /tournament/current/standings` authed (401 аноним), read-only, БЕЗ скрамбла/rank/email/nickname.
+    Frontend: `TournamentStandings` во всех фазах страницы + поле хендла в профиле.
+  - ✅ backend pytest (+13, mypy/ruff чисто), frontend vitest 245 (+19, tsc/lint чисто). Review = **ship**
+    (0 code/privacy багов). plan→build(exec sonnet + tests haiku)→review. [swarm-report/tournament-leaderboard-*].
+  - ⏳ Дальше Этапа 5: finalize-cron (started→dnf, ролловер, финальные результаты недели).
 
 ## Planned (следующий фокус)
 - **Этап 1.2 manual QA** — прогнать §5.1 живьём (см. выше), тюнинг порогов `config.ts`.
