@@ -36,6 +36,9 @@ and merge their output. No code edits here.
    ## TL;DR
    ## Acceptance criteria  — observable "done" conditions; /review checks these
    ## Plan                 — merged steps + affected files + tests
+   ## Test plan            — REQUIRED. Full coverage: happy path, edge cases, error paths,
+   #                         regressions. List each test (file + what it asserts). /build's
+   #                         haiku test agent authors exactly these. Nothing ships untested.
    ## Blockers             — skeptic HIGH not yet resolved (human decides)
    ## Out of scope
    ## Assumptions

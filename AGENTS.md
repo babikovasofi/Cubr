@@ -79,6 +79,12 @@ Each loop stage runs on a fixed model tier at **medium** reasoning effort:
 | `/build` (exec agents)      | `sonnet` | medium |
 | `/review` (reviewer + qa-smoke) | `haiku` (→ `sonnet` if diff large / HIGH-risk) | medium |
 | `/debug` (debugger)         | `sonnet` | medium |
+| test authoring + running (in `/build`) | `haiku` | medium |
+
+**Tests.** Every `/plan` output MUST include a **Test plan** section enumerating full coverage
+(happy path, edge cases, error paths, regressions) — nothing ships untested. In `/build`, the
+sonnet exec agent implements the feature, then a **haiku** agent authors/expands the tests per that
+Test plan and runs the suite (real pass/fail cited). Test code is not the exec agent's job.
 
 Model tier is enforced via the `model:` override in each SKILL. Reasoning effort is not a
 per-`Task` parameter — "medium" here is the standing default (not max); no per-subagent knob
