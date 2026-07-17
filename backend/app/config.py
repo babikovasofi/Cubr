@@ -31,6 +31,8 @@ class Settings(BaseSettings):
     SECRET: str = Field(min_length=32)
     # Separate secret for password-reset / email-verification tokens (split from auth JWT).
     RESET_VERIFY_SECRET: str = Field(min_length=32)
+    # Separate secret signing GET /scramble -> POST /solves tokens (split from both above).
+    SCRAMBLE_SIGN_SECRET: str = Field(min_length=32)
 
     # --- Auth cookie ---
     JWT_LIFETIME_SECONDS: int = 3600
@@ -54,8 +56,20 @@ class Settings(BaseSettings):
     # --- Rate limiting ---
     AUTH_RATE_LIMIT: str = "10/minute"
     EMAIL_RATE_LIMIT: str = "3/hour"
+    SCRAMBLE_RATE_LIMIT: str = "60/minute"
+    TOURNAMENT_RATE_LIMIT: str = "60/minute"
     # Comma-separated CIDRs / hosts we trust to set X-Forwarded-For.
     TRUSTED_PROXIES: str = "127.0.0.1,::1"
+
+    # --- Scramble tokens ---
+    # Generous solo-window TTL for the signed GET /scramble -> POST /solves
+    # token; a solve started long after fetch may 422 (user re-scrambles).
+    SCRAMBLE_TOKEN_TTL: int = 3600
+
+    # --- Weekly tournament attempts ---
+    # Window from POST .../attempt/start to a still-accepted
+    # POST .../attempt/submit; a submit arriving later is forced to "dnf".
+    TOURNAMENT_ATTEMPT_WINDOW_SECONDS: int = 600
 
     @property
     def cors_origins(self) -> list[str]:
@@ -81,7 +95,7 @@ class Settings(BaseSettings):
         Fail-closed regardless of APP_ENV: a prod deploy that forgets to set
         APP_ENV must not silently boot with the `.env.example` placeholders.
         """
-        for name in ("SECRET", "RESET_VERIFY_SECRET"):
+        for name in ("SECRET", "RESET_VERIFY_SECRET", "SCRAMBLE_SIGN_SECRET"):
             value: str = getattr(self, name)
             lowered = value.lower()
             if any(fragment in lowered for fragment in _PLACEHOLDER_FRAGMENTS):

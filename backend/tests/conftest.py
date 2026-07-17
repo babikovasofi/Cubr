@@ -5,6 +5,7 @@ import os
 # and can be stored by the httpx test client over http://.
 os.environ.setdefault("SECRET", "kQ7m2Zt9v-unit-jwt-signing-key-0123456789abcdef")
 os.environ.setdefault("RESET_VERIFY_SECRET", "wX4n8Rb1cY-unit-reset-verify-key-fedcba9876543210")
+os.environ.setdefault("SCRAMBLE_SIGN_SECRET", "p9Lm3Fq6Ts-unit-scramble-sign-key-abcdef0123456789")
 os.environ.setdefault("APP_ENV", "local")
 os.environ.setdefault("AUTH_RATE_LIMIT", "10/minute")
 os.environ.setdefault("EMAIL_RATE_LIMIT", "3/hour")
@@ -25,7 +26,15 @@ from sqlalchemy.pool import StaticPool  # noqa: E402
 
 from app.db import Base, get_session  # noqa: E402
 from app.main import app  # noqa: E402
-from app.models import Cube, OAuthAccount, Solve, User  # noqa: E402
+from app.models import (  # noqa: E402
+    Cube,
+    OAuthAccount,
+    Scramble,
+    Solve,
+    Tournament,
+    TournamentAttempt,
+    User,
+)
 from app.services import ratelimit  # noqa: E402
 
 TEST_DATABASE_URL = "sqlite+aiosqlite:///:memory:"
@@ -88,7 +97,10 @@ async def test_engine() -> AsyncGenerator[AsyncEngine, None]:
                     User.__table__,
                     OAuthAccount.__table__,
                     Cube.__table__,
+                    Scramble.__table__,
                     Solve.__table__,
+                    Tournament.__table__,
+                    TournamentAttempt.__table__,
                 ],
             )
         )

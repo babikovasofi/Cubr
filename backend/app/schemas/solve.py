@@ -20,6 +20,11 @@ class SolveCreate(BaseModel):
     status: Literal["valid", "dnf"] = "valid"
     verify_frames_ok: bool = False
     cube_id: UUID | None = None
+    # Signed token from GET /scramble (app.services.scramble_token). When
+    # present and valid, the server-authoritative scramble text from the
+    # token replaces `scramble` above and solve.scramble_id is linked;
+    # omitted (offline/anon local-fallback) → scramble_id stays NULL.
+    scramble_token: str | None = None
 
 
 class SolveRead(BaseModel):
@@ -33,4 +38,5 @@ class SolveRead(BaseModel):
     status: str
     verify_frames_ok: bool
     cube_id: UUID | None
+    scramble_id: UUID | None
     created_at: datetime

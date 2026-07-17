@@ -3,12 +3,21 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from httpx import AsyncClient
 
-from app.models import Solve, User
+from app.models import Scramble, Solve, User
 from tests.conftest import EmailSpy
 
 COOKIE = "cubr_auth"
 
 VALID_SCRAMBLE = "R U R' U'"
+
+
+async def _fetch_scramble_token(client: AsyncClient) -> tuple[str, str]:
+    """GET /scramble and return (signed scramble text, scramble_token)."""
+    resp = await client.get("/scramble")
+    assert resp.status_code == 200, resp.text
+    body = resp.json()
+    return body["scramble"], body["scramble_token"]
+
 
 CUBE_PROFILE: dict[str, list[float]] = {
     "U": [95.0, 0.0, 0.0],
@@ -245,3 +254,108 @@ async def test_deleting_cube_nulls_referencing_solve(
         rows = (await session.execute(select(Solve))).scalars().all()
     assert len(rows) == 1
     assert rows[0].cube_id is None
+
+
+# --- scramble_token -----------------------------------------------------------
+
+
+async def test_post_solve_without_scramble_token_has_null_scramble_id(
+    client: AsyncClient, email_spy: EmailSpy
+) -> None:
+    await _register_and_login(client, email_spy, "notoken@example.com")
+    resp = await client.post("/solves", json={"scramble": VALID_SCRAMBLE, "time_ms": 4200})
+    assert resp.status_code == 201, resp.text
+    assert resp.json()["scramble_id"] is None
+
+
+async def test_post_solve_with_valid_scramble_token_persists_scramble_row(
+    client: AsyncClient,
+    email_spy: EmailSpy,
+    session_maker: async_sessionmaker[AsyncSession],
+) -> None:
+    await _register_and_login(client, email_spy, "tokened@example.com")
+    signed_scramble, token = await _fetch_scramble_token(client)
+
+    resp = await client.post(
+        "/solves",
+        json={
+            # Deliberately different from the signed text — the server must
+            # ignore this and use the verified token's scramble instead.
+            "scramble": "L2 B2 D2 F2",
+            "time_ms": 4200,
+            "scramble_token": token,
+        },
+    )
+    assert resp.status_code == 201, resp.text
+    body = resp.json()
+    assert body["scramble"] == signed_scramble
+    assert body["scramble_id"] is not None
+
+    async with session_maker() as session:
+        rows = (await session.execute(select(Scramble))).scalars().all()
+    assert len(rows) == 1
+    assert rows[0].scramble == signed_scramble
+    assert str(rows[0].id) == body["scramble_id"]
+
+
+async def test_post_solve_with_tampered_scramble_token_is_422(
+    client: AsyncClient, email_spy: EmailSpy
+) -> None:
+    await _register_and_login(client, email_spy, "tampered@example.com")
+    _signed_scramble, token = await _fetch_scramble_token(client)
+    payload_part, _sig = token.split(".", 1)
+    tampered = f"{payload_part}.not-the-real-signature-at-all"
+
+    resp = await client.post(
+        "/solves",
+        json={"scramble": VALID_SCRAMBLE, "time_ms": 4200, "scramble_token": tampered},
+    )
+    assert resp.status_code == 422, resp.text
+
+
+async def test_post_solve_with_garbage_scramble_token_is_422(
+    client: AsyncClient, email_spy: EmailSpy
+) -> None:
+    await _register_and_login(client, email_spy, "garbage@example.com")
+    resp = await client.post(
+        "/solves",
+        json={"scramble": VALID_SCRAMBLE, "time_ms": 4200, "scramble_token": "not-a-real-token"},
+    )
+    assert resp.status_code == 422, resp.text
+
+
+async def test_post_solve_with_reused_scramble_token_is_409(
+    client: AsyncClient, email_spy: EmailSpy
+) -> None:
+    await _register_and_login(client, email_spy, "reused@example.com")
+    _signed_scramble, token = await _fetch_scramble_token(client)
+
+    first = await client.post(
+        "/solves",
+        json={"scramble": VALID_SCRAMBLE, "time_ms": 4200, "scramble_token": token},
+    )
+    assert first.status_code == 201, first.text
+
+    second = await client.post(
+        "/solves",
+        json={"scramble": VALID_SCRAMBLE, "time_ms": 5000, "scramble_token": token},
+    )
+    assert second.status_code == 409, second.text
+
+
+async def test_post_solve_with_unknown_extra_field_alongside_token_is_422(
+    client: AsyncClient, email_spy: EmailSpy
+) -> None:
+    # `extra="forbid"` must still hold with scramble_token in play (skeptic HIGH#1).
+    await _register_and_login(client, email_spy, "extrafield@example.com")
+    _signed_scramble, token = await _fetch_scramble_token(client)
+    resp = await client.post(
+        "/solves",
+        json={
+            "scramble": VALID_SCRAMBLE,
+            "time_ms": 4200,
+            "scramble_token": token,
+            "bogus": "field",
+        },
+    )
+    assert resp.status_code == 422, resp.text

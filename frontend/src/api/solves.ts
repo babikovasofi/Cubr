@@ -11,6 +11,12 @@ export interface SolveCreate {
   verify_frames_ok?: boolean;
   /** Optional cube profile this solve was done with (null = none / anon). */
   cube_id?: string | null;
+  /**
+   * Signed token from GET /scramble (api/scramble.ts). The server verifies it,
+   * lazily persists the scramble row, and links solve.scramble_id — the
+   * offline/anon local-fallback scramble has no token, so this stays null.
+   */
+  scramble_token?: string | null;
 }
 
 export interface SolveRead {
@@ -20,6 +26,8 @@ export interface SolveRead {
   status: string;
   verify_frames_ok: boolean;
   cube_id: string | null;
+  /** Server-side row linked via scramble_token, null when none was verified. */
+  scramble_id: string | null;
   created_at: string;
 }
 

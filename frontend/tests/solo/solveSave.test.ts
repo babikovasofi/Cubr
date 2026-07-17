@@ -10,17 +10,19 @@ const READ: SolveRead = {
   status: "valid",
   verify_frames_ok: true,
   cube_id: null,
+  scramble_id: null,
   created_at: "2026-07-10T00:00:00Z",
 };
 
 describe("buildSolvePayload", () => {
-  it("rounds elapsedMs, marks a valid solve, and defaults cube_id to null", () => {
+  it("rounds elapsedMs, marks a valid solve, and defaults cube_id/scramble_token to null", () => {
     expect(buildSolvePayload("R U R'", 12340.7, false)).toEqual({
       scramble: "R U R'",
       time_ms: 12341,
       status: "valid",
       verify_frames_ok: true,
       cube_id: null,
+      scramble_token: null,
     });
   });
 
@@ -38,6 +40,31 @@ describe("buildSolvePayload", () => {
 
   it("keeps cube_id null when explicitly passed null (no cube / anon)", () => {
     expect(buildSolvePayload("R", 1000, false, null).cube_id).toBeNull();
+  });
+
+  it("verify_frames_ok is false when cameraVerified=false (skipped verify), even for a non-DNF solve", () => {
+    const p = buildSolvePayload("R", 1000, false, null, false);
+    expect(p.status).toBe("valid"); // a real result, not a DNF
+    expect(p.verify_frames_ok).toBe(false); // but never camera-confirmed
+  });
+
+  it("a DNF stays verify_frames_ok=false even if cameraVerified=true", () => {
+    const p = buildSolvePayload("R", 0, true, null, true);
+    expect(p.verify_frames_ok).toBe(false);
+  });
+
+  it("threads a signed scramble_token into the payload", () => {
+    expect(buildSolvePayload("R", 1000, false, null, true, "tok-123").scramble_token).toBe(
+      "tok-123",
+    );
+  });
+
+  it("defaults scramble_token to null when omitted (offline/local-fallback scramble)", () => {
+    expect(buildSolvePayload("R", 1000, false).scramble_token).toBeNull();
+  });
+
+  it("keeps scramble_token null when explicitly passed null", () => {
+    expect(buildSolvePayload("R", 1000, false, null, true, null).scramble_token).toBeNull();
   });
 });
 

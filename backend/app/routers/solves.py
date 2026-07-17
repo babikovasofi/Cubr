@@ -2,14 +2,22 @@
 (`GET /solves`). Both require an authenticated active user.
 """
 
+import uuid
+
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.config import get_settings
 from app.db import get_session
-from app.models import Cube, Solve, User
+from app.models import Cube, Scramble, Solve, User
 from app.schemas.solve import SolveCreate, SolveRead
 from app.services.auth import current_active_user
+from app.services.scramble_token import ScrambleTokenError
+from app.services.scramble_token import verify as verify_scramble_token
+
+settings = get_settings()
 
 router = APIRouter(prefix="/solves", tags=["solves"])
 
@@ -27,12 +35,51 @@ async def create_solve(
         if cube is None or cube.user_id != user.id:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Cube not found")
 
+    # Server-authoritative scramble: with no token, trust the client's own
+    # text (offline/anon local-fallback). With a token, the verified payload
+    # replaces it — the client's `scramble` field can never lie.
+    scramble_text = payload.scramble
+    scramble_id: uuid.UUID | None = None
+
+    if payload.scramble_token is not None:
+        try:
+            verified = verify_scramble_token(payload.scramble_token, settings.SCRAMBLE_SIGN_SECRET)
+        except ScrambleTokenError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=str(exc)
+            ) from exc
+
+        existing = await session.execute(select(Scramble).where(Scramble.nonce == verified.nonce))
+        if existing.scalar_one_or_none() is not None:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT, detail="Scramble token already used"
+            )
+
+        scramble_row = Scramble(
+            scramble=verified.scramble, event=verified.event, nonce=verified.nonce
+        )
+        session.add(scramble_row)
+        try:
+            # Flush (not commit) so the row gets its id without ending the
+            # transaction the solve insert below joins. A unique-constraint
+            # race on `nonce` (concurrent double-submit) also lands here.
+            await session.flush()
+        except IntegrityError as exc:
+            await session.rollback()
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT, detail="Scramble token already used"
+            ) from exc
+
+        scramble_id = scramble_row.id
+        scramble_text = verified.scramble
+
     solve = Solve(
         user_id=user.id,
         duel_id=None,
         tournament_id=None,
         cube_id=payload.cube_id,
-        scramble=payload.scramble,
+        scramble_id=scramble_id,
+        scramble=scramble_text,
         time_ms=payload.time_ms,
         status=payload.status,
         verify_frames_ok=payload.verify_frames_ok,
