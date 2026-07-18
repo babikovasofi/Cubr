@@ -19,11 +19,14 @@ the same request).
 import uuid
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
+from typing import Any, cast
 
-from sqlalchemy import func, select
+from sqlalchemy import func, select, update
+from sqlalchemy.engine import CursorResult
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.config import get_settings
 from app.models.tournament import Tournament, TournamentAttempt
 from app.models.user import User
 from app.schemas.tournament import StandingEntry
@@ -135,7 +138,10 @@ async def get_or_create_attempt(
 
 
 async def get_current_attempt(
-    session: AsyncSession, user_id: uuid.UUID, now: datetime | None = None
+    session: AsyncSession,
+    user_id: uuid.UUID,
+    now: datetime | None = None,
+    window_seconds: int | None = None,
 ) -> tuple[Tournament | None, TournamentAttempt | None]:
     """Read-only lookup of the current-week tournament + this user's attempt.
 
@@ -145,7 +151,26 @@ async def get_current_attempt(
     that exists, SELECTs the caller's ``TournamentAttempt`` (``None`` if this
     user hasn't started one). Backs ``GET /tournament/current`` — a route that
     must never start the deadline clock or reveal the scramble (П8).
+
+    View-level normalization: if the attempt is still ``"started"`` but past
+    its deadline (``is_past_deadline``), the returned attempt reports
+    ``status == "dnf"`` so callers never see a live-looking expired attempt
+    between finalize-job runs. This NEVER mutates the persistent row: the
+    view is a fresh, never-``session.add()``-ed ``TournamentAttempt`` built
+    via the constructor (its own independent ``InstanceState``, not linked to
+    the persisted identity-map entry) — NOT a ``copy.copy()`` of the loaded
+    instance, which would share the original's ``_sa_instance_state`` and
+    mark the real row dirty in ``session.dirty`` the moment ``.status`` is
+    set on the "copy" (harmless only as long as this read path never
+    commits). Only ``sweep_expired_attempts`` (run by the finalize job)
+    actually persists the transition.
     """
+    effective_now = now if now is not None else now_utc()
+    window = (
+        window_seconds
+        if window_seconds is not None
+        else get_settings().TOURNAMENT_ATTEMPT_WINDOW_SECONDS
+    )
     iso_year, iso_week = current_iso_week(now)
 
     result = await session.execute(
@@ -162,6 +187,26 @@ async def get_current_attempt(
         )
     )
     attempt = attempt_result.scalar_one_or_none()
+    if (
+        attempt is not None
+        and attempt.status == "started"
+        and is_past_deadline(attempt, effective_now, window)
+    ):
+        # Transient (never session.add()-ed) instance — its own InstanceState,
+        # never registered in the session's identity map, so setting `.status`
+        # here cannot mark the persisted row dirty. Deliberately not a
+        # copy.copy() of `attempt` (see docstring above).
+        view_attempt = TournamentAttempt(
+            id=attempt.id,
+            user_id=attempt.user_id,
+            tournament_id=attempt.tournament_id,
+            status="dnf",
+            honesty=attempt.honesty,
+            time_ms=attempt.time_ms,
+            started_at=attempt.started_at,
+            submitted_at=attempt.submitted_at,
+        )
+        return tournament, view_attempt
     return tournament, attempt
 
 
@@ -182,6 +227,50 @@ def is_past_deadline(attempt: TournamentAttempt, now: datetime, window_seconds: 
         now = now.replace(tzinfo=timezone.utc)
     deadline = started_at + timedelta(seconds=window_seconds)
     return now > deadline
+
+
+async def sweep_expired_attempts(session: AsyncSession, now: datetime, window_seconds: int) -> int:
+    """Idempotently flip every expired ``started`` attempt (any tournament,
+    any week) to ``dnf``. Pure — no commit; the caller owns the transaction
+    (the finalize job commits after calling this).
+
+    SELECTs every ``started`` attempt (joined to its ``Tournament``; the join
+    itself is not currently a filter — every attempt has a tournament via the
+    FK — but keeps the query shaped for a future per-tournament refinement),
+    then reuses the same tested ``is_past_deadline`` datetime-normalization
+    helper the submit route uses to decide which are actually expired. No ids
+    expired -> return 0 without issuing an UPDATE.
+
+    The bulk UPDATE re-guards ``status == "started"`` (in addition to
+    ``id.in_(ids)``): a row already flipped between the SELECT and the UPDATE
+    — by a concurrent sweep, or by a user's own submit committing in that
+    window — simply matches 0 rows for that id and is left alone. This makes
+    the sweep safe to run at any frequency, overlapping, from any number of
+    external triggers, without double-counting or clobbering a real result.
+    """
+    result = await session.execute(
+        select(TournamentAttempt)
+        .join(Tournament, TournamentAttempt.tournament_id == Tournament.id)
+        .where(TournamentAttempt.status == "started")
+    )
+    started_attempts = result.scalars().all()
+    expired_ids = [
+        attempt.id for attempt in started_attempts if is_past_deadline(attempt, now, window_seconds)
+    ]
+    if not expired_ids:
+        return 0
+
+    update_result = cast(
+        "CursorResult[Any]",
+        await session.execute(
+            update(TournamentAttempt)
+            .where(TournamentAttempt.id.in_(expired_ids), TournamentAttempt.status == "started")
+            .values(status="dnf", submitted_at=now)
+        ),
+    )
+    # `.execute()` is typed `Result[Any]`; for a Core UPDATE it's actually a
+    # `CursorResult` (which has `rowcount`) at runtime — cast for mypy strict.
+    return update_result.rowcount
 
 
 def display_name_for(public_handle: str | None) -> str:

@@ -196,7 +196,20 @@
     Frontend: `TournamentStandings` во всех фазах страницы + поле хендла в профиле.
   - ✅ backend pytest (+13, mypy/ruff чисто), frontend vitest 245 (+19, tsc/lint чисто). Review = **ship**
     (0 code/privacy багов). plan→build(exec sonnet + tests haiku)→review. [swarm-report/tournament-leaderboard-*].
-  - ⏳ Дальше Этапа 5: finalize-cron (started→dnf, ролловер, финальные результаты недели).
+- **Этап 5 — finalize (production, external-cron)** ✅ код + live — `backend/`.
+  - ✅ **Дизайн по-взрослому:** НЕ in-process APScheduler (хрупкий, умирает с воркером, multi-worker
+    double-run). Вместо: чистая идемпотентная `sweep_expired_attempts(session, now, window)` (started→dnf
+    где `is_past_deadline`, bulk UPDATE с guard `status=="started"` → безопасно при concurrent/mid-submit)
+    + standalone CLI `python -m app.jobs.finalize` (`run()`: session→sweep→commit), которую дёргает
+    **внешний cron** (Monday-night §П8 / каждые N мин). Ноль зависимостей, ноль миграций, ноль lifespan.
+  - ✅ **lazy-read:** `get_current_attempt` показывает expired `started` как `dnf` на чтении (через
+    **transient** конструкт, не мутирует ORM-строку — landmine `copy.copy` shared-state починен) → корректность
+    не зависит от частоты cron. Финализация past-недели derived (`(iso_year,iso_week)<current`), без флага.
+  - ✅ Live: `python -m app.jobs.finalize` против Postgres — swept 0 → синтетический expired → swept 1 (dnf)
+    → rerun 0 (идемпотентно). backend pytest **112** (+10 haiku), ruff/mypy чисто. Review = **ship**
+    (1 MED landmine пойман+починен). [swarm-report/finalize-cron-*].
+  - ⏳ Прод: повесить внешний cron на команду под хостинг; advisory-lock только когда появится
+    неидемпотентный finalize (cups/points).
 
 ## Planned (следующий фокус)
 - **Этап 1.2 manual QA** — прогнать §5.1 живьём (см. выше), тюнинг порогов `config.ts`.
