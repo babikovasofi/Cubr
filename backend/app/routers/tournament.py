@@ -26,12 +26,14 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+import logging
 from datetime import timedelta
 from typing import cast
 
 from app.config import get_settings
 from app.db import get_session
 from app.models import Tournament, TournamentAttempt, User
+from app.schemas.badge import BadgeRead
 from app.schemas.tournament import (
     AttemptStatus,
     TournamentAttemptRead,
@@ -39,9 +41,12 @@ from app.schemas.tournament import (
     TournamentCurrentRead,
     TournamentStandingsRead,
 )
+from app.services import badges as badges_service
 from app.services import tournament as tournament_service
 from app.services.auth import current_active_user
 from app.services.ratelimit import ip_rate_limit
+
+logger = logging.getLogger("cubr.tournament")
 
 settings = get_settings()
 
@@ -50,7 +55,11 @@ router = APIRouter(prefix="/tournament", tags=["tournament"])
 _ip_limit = Depends(ip_rate_limit(settings.TOURNAMENT_RATE_LIMIT))
 
 
-def _to_read(attempt: TournamentAttempt, tournament: Tournament) -> TournamentAttemptRead:
+def _to_read(
+    attempt: TournamentAttempt,
+    tournament: Tournament,
+    new_badges: list[BadgeRead] | None = None,
+) -> TournamentAttemptRead:
     return TournamentAttemptRead(
         id=attempt.id,
         tournament_id=attempt.tournament_id,
@@ -64,6 +73,7 @@ def _to_read(attempt: TournamentAttempt, tournament: Tournament) -> TournamentAt
         week_label=tournament_service.week_label(tournament.iso_year, tournament.iso_week),
         event=tournament.event,
         scramble=tournament.scramble,
+        new_badges=new_badges or [],
     )
 
 
@@ -235,6 +245,15 @@ async def submit_attempt(
     attempt.submitted_at = now
 
     session.add(attempt)
+
+    # Best-effort: a badge-engine fault must never abort the submit write.
+    try:
+        new_badge_codes = await badges_service.evaluate_tournament_submit(session, user, attempt)
+    except Exception:
+        logger.exception("badge evaluation failed for tournament submit (user_id=%s)", user.id)
+        new_badge_codes = []
+
     await session.commit()
     await session.refresh(attempt)
-    return _to_read(attempt, tournament)
+    new_badges = [BadgeRead(**badges_service.registry_entry(code)) for code in new_badge_codes]
+    return _to_read(attempt, tournament, new_badges)

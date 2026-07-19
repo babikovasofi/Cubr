@@ -48,6 +48,7 @@ import { isAuthed } from "../store/authStore";
 import { getSelectedCubeId } from "../store/cubesStore";
 import { SOLVED } from "../vision/cubeState";
 import { createSolve } from "../api/solves";
+import { toast } from "../components/Toast";
 
 export type { CalibrateMode };
 
@@ -196,7 +197,14 @@ export function useSoloSession(opts?: UseSoloSessionOpts): SoloSession {
       state.cameraVerified,
       scramble.scrambleToken,
     );
-    void saveSoloResult({ isAuthed: true, payload, create: createSolve }).then(setSaveState);
+    void saveSoloResult({
+      isAuthed: true,
+      payload,
+      create: createSolve,
+      onNewBadges: (badges) => {
+        for (const b of badges) toast(`Бейдж получен: ${b.title}`, "success");
+      },
+    }).then(setSaveState);
   }, [
     state.phase,
     state.elapsedMs,

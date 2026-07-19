@@ -25,6 +25,7 @@ single process-lifetime, in-memory singleton — see that module's docstring
 and `main.py`'s startup `lifespan` (refuses to boot with `WEB_CONCURRENCY > 1`).
 """
 
+import logging
 import uuid
 from typing import Any
 
@@ -44,6 +45,7 @@ from app.schemas.duel import (
     WsFinishIn,
     WsStatusUpdateIn,
 )
+from app.services import badges as badges_service
 from app.services import duel as duel_service
 from app.services import duel_token
 from app.services.auth import current_active_user
@@ -52,6 +54,8 @@ from app.services.duel_manager import ConnectionManager
 from app.services.duel_token import DuelTokenError
 from app.services.ratelimit import ip_rate_limit
 from app.services.ws_auth import get_ws_user
+
+logger = logging.getLogger("cubr.duel")
 
 settings = get_settings()
 
@@ -104,6 +108,11 @@ async def _on_finalize(
             b_verify_frames_ok=outcome_b.verify_frames_ok,
             b_finished_at=outcome_b.finished_at,
         )
+        # Best-effort: a badge-engine fault must never abort the duel finalize.
+        try:
+            await badges_service.evaluate_duel_finalized(session, room)
+        except Exception:
+            logger.exception("badge evaluation failed for duel finalize (room_id=%s)", room_id)
         await session.commit()
         return room.winner_id
 

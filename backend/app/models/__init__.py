@@ -6,6 +6,7 @@ from app.models.scramble import Scramble
 from app.models.solve import Solve
 from app.models.tournament import Tournament, TournamentAttempt
 from app.models.user import User
+from app.models.user_badge import UserBadge
 
 __all__ = [
     "Cube",
@@ -17,4 +18,5 @@ __all__ = [
     "Tournament",
     "TournamentAttempt",
     "User",
+    "UserBadge",
 ]

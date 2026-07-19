@@ -38,6 +38,7 @@ from app.models import (  # noqa: E402
     Tournament,
     TournamentAttempt,
     User,
+    UserBadge,
 )
 from app.services import ratelimit  # noqa: E402
 
@@ -107,6 +108,7 @@ async def test_engine() -> AsyncGenerator[AsyncEngine, None]:
                     TournamentAttempt.__table__,
                     DuelRoom.__table__,
                     DuelParticipant.__table__,
+                    UserBadge.__table__,
                 ],
             )
         )

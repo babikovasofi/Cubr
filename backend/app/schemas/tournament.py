@@ -4,6 +4,8 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from app.schemas.badge import BadgeRead
+
 AttemptStatus = Literal["started", "valid", "dnf"]
 
 
@@ -42,6 +44,10 @@ class TournamentAttemptRead(BaseModel):
     week_label: str
     event: str
     scramble: str
+    # Badges newly granted by THIS submit (not the caller's full history) —
+    # best-effort, see app.services.badges / app.routers.tournament. Empty on
+    # the `start` response (no evaluation happens there).
+    new_badges: list[BadgeRead] = []
 
 
 class StandingEntry(BaseModel):

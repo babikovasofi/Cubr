@@ -4,6 +4,7 @@
 // GET /tournament/current (П8 — see useTournamentAttempt.ts).
 
 import { request } from "./client";
+import type { BadgeRead } from "./badges";
 
 export type TournamentAttemptStatus = "started" | "valid" | "dnf";
 
@@ -37,6 +38,8 @@ export interface TournamentAttemptRead {
   week_label: string;
   event: string;
   scramble: string;
+  /** Badges newly granted by THIS submission (best-effort award engine); empty/absent otherwise. */
+  new_badges?: BadgeRead[];
 }
 
 export interface TournamentAttemptSubmit {

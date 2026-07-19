@@ -18,6 +18,7 @@
 
 import { useEffect, useReducer } from "react";
 import { ApiError } from "../api/client";
+import { toast } from "../components/Toast";
 import {
   getCurrent,
   startAttempt,
@@ -236,6 +237,9 @@ export function useTournamentAttempt(): TournamentAttemptApi {
     try {
       const attempt = await submitAttempt(payload);
       const forcedLateDnf = !clientDnf && attempt.status === "dnf";
+      if (attempt.new_badges && attempt.new_badges.length > 0) {
+        for (const b of attempt.new_badges) toast(`Бейдж получен: ${b.title}`, "success");
+      }
       dispatch({ type: "submit_ok", attempt, forcedLateDnf });
     } catch (e) {
       if (e instanceof ApiError && e.status === 409) {

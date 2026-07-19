@@ -3,6 +3,7 @@
 // in the node vitest env with a mocked create fn.
 
 import type { SolveCreate, SolveRead } from "../api/solves";
+import type { BadgeRead } from "../api/badges";
 import { ApiError } from "../api/client";
 
 export type SaveState = "idle" | "saving" | "saved" | "failed" | "anon" | "unauthorized";
@@ -49,14 +50,21 @@ export function buildSolvePayload(
 // Fire-and-forget save. Anonymous users are a no-op (solo still works locally).
 // A 401 (expired JWT) is reported distinctly so the UI can keep the result and
 // prompt a re-login instead of silently dropping it.
+//
+// `onNewBadges` (plan: achievements-badges) fires with the solve response's
+// `new_badges` (if any) on success — kept as a plain callback rather than an
+// import of the Toast module so this file stays free of React/hooks and easy
+// to unit-test with a mocked `create` fn.
 export async function saveSoloResult(opts: {
   isAuthed: boolean;
   payload: SolveCreate;
   create: (body: SolveCreate) => Promise<SolveRead>;
+  onNewBadges?: (badges: BadgeRead[]) => void;
 }): Promise<SaveState> {
   if (!opts.isAuthed) return "anon";
   try {
-    await opts.create(opts.payload);
+    const solve = await opts.create(opts.payload);
+    if (solve.new_badges && solve.new_badges.length > 0) opts.onNewBadges?.(solve.new_badges);
     return "saved";
   } catch (e) {
     if (e instanceof ApiError && e.status === 401) return "unauthorized";

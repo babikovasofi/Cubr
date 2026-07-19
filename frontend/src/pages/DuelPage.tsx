@@ -5,8 +5,9 @@
 // duel/duelMachine.ts's top comment for the room_state `phase` contract
 // assumption this file relies on.
 
-import { useEffect, useReducer, useState } from "react";
+import { useEffect, useReducer, useRef, useState } from "react";
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
+import { getBadges } from "../api/badges";
 import { ApiError } from "../api/client";
 import {
   existingRoomIdFrom,
@@ -15,6 +16,7 @@ import {
   rematch,
   saveDuelSessionToken,
 } from "../api/duel";
+import { toast } from "../components/Toast";
 import DuelResult from "../duel/DuelResult";
 import DuelRoom from "../duel/DuelRoom";
 import { duelReducer, initialDuelState } from "../duel/duelMachine";
@@ -71,6 +73,49 @@ export default function DuelPage() {
       cancelled = true;
     };
   }, [roomId]);
+
+  // Duel badge toast (plan: achievements-badges, client refetch-diff — the WS
+  // `result` message and FinalizeCallback are NOT threaded with `new_badges`,
+  // see plan Out of scope). Snapshot the caller's earned codes on mount/roomId
+  // change, then diff against a refetch the moment the "result" phase is
+  // entered. Best-effort: the profile BadgeGrid is the source of truth, so a
+  // missed snapshot (still loading) just skips the toast — cosmetic only.
+  const badgeSnapshotRef = useRef<Set<string> | null>(null);
+  const badgeToastedRef = useRef(false);
+
+  useEffect(() => {
+    let alive = true;
+    badgeSnapshotRef.current = null;
+    badgeToastedRef.current = false;
+    getBadges()
+      .then((badges) => {
+        if (!alive) return;
+        badgeSnapshotRef.current = new Set(badges.filter((b) => b.earned).map((b) => b.code));
+      })
+      .catch(() => {
+        // best-effort — no snapshot means the result-phase diff below skips too
+      });
+    return () => {
+      alive = false;
+    };
+  }, [roomId]);
+
+  useEffect(() => {
+    if (state.phase !== "result") return;
+    if (badgeToastedRef.current) return;
+    const before = badgeSnapshotRef.current;
+    if (before === null) return; // snapshot never loaded in time — cosmetic miss
+    badgeToastedRef.current = true;
+    getBadges()
+      .then((badges) => {
+        for (const b of badges) {
+          if (b.earned && !before.has(b.code)) toast(`Бейдж получен: ${b.title}`, "success");
+        }
+      })
+      .catch(() => {
+        // best-effort — profile BadgeGrid remains the source of truth
+      });
+  }, [state.phase]);
 
   const socket = useDuelSocket(state.roomId, state.sessionToken, state.yourSlot, dispatch);
 

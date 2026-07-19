@@ -1,6 +1,7 @@
 // Solves endpoints. Mirrors backend/app/schemas/solve.py.
 
 import { request } from "./client";
+import type { BadgeRead } from "./badges";
 
 export type SolveStatus = "valid" | "dnf";
 
@@ -29,6 +30,8 @@ export interface SolveRead {
   /** Server-side row linked via scramble_token, null when none was verified. */
   scramble_id: string | null;
   created_at: string;
+  /** Badges newly granted by THIS solve (best-effort award engine); empty/absent otherwise. */
+  new_badges?: BadgeRead[];
 }
 
 export function createSolve(body: SolveCreate): Promise<SolveRead> {

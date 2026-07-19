@@ -7,6 +7,7 @@ import { Link } from "react-router-dom";
 import Button from "../components/Button";
 import Input from "../components/Input";
 import Spinner from "../components/Spinner";
+import BadgeGrid from "../components/BadgeGrid";
 import { useAuthStore } from "../store/authStore";
 import CubeList from "../cubes/CubeList";
 import { listSolves, type SolveRead } from "../api/solves";
@@ -58,6 +59,8 @@ export default function ProfilePage() {
       />
 
       <CubeList />
+
+      <BadgeGrid />
 
       <History />
     </div>

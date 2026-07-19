@@ -2,6 +2,7 @@
 (`GET /solves`). Both require an authenticated active user.
 """
 
+import logging
 import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -12,10 +13,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.config import get_settings
 from app.db import get_session
 from app.models import Cube, Scramble, Solve, User
+from app.schemas.badge import BadgeRead
 from app.schemas.solve import SolveCreate, SolveRead
+from app.services import badges as badges_service
 from app.services.auth import current_active_user
 from app.services.scramble_token import ScrambleTokenError
 from app.services.scramble_token import verify as verify_scramble_token
+
+logger = logging.getLogger("cubr.solves")
 
 settings = get_settings()
 
@@ -27,7 +32,7 @@ async def create_solve(
     payload: SolveCreate,
     user: User = Depends(current_active_user),
     session: AsyncSession = Depends(get_session),
-) -> Solve:
+) -> SolveRead:
     # If a cube is referenced, it must belong to the caller (else 404 — no
     # cross-user leak, and never a 500 on an unknown/foreign id).
     if payload.cube_id is not None:
@@ -93,9 +98,22 @@ async def create_solve(
         user.best_single_ms = payload.time_ms
         session.add(user)
 
+    # Best-effort: a badge-engine fault must never abort the solve write.
+    try:
+        new_badge_codes = await badges_service.evaluate_solve(
+            session, user, payload.status, payload.time_ms
+        )
+    except Exception:
+        logger.exception("badge evaluation failed for solve (user_id=%s)", user.id)
+        new_badge_codes = []
+
     await session.commit()
     await session.refresh(solve)
-    return solve
+
+    new_badges = [BadgeRead(**badges_service.registry_entry(code)) for code in new_badge_codes]
+    return SolveRead.model_validate(solve, from_attributes=True).model_copy(
+        update={"new_badges": new_badges}
+    )
 
 
 @router.get("", response_model=list[SolveRead])

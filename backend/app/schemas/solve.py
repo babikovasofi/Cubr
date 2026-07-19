@@ -4,6 +4,8 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from app.schemas.badge import BadgeRead
+
 
 class SolveCreate(BaseModel):
     """Inbound payload for recording a solve.
@@ -40,3 +42,6 @@ class SolveRead(BaseModel):
     cube_id: UUID | None
     scramble_id: UUID | None
     created_at: datetime
+    # Badges newly granted by THIS solve (not the caller's full history) —
+    # best-effort, see app.services.badges / app.routers.solves.
+    new_badges: list[BadgeRead] = []
