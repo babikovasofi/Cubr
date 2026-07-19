@@ -271,6 +271,19 @@
   - ✅ Review = **ship** (0), qa-smoke pass. frontend vitest 418 (+20), tsc/eslint чисто, package.json
     без изменений. [swarm-report/result-share-card-*]. Коммит `4e7f8a5`.
 
+- **V2 — звуки отсчёта дуэли** ✅ код + тесты (frontend-only, read-only, duel-only) — `frontend/`.
+  - ✅ `duel/countdownSound.ts`: StackMat-бипы через Web Audio (без ассетов/зависимостей) на серверном
+    countdown дуэли — тик 1000Hz/0.06s на каждой оставшейся секунде + go-тон 1760Hz/0.15s в момент
+    старта, sample-accurate через `osc.start(when)` off `ctx.currentTime` (маппинг `serverStartAt` один
+    раз; NOOP при mute/ctx null/`state!=="running"`/past). **Паттерн Web Audio:** ОДИН shared module-
+    AudioContext (не close), `installAudioUnlock()` (идемпотентные one-time `{pointerdown,keydown,
+    touchstart}{once}` листенеры → `resume()`, вызов из DuelPage mount — разблок на жесте ритуала до
+    countdown). Solo ВНЕ скоупа (нет фиксированного отсчёта — таймер от hands-release). Мьют-тумблер
+    (localStorage `cubr_countdown_muted`, guarded, default unmuted) в CountdownOverlay; визуальный
+    100ms-отсчёт нетронут; cleanup stop+disconnect при phase-change (opponent_left) — без утечек.
+  - ✅ Review = **ship** (0), qa-smoke pass. frontend vitest 429 (+11), tsc/eslint чисто, package.json
+    без изменений. [swarm-report/countdown-sounds-*]. Коммит `aae27f9`.
+
 ## Planned (следующий фокус)
 - **Этап 1.2 manual QA** — прогнать §5.1 живьём (см. выше), тюнинг порогов `config.ts`.
 - **Этап 3 — серверная честность:** серверные скрамблы, поток событий с таймстампами, кадры-доказательства,
