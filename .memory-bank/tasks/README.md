@@ -211,6 +211,35 @@
   - ⏳ Прод: повесить внешний cron на команду под хостинг; advisory-lock только когда появится
     неидемпотентный finalize (cups/points).
 
+- **Этап 4 — дуэль по ссылке** ✅ код + тесты (⏳ two-browser live) — `backend/` + `frontend/`.
+  - ✅ Реалтайм-WS-дуэль двух authed-игроков в комнате-по-ссылке: create → `/duel/join/<token>` →
+    синхронный серверный старт с ОДНИМ общим скрамблом → Фаст (1 solve/игрок) → результат + реванш.
+    In-memory `ConnectionManager` (single-worker, `main.py` refuse `WEB_CONCURRENCY>1`), heartbeat/
+    reconnect-снапшот/phase-timeouts. `DuelRoom`+`DuelParticipant` (partial-UNIQUE(user_id) WHERE
+    active = П11), миграция **0007**. CSWSH-handshake: Origin-allowlist + cookie-JWT + HMAC-токен
+    bound `(room_id,user_id)`. `honesty=pending` (не гейтит), `compute_winner` honesty-агностичен,
+    дуэли пишут **ноль** `solves` (§П5). `docs/ws-protocol.md`.
+  - ✅ Review = **rework→fixed**: 4404-гейт блокировал ждущего создателя (open-комната) → reconnect-
+    цикл; чинено (одинокий player_a держит сокет, менеджер узнаёт player_b при подключении) + heartbeat
+    20с→10с (сервер рвёт на 15с). backend pytest 166, frontend 337, ruff/mypy/tsc/eslint чисто.
+    [swarm-report/stage4-duel-by-link-*]. Коммит `dfd5ce7`.
+  - ⏳ Two-browser live: инвайт→старт→сборка камерой→результат→реванш.
+
+- **V2 — ачивки и бейджи** ✅ код + тесты + live-миграция — `backend/` + `frontend/`.
+  - ✅ Event-driven award-движок в СЕССИИ вызывающего (POST /solves / tournament submit / duel
+    `_on_finalize`) перед единственным commit; идемпотентно (`UNIQUE(user_id,code)` + `begin_nested` +
+    IntegrityError→held); **best-effort** (try/except на каждом хуке — баг движка не роняет основную
+    запись). `UserBadge` + миграция **0008**, `services/badges.py` (registry+grant+evaluators+
+    list_badges_for), `GET /badges` (authed), additive `new_badges[]` на SolveRead/TournamentAttemptRead.
+    Бейджи: `sub_30`/`first_duel_win`/`ten_duels`/`giant_slayer`(via best_single_ms)/`weekly_debut`.
+  - ✅ **Инвариант:** пишет только `user_badges` — не `solves`, не `best_single_ms`; honesty не читает
+    (self-reported, не гейтит — как турнир/дуэли). Frontend: `BadgeGrid` в профиле + тосты (real
+    call-sites: useSoloSession/solveSave, useTournamentAttempt, DuelPage refetch-diff).
+  - ✅ Review = **ship** (1 LOW принят: `new_badges.earned_at=null`, поле UI не читает). qa-smoke =
+    **pass live** (Postgres, `alembic upgrade head` 0007→0008, curl solve/badges/tournament). backend
+    pytest 206 (40 badge), frontend 362, ruff/mypy/tsc/eslint чисто. [swarm-report/achievements-badges-*].
+    Коммит `573b34d`. Первая V2-фича (роадмап-дисциплина: остальной V2 — после деплоя MVP).
+
 ## Planned (следующий фокус)
 - **Этап 1.2 manual QA** — прогнать §5.1 живьём (см. выше), тюнинг порогов `config.ts`.
 - **Этап 3 — серверная честность:** серверные скрамблы, поток событий с таймстампами, кадры-доказательства,
