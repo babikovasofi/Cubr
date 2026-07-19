@@ -1,11 +1,31 @@
-import { Link } from "react-router-dom";
+import { useState } from "react";
+import { Link, useNavigate } from "react-router-dom";
 import Button from "../components/Button";
 import Timer from "../components/Timer";
 import { useUiStore } from "../store/uiStore";
+import { useAuthStore } from "../store/authStore";
+import { createRoom, saveDuelSessionToken } from "../api/duel";
 
 export default function HomePage() {
   const theme = useUiStore((s) => s.theme);
   const toggleTheme = useUiStore((s) => s.toggleTheme);
+  const authed = useAuthStore((s) => s.status === "authed");
+  const navigate = useNavigate();
+  const [duelBusy, setDuelBusy] = useState(false);
+  const [duelError, setDuelError] = useState<string | null>(null);
+
+  async function startDuel(): Promise<void> {
+    setDuelBusy(true);
+    setDuelError(null);
+    try {
+      const room = await createRoom();
+      saveDuelSessionToken(room.room_id, room.session_token);
+      navigate(`/duel/${room.room_id}`, { state: { joinUrl: room.join_url } });
+    } catch {
+      setDuelError("Не удалось создать дуэль. Попробуй ещё раз.");
+      setDuelBusy(false);
+    }
+  }
 
   return (
     <div className="flex flex-col gap-7">
@@ -34,6 +54,30 @@ export default function HomePage() {
         </div>
         <span className="font-sans text-caption font-black uppercase text-live">● идёт запись</span>
       </Link>
+
+      {/* Этап 4: дуэль по ссылке — create-room + invite, no matchmaking yet. */}
+      <section className="flex flex-col gap-3 rounded-lg border-2 border-ink bg-surface p-4.5">
+        <div className="flex flex-col gap-1">
+          <span className="font-sans text-body font-bold text-ink">Дуэль по ссылке</span>
+          <span className="font-sans text-small text-muted">
+            Создай комнату и пришли ссылку сопернику — старт синхронный, один общий скрамбл.
+          </span>
+        </div>
+        {authed ? (
+          <Button onClick={() => void startDuel()} disabled={duelBusy} className="self-start">
+            {duelBusy ? "Создаю комнату…" : "Дуэль по ссылке"}
+          </Button>
+        ) : (
+          <Link to="/login" className="self-start">
+            <Button variant="secondary">Войти, чтобы начать дуэль</Button>
+          </Link>
+        )}
+        {duelError ? (
+          <p role="alert" className="font-sans text-small text-danger">
+            {duelError}
+          </p>
+        ) : null}
+      </section>
 
       <section className="flex flex-wrap items-center gap-4">
         <Link to="/solo">

@@ -24,6 +24,12 @@ export default defineConfig({
         target: "http://127.0.0.1:8000",
         changeOrigin: true,
         rewrite: (p) => p.replace(/^\/api/, ""),
+        // Duel WS (plan: stage4-duel-by-link) rides the SAME /api prefix as
+        // REST so the httpOnly cookie stays same-origin — `ws: true` lets
+        // Vite forward the Upgrade handshake for /api/duel/ws/... through
+        // this proxy too. HTTP routing above is unaffected: Vite only
+        // switches to the WS-forwarding path on a genuine Upgrade request.
+        ws: true,
       },
     },
   },

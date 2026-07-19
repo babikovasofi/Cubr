@@ -12,12 +12,18 @@ const BASE = "/api";
 export class ApiError extends Error {
   readonly status: number;
   readonly code: string | null;
+  // Raw parsed error body (or null for 0/204/no-body failures). Most callers
+  // only need `code`/`message`, but some 409s (duel П11: "already in an
+  // active duel") carry extra fields like `existing_room_id` that don't fit
+  // the {code, reason} shape below — callers dig those out of `body`.
+  readonly body: unknown;
 
-  constructor(status: number, code: string | null, message: string) {
+  constructor(status: number, code: string | null, message: string, body: unknown = null) {
     super(message);
     this.name = "ApiError";
     this.status = status;
     this.code = code;
+    this.body = body;
   }
 }
 
@@ -115,7 +121,7 @@ export async function request<T>(path: string, opts: RequestOptions = {}): Promi
       // no/invalid JSON body (e.g. 429 from the rate limiter) — status wins
     }
     const { code, message } = parseErrorBody(res.status, parsed);
-    throw new ApiError(res.status, code, message);
+    throw new ApiError(res.status, code, message, parsed);
   }
 
   if (res.status === 204) return undefined as T;

@@ -3,6 +3,8 @@ import { Routes, Route, Link, useNavigate } from "react-router-dom";
 import HomePage from "./pages/HomePage";
 import SoloPage from "./pages/SoloPage";
 import TournamentPage from "./pages/TournamentPage";
+import DuelPage from "./pages/DuelPage";
+import DuelJoinPage from "./pages/DuelJoinPage";
 import LoginPage from "./pages/LoginPage";
 import RegisterPage from "./pages/RegisterPage";
 import VerifyEmailPage from "./pages/VerifyEmailPage";
@@ -211,6 +213,22 @@ export default function App() {
             element={
               <ProtectedRoute>
                 <TournamentPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/duel/join/:token"
+            element={
+              <ProtectedRoute>
+                <DuelJoinPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/duel/:roomId"
+            element={
+              <ProtectedRoute>
+                <DuelPage />
               </ProtectedRoute>
             }
           />

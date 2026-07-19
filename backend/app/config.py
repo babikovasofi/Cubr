@@ -33,6 +33,8 @@ class Settings(BaseSettings):
     RESET_VERIFY_SECRET: str = Field(min_length=32)
     # Separate secret signing GET /scramble -> POST /solves tokens (split from both above).
     SCRAMBLE_SIGN_SECRET: str = Field(min_length=32)
+    # Separate secret signing duel WS session/reconnect tokens (split from all of the above).
+    DUEL_SIGN_SECRET: str = Field(min_length=32)
 
     # --- Auth cookie ---
     JWT_LIFETIME_SECONDS: int = 3600
@@ -75,9 +77,41 @@ class Settings(BaseSettings):
     TOURNAMENT_STANDINGS_LIMIT_DEFAULT: int = 50
     TOURNAMENT_STANDINGS_LIMIT_MAX: int = 200
 
+    # --- Link-invite duels (Этап 4) ---
+    DUEL_RATE_LIMIT: str = "30/minute"
+    # Separate CORS-like allowlist for the WS handshake's Origin header — a WS
+    # upgrade isn't covered by CORSMiddleware (CSWSH; see app.routers.duel).
+    DUEL_ALLOWED_WS_ORIGINS: str = "http://localhost:5173,http://127.0.0.1:5173"
+    # How long an invite link (POST /duel/rooms's invite_token) stays joinable.
+    DUEL_INVITE_TTL_SECONDS: int = 86400
+    # TTL of the WS session/reconnect token (app.services.duel_token) — generous,
+    # covers a full duel plus reconnects (mirrors SCRAMBLE_TOKEN_TTL's rationale).
+    DUEL_SESSION_TOKEN_TTL_SECONDS: int = 7200
+    # Max time between the WS `start` broadcast and both players sending `ready`
+    # before the room is force-finalized (whoever isn't ready -> dnf).
+    DUEL_PREP_TIMEOUT_SECONDS: int = 180
+    # Max time in the solving phase before a still-unsubmitted player is forced dnf.
+    DUEL_SOLVE_TIMEOUT_SECONDS: int = 600
+    # Grace window to reconnect after a disconnect before/at/during prep — past it
+    # the room is abandoned. NOT used once solving has started (see duel_manager).
+    DUEL_DISCONNECT_GRACE_SECONDS: int = 60
+    DUEL_HEARTBEAT_INTERVAL_SECONDS: int = 5
+    DUEL_HEARTBEAT_TIMEOUT_SECONDS: int = 15
+    DUEL_COUNTDOWN_SECONDS: int = 3
+
+    # --- Process topology ---
+    # Duel rooms live in one process's memory (app.services.duel_manager) — no
+    # Redis/shared-state backing this MVP brick. main.py's startup lifespan
+    # refuses to boot when this is > 1 (see that module).
+    WEB_CONCURRENCY: int = 1
+
     @property
     def cors_origins(self) -> list[str]:
         return [origin.strip() for origin in self.CORS_ORIGINS.split(",") if origin.strip()]
+
+    @property
+    def duel_allowed_ws_origins(self) -> list[str]:
+        return [origin.strip() for origin in self.DUEL_ALLOWED_WS_ORIGINS.split(",") if origin.strip()]
 
     @property
     def is_local(self) -> bool:
@@ -99,7 +133,7 @@ class Settings(BaseSettings):
         Fail-closed regardless of APP_ENV: a prod deploy that forgets to set
         APP_ENV must not silently boot with the `.env.example` placeholders.
         """
-        for name in ("SECRET", "RESET_VERIFY_SECRET", "SCRAMBLE_SIGN_SECRET"):
+        for name in ("SECRET", "RESET_VERIFY_SECRET", "SCRAMBLE_SIGN_SECRET", "DUEL_SIGN_SECRET"):
             value: str = getattr(self, name)
             lowered = value.lower()
             if any(fragment in lowered for fragment in _PLACEHOLDER_FRAGMENTS):

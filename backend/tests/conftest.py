@@ -6,6 +6,7 @@ import os
 os.environ.setdefault("SECRET", "kQ7m2Zt9v-unit-jwt-signing-key-0123456789abcdef")
 os.environ.setdefault("RESET_VERIFY_SECRET", "wX4n8Rb1cY-unit-reset-verify-key-fedcba9876543210")
 os.environ.setdefault("SCRAMBLE_SIGN_SECRET", "p9Lm3Fq6Ts-unit-scramble-sign-key-abcdef0123456789")
+os.environ.setdefault("DUEL_SIGN_SECRET", "h5Yv1Kd8Wq-unit-duel-sign-key-0123456789abcdefzz")
 os.environ.setdefault("APP_ENV", "local")
 os.environ.setdefault("AUTH_RATE_LIMIT", "10/minute")
 os.environ.setdefault("EMAIL_RATE_LIMIT", "3/hour")
@@ -15,6 +16,7 @@ from collections.abc import AsyncGenerator  # noqa: E402
 import pytest  # noqa: E402
 import pytest_asyncio  # noqa: E402
 import sqlalchemy as sa  # noqa: E402
+from fastapi.testclient import TestClient  # noqa: E402
 from httpx import ASGITransport, AsyncClient  # noqa: E402
 from sqlalchemy.ext.asyncio import (  # noqa: E402
     AsyncEngine,
@@ -28,6 +30,8 @@ from app.db import Base, get_session  # noqa: E402
 from app.main import app  # noqa: E402
 from app.models import (  # noqa: E402
     Cube,
+    DuelParticipant,
+    DuelRoom,
     OAuthAccount,
     Scramble,
     Solve,
@@ -101,6 +105,8 @@ async def test_engine() -> AsyncGenerator[AsyncEngine, None]:
                     Solve.__table__,
                     Tournament.__table__,
                     TournamentAttempt.__table__,
+                    DuelRoom.__table__,
+                    DuelParticipant.__table__,
                 ],
             )
         )
@@ -126,5 +132,40 @@ async def client(
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as ac:
         yield ac
+
+    app.dependency_overrides.clear()
+
+
+@pytest_asyncio.fixture
+async def sync_client(
+    session_maker: async_sessionmaker[AsyncSession],
+    monkeypatch: pytest.MonkeyPatch,
+) -> AsyncGenerator[TestClient, None]:
+    """Sync `TestClient` for duel WS tests — `httpx.AsyncClient` has no
+    `websocket_connect`; `starlette.testclient.TestClient` runs the whole
+    ASGI app (incl. async routes/deps) through its own internal portal, so it
+    can drive an async app while still exposing `websocket_connect`.
+    Shares the SAME `session_maker`-backed `get_session` override as the
+    async `client` fixture above (same in-memory sqlite engine/schema).
+
+    The duel realtime engine's persistence callbacks (`_on_activate`/
+    `_on_finalize`/`_on_abandon` in `app.routers.duel`) do NOT go through the
+    `get_session` dependency — they open their own short-lived session via
+    `app.db.async_session_maker` from an `asyncio.Task` outside any request.
+    So the dependency override alone can't redirect them onto the test
+    sqlite engine; we additionally patch `app.db.async_session_maker` itself
+    (looked up at call time by each callback's local import) to the test
+    session_maker, or a duel WS activation would hit the real Postgres.
+    """
+
+    async def override_get_session() -> AsyncGenerator[AsyncSession, None]:
+        async with session_maker() as session:
+            yield session
+
+    app.dependency_overrides[get_session] = override_get_session
+    monkeypatch.setattr("app.db.async_session_maker", session_maker)
+
+    with TestClient(app) as tc:
+        yield tc
 
     app.dependency_overrides.clear()

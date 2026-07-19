@@ -1,4 +1,6 @@
 from app.models.cube import Cube
+from app.models.duel import DuelRoom
+from app.models.duel_participant import DuelParticipant
 from app.models.oauth_account import OAuthAccount
 from app.models.scramble import Scramble
 from app.models.solve import Solve
@@ -7,6 +9,8 @@ from app.models.user import User
 
 __all__ = [
     "Cube",
+    "DuelParticipant",
+    "DuelRoom",
     "OAuthAccount",
     "Scramble",
     "Solve",
