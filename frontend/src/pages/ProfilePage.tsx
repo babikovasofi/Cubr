@@ -8,6 +8,7 @@ import Button from "../components/Button";
 import Input from "../components/Input";
 import Spinner from "../components/Spinner";
 import BadgeGrid from "../components/BadgeGrid";
+import SolveProgressChart from "../components/SolveProgressChart";
 import { useAuthStore } from "../store/authStore";
 import CubeList from "../cubes/CubeList";
 import { listSolves, type SolveRead } from "../api/solves";
@@ -233,6 +234,16 @@ function History() {
           <p className="font-sans text-small text-danger">{state.message}</p>
           <Button onClick={() => setReloadKey((k) => k + 1)}>Повторить</Button>
         </div>
+      ) : null}
+
+      {state.kind === "ok" ? (
+        <section className="flex flex-col gap-3">
+          <div className="flex flex-col gap-1">
+            <h2 className="font-sans text-h3 text-ink">Прогресс времени</h2>
+            <span className="font-sans text-small text-muted">за последние сборки</span>
+          </div>
+          <SolveProgressChart solves={state.solves} />
+        </section>
       ) : null}
 
       {state.kind === "ok" && state.solves.length === 0 ? (

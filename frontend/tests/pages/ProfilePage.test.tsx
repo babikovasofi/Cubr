@@ -4,10 +4,12 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent, waitFor, act } from "@testing-library/react";
 import { BrowserRouter } from "react-router-dom";
 import ProfilePage from "../../src/pages/ProfilePage";
+import type { SolveRead } from "../../src/api/solves";
 
-const { useAuthStoreMock, updateMeMock } = vi.hoisted(() => ({
+const { useAuthStoreMock, updateMeMock, listSolvesMock } = vi.hoisted(() => ({
   updateMeMock: vi.fn(),
   useAuthStoreMock: vi.fn(),
+  listSolvesMock: vi.fn(),
 }));
 
 vi.mock("../../src/store/authStore", () => ({
@@ -19,9 +21,9 @@ vi.mock("../../src/cubes/CubeList", () => ({
   default: () => <div data-testid="cube-list">Cube List</div>,
 }));
 
-// Mock listSolves to avoid loading
+// Mock listSolves
 vi.mock("../../src/api/solves", () => ({
-  listSolves: vi.fn().mockResolvedValue([]),
+  listSolves: listSolvesMock,
 }));
 
 const MOCK_USER = {
@@ -41,6 +43,8 @@ const MOCK_USER = {
 beforeEach(() => {
   updateMeMock.mockReset();
   useAuthStoreMock.mockReset();
+  listSolvesMock.mockReset();
+  listSolvesMock.mockResolvedValue([]);
 });
 
 describe("ProfilePage — public_handle field", () => {
@@ -200,5 +204,85 @@ describe("ProfilePage — public_handle field", () => {
 
     const input = screen.getByLabelText("Публичное имя в турнире") as HTMLInputElement;
     expect(input.value).toBe("");
+  });
+});
+
+describe("ProfilePage — Progress Chart + History", () => {
+  it("renders both Прогресс времени heading and History table with valid+dnf mix, listSolves called exactly ONCE", async () => {
+    updateMeMock.mockResolvedValue(undefined);
+    useAuthStoreMock.mockImplementation((selector) => {
+      const state = {
+        user: MOCK_USER,
+        updateMe: updateMeMock,
+      };
+      return selector(state);
+    });
+
+    const mockSolves: SolveRead[] = [
+      {
+        id: "solve-1",
+        scramble: "R U R' U'",
+        time_ms: 15000,
+        status: "valid",
+        verify_frames_ok: true,
+        cube_id: null,
+        scramble_id: null,
+        created_at: new Date(Date.now() - 3000).toISOString(),
+      },
+      {
+        id: "solve-2",
+        scramble: "R U R' U'",
+        time_ms: 5000,
+        status: "dnf",
+        verify_frames_ok: true,
+        cube_id: null,
+        scramble_id: null,
+        created_at: new Date(Date.now() - 2000).toISOString(),
+      },
+      {
+        id: "solve-3",
+        scramble: "R U R' U'",
+        time_ms: 14000,
+        status: "valid",
+        verify_frames_ok: true,
+        cube_id: null,
+        scramble_id: null,
+        created_at: new Date(Date.now() - 1000).toISOString(),
+      },
+    ];
+
+    listSolvesMock.mockResolvedValue(mockSolves);
+
+    render(
+      <BrowserRouter>
+        <ProfilePage />
+      </BrowserRouter>,
+    );
+
+    // Wait for the history to load
+    await waitFor(() => {
+      expect(screen.getByText("Прогресс времени")).toBeTruthy();
+    });
+
+    // Verify listSolves was called exactly once
+    expect(listSolvesMock).toHaveBeenCalledTimes(1);
+    expect(listSolvesMock).toHaveBeenCalledWith(50, 0);
+
+    // Verify "Прогресс времени" heading is rendered
+    expect(screen.getByText("Прогресс времени")).toBeTruthy();
+    expect(screen.getByText("за последние сборки")).toBeTruthy();
+
+    // Verify the chart SVG is rendered
+    const svg = screen.getByRole("img", { name: /График времени сборок/ });
+    expect(svg).toBeTruthy();
+
+    // Verify History table is rendered with solves
+    expect(screen.getByText("Время")).toBeTruthy();
+    expect(screen.getByText("Статус")).toBeTruthy();
+    expect(screen.getByText("Когда")).toBeTruthy();
+
+    // Verify table rows are present (3 solves)
+    const tableRows = screen.getAllByRole("row");
+    expect(tableRows.length).toBeGreaterThanOrEqual(4); // header + 3 data rows
   });
 });
