@@ -258,6 +258,19 @@
   - ✅ Review = **ship** (0), qa-smoke pass. frontend vitest 398 (+16), tsc/eslint чисто, package.json
     без изменений. [swarm-report/progress-graph-*]. Коммит `052fe86`.
 
+- **V2 — карточка результата для соцсетей** ✅ код + тесты (frontend-only, read-only) — `frontend/`.
+  - ✅ `share/` (resultCard.ts + shareCard.ts + ShareCardButton.tsx): client-render 1080×1080 PNG
+    (время/скрамбл/дата/Cubr; дуэль — outcome + оба времени) на 2D-canvas вручную (без charting/DOM-
+    snapshot-либы, ноль зависимостей). «Скачать PNG» = primary always; «Поделиться» за
+    `navigator.canShare({files})` в клик-жесте (десктоп→download), AbortError глотается, objectURL
+    revoke. **Паттерн canvas-рендера:** палитра из CSS-var через `getComputedStyle` (тема + hardcoded
+    fallback, `var()` невалиден как fillStyle), шрифты через `document.fonts.load(...)` перед draw.
+    Приватность: дуэль-карточка = только слоты/времена/outcome, НИКОГДА `winner_id`/UUID/email; no
+    external image (no taint). Врезка: solo `ResultScreen` (scramble из SoloPage) + `DuelResult`
+    (scramble из DuelPage), gated на наличие scramble. Турнирный результат — вне скоупа.
+  - ✅ Review = **ship** (0), qa-smoke pass. frontend vitest 418 (+20), tsc/eslint чисто, package.json
+    без изменений. [swarm-report/result-share-card-*]. Коммит `4e7f8a5`.
+
 ## Planned (следующий фокус)
 - **Этап 1.2 manual QA** — прогнать §5.1 живьём (см. выше), тюнинг порогов `config.ts`.
 - **Этап 3 — серверная честность:** серверные скрамблы, поток событий с таймстампами, кадры-доказательства,
