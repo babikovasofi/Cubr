@@ -19,6 +19,7 @@ import {
   saveDuelSessionToken,
 } from "../api/duel";
 import { toast } from "../components/Toast";
+import { installAudioUnlock } from "../duel/countdownSound";
 import DuelResult from "../duel/DuelResult";
 import DuelRoom from "../duel/DuelRoom";
 import { duelReducer, initialDuelState } from "../duel/duelMachine";
@@ -41,6 +42,15 @@ export default function DuelPage() {
   // navigate() — a bookmarked/reloaded /duel/:roomId simply won't show the
   // invite link (DuelRoom degrades to a plain "waiting" message instead).
   const joinUrl = (location.state as DuelLocationState | null)?.joinUrl ?? null;
+
+  // Countdown audio (plan: countdown-sounds) needs a real user gesture to
+  // resume the shared AudioContext — install the one-time unlock listeners
+  // as early as possible so the ritual's own prep clicks satisfy it well
+  // before CountdownOverlay ever schedules a beep. Idempotent — safe under
+  // StrictMode's double-invoke.
+  useEffect(() => {
+    installAudioUnlock();
+  }, []);
 
   useEffect(() => {
     let cancelled = false;

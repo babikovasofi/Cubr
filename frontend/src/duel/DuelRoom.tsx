@@ -28,6 +28,7 @@ import Button from "../components/Button";
 import Spinner from "../components/Spinner";
 import SolveRitual from "../solo/SolveRitual";
 import { useSoloSession } from "../solo/useSoloSession";
+import { isCountdownMuted, scheduleCountdownBeeps, setCountdownMuted } from "./countdownSound";
 import InvitePanel from "./InvitePanel";
 import {
   ritualPhaseToWire,
@@ -144,8 +145,36 @@ function FinishedWaitBanner() {
   );
 }
 
+// Speaker glyph for the mute toggle — inline SVG (no icon dep, no emoji),
+// currentColor so it inherits the button's token-driven text color.
+function SpeakerIcon({ muted }: { muted: boolean }) {
+  return (
+    <svg
+      aria-hidden="true"
+      viewBox="0 0 20 20"
+      width="14"
+      height="14"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.6"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="M3 7.5h3.2L10 4v12l-3.8-3.5H3z" />
+      {muted ? (
+        <path d="M13 7l4 6M17 7l-4 6" />
+      ) : (
+        <path d="M13.2 6.8a5 5 0 0 1 0 6.4M15.7 4.3a8.5 8.5 0 0 1 0 11.4" />
+      )}
+    </svg>
+  );
+}
+
 // Purely visual gate over the camera/ritual until the server's synchronized
-// start instant — does not touch the timer source of truth.
+// start instant — does not touch the timer source of truth. The countdown
+// audio (tick-tick-tick-go, plan: countdown-sounds) is scheduled here
+// independently of the 100ms visual interval below — muting or the audio
+// failing silently never affects the visible seconds/"Старт!" text.
 function CountdownOverlay({
   serverStartAt,
   onElapsed,
@@ -154,6 +183,7 @@ function CountdownOverlay({
   onElapsed: () => void;
 }) {
   const [remainingMs, setRemainingMs] = useState(() => new Date(serverStartAt).getTime() - Date.now());
+  const [muted, setMuted] = useState(() => isCountdownMuted());
   const firedRef = useRef(false);
 
   useEffect(() => {
@@ -171,10 +201,31 @@ function CountdownOverlay({
     return () => clearInterval(id);
   }, [serverStartAt, onElapsed]);
 
+  useEffect(() => {
+    if (muted) return;
+    return scheduleCountdownBeeps(serverStartAt);
+  }, [serverStartAt, muted]);
+
+  const handleToggleMute = (): void => {
+    const next = !muted;
+    setCountdownMuted(next);
+    setMuted(next);
+  };
+
   const seconds = Math.max(0, Math.ceil(remainingMs / 1000));
 
   return (
     <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-2 rounded-lg bg-ink/90 text-center">
+      <button
+        type="button"
+        onClick={handleToggleMute}
+        aria-pressed={muted}
+        aria-label={muted ? "Включить звук отсчёта" : "Выключить звук отсчёта"}
+        className="absolute right-3 top-3 inline-flex items-center gap-1.5 rounded-full border border-white/30 bg-white/10 px-3 py-1.5 font-sans text-caption font-bold text-white transition-colors hover:bg-white/20 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+      >
+        <SpeakerIcon muted={muted} />
+        <span>{muted ? "Без звука" : "Звук"}</span>
+      </button>
       <span className="font-sans text-h1 font-black text-white">{seconds > 0 ? seconds : "Старт!"}</span>
       <span className="font-sans text-small text-white/80">Приготовься — камера скрыта до старта.</span>
     </div>

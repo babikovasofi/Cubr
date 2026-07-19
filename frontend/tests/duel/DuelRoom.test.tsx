@@ -5,18 +5,29 @@
 // SolveRitual, and the socket API.
 
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, fireEvent } from "@testing-library/react";
 import { BrowserRouter } from "react-router-dom";
 import DuelRoom from "../../src/duel/DuelRoom";
 import type { DuelMachineState } from "../../src/duel/duelMachine";
 import type { DuelSocketApi } from "../../src/duel/useDuelSocket";
 
-const { useSoloSessionMock } = vi.hoisted(() => ({
-  useSoloSessionMock: vi.fn(),
-}));
+const { useSoloSessionMock, scheduleCountdownBeepsMock, isCountdownMutedMock, setCountdownMutedMock, cleanupMock } =
+  vi.hoisted(() => ({
+    useSoloSessionMock: vi.fn(),
+    scheduleCountdownBeepsMock: vi.fn(),
+    isCountdownMutedMock: vi.fn(() => false),
+    setCountdownMutedMock: vi.fn(),
+    cleanupMock: vi.fn(),
+  }));
 
 vi.mock("../../src/solo/useSoloSession", () => ({
   useSoloSession: useSoloSessionMock,
+}));
+
+vi.mock("../../src/duel/countdownSound", () => ({
+  scheduleCountdownBeeps: scheduleCountdownBeepsMock,
+  isCountdownMuted: isCountdownMutedMock,
+  setCountdownMuted: setCountdownMutedMock,
 }));
 
 // Mock SolveRitual component to avoid rendering complex camera/timer UI
@@ -60,6 +71,11 @@ beforeEach(() => {
       startedAtMs: Date.now(),
     },
   });
+  scheduleCountdownBeepsMock.mockReset();
+  isCountdownMutedMock.mockReset().mockReturnValue(false);
+  setCountdownMutedMock.mockReset();
+  cleanupMock.mockReset();
+  scheduleCountdownBeepsMock.mockReturnValue(cleanupMock);
 });
 
 const renderWithRouter = (element: React.ReactElement) => {
@@ -269,6 +285,57 @@ describe("DuelRoom", () => {
     await waitFor(() => {
       expect(DEFAULT_DISPATCH).toHaveBeenCalledWith({ type: "solving_start" });
     });
+  });
+
+  it("schedules countdown beeps once for the given serverStartAt and cleans up on unmount", () => {
+    const now = new Date();
+    const futureTime = new Date(now.getTime() + 3_000);
+    const state: DuelMachineState = {
+      ...DEFAULT_STATE,
+      phase: "countdown",
+      scramble: "R U R'",
+      serverStartAt: futureTime.toISOString(),
+    };
+
+    const { unmount } = renderWithRouter(
+      <DuelRoom state={state} dispatch={DEFAULT_DISPATCH} socket={DEFAULT_SOCKET} joinUrl={null} />
+    );
+
+    expect(scheduleCountdownBeepsMock).toHaveBeenCalledTimes(1);
+    expect(scheduleCountdownBeepsMock).toHaveBeenCalledWith(futureTime.toISOString());
+    expect(cleanupMock).not.toHaveBeenCalled();
+
+    unmount();
+    expect(cleanupMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("mute toggle button flips state, updates aria-pressed, and stops scheduling", () => {
+    const now = new Date();
+    const futureTime = new Date(now.getTime() + 3_000);
+    const state: DuelMachineState = {
+      ...DEFAULT_STATE,
+      phase: "countdown",
+      scramble: "R U R'",
+      serverStartAt: futureTime.toISOString(),
+    };
+
+    renderWithRouter(
+      <DuelRoom state={state} dispatch={DEFAULT_DISPATCH} socket={DEFAULT_SOCKET} joinUrl={null} />
+    );
+
+    const toggle = screen.getByRole("button", { name: "Выключить звук отсчёта" });
+    expect(toggle.getAttribute("aria-pressed")).toBe("false");
+    expect(scheduleCountdownBeepsMock).toHaveBeenCalledTimes(1);
+
+    fireEvent.click(toggle);
+
+    expect(setCountdownMutedMock).toHaveBeenCalledWith(true);
+    expect(cleanupMock).toHaveBeenCalledTimes(1); // dep change (muted) tore down the schedule
+    expect(scheduleCountdownBeepsMock).toHaveBeenCalledTimes(1); // not called again while muted
+    expect(screen.getByRole("button", { name: "Включить звук отсчёта" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Включить звук отсчёта" }).getAttribute("aria-pressed")).toBe(
+      "true"
+    );
   });
 
   it("does not render CountdownOverlay when phase is not countdown", () => {
