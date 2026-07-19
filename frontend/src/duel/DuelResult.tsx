@@ -5,6 +5,7 @@
 
 import Button from "../components/Button";
 import Timer from "../components/Timer";
+import type { DuelH2HRead } from "../api/duel";
 import { useAuthStore } from "../store/authStore";
 import type { DuelResultPayload, PlayerSlot } from "./duelMachine";
 
@@ -14,11 +15,34 @@ export interface DuelResultProps {
   onRematch: () => void;
   rematchBusy: boolean;
   rematchError: string | null;
+  h2h: DuelH2HRead | null;
 }
 
 function formatTime(status: "pending" | "valid" | "dnf", timeMs: number | null): string {
   if (status === "dnf" || timeMs === null) return "DNF";
   return (timeMs / 1000).toFixed(2);
+}
+
+// Standard Russian plural-form picker: [one, few, many] e.g. 1 → forms[0],
+// 2-4 → forms[1], 0/5-20/25.. → forms[2] — 11-14 fall into "many" (mod-100
+// check), not the mod-10 "few" bucket they'd otherwise hit.
+function pluralizeRu(n: number, forms: [string, string, string]): string {
+  const mod100 = Math.abs(n) % 100;
+  const mod10 = mod100 % 10;
+  if (mod100 >= 11 && mod100 <= 14) return forms[2];
+  if (mod10 === 1) return forms[0];
+  if (mod10 >= 2 && mod10 <= 4) return forms[1];
+  return forms[2];
+}
+
+function h2hLabel(h2h: DuelH2HRead): string {
+  const times = pluralizeRu(h2h.played, ["раз", "раза", "раз"]);
+  let label = `Вы играли ${h2h.played} ${times}, счёт ${h2h.your_wins}:${h2h.opponent_wins}`;
+  if (h2h.draws > 0) {
+    const draws = pluralizeRu(h2h.draws, ["ничья", "ничьи", "ничьих"]);
+    label += ` (+${h2h.draws} ${draws})`;
+  }
+  return label;
 }
 
 export default function DuelResult({
@@ -27,6 +51,7 @@ export default function DuelResult({
   onRematch,
   rematchBusy,
   rematchError,
+  h2h,
 }: DuelResultProps) {
   const ownId = useAuthStore((s) => s.user?.id ?? null);
   const you = result.players.find((p) => p.slot === yourSlot) ?? null;
@@ -46,6 +71,9 @@ export default function DuelResult({
 
       <div className="px-7 text-center">
         <h3 className="font-sans text-h3 text-ink">{outcomeLabel}</h3>
+        {h2h && h2h.played > 0 ? (
+          <p className="mt-1 font-sans text-caption text-muted">{h2hLabel(h2h)}</p>
+        ) : null}
       </div>
 
       <div className="grid grid-cols-2 gap-4 px-7 pb-7">

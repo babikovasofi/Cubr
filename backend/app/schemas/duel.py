@@ -48,6 +48,20 @@ class DuelRoomRead(BaseModel):
     opponent_present: bool
 
 
+class DuelH2HRead(BaseModel):
+    """Response for `GET /duel/rooms/{id}/h2h` — caller vs the room's other
+    participant, aggregated across every `finished` room between exactly
+    that pair. Built by hand in the router from `duel_service.h2h_record`
+    (no `from_attributes`).
+    """
+
+    played: int
+    your_wins: int
+    opponent_wins: int
+    draws: int
+    opponent_user_id: UUID
+
+
 class DuelJoinRead(BaseModel):
     """Response for `POST /duel/join/{invite_token}`."""
 

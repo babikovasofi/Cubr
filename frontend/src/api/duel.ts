@@ -63,6 +63,21 @@ export function rematch(roomId: string, signal?: AbortSignal): Promise<DuelRoomC
   });
 }
 
+// GET /duel/rooms/{id}/h2h — head-to-head tally against the room's other
+// player, `finished` rooms only (plan: h2h-duel-history). Participant-only;
+// 404 if the room has no opponent yet (`player_b_id` still null).
+export interface DuelH2HRead {
+  played: number;
+  your_wins: number;
+  opponent_wins: number;
+  draws: number;
+  opponent_user_id: string;
+}
+
+export function getH2H(roomId: string, signal?: AbortSignal): Promise<DuelH2HRead> {
+  return request<DuelH2HRead>(`/duel/rooms/${encodeURIComponent(roomId)}/h2h`, { signal });
+}
+
 // Same-origin, relative WS URL — the httpOnly `cubr_auth` cookie rides the
 // handshake automatically same as REST (see client.ts). Dev goes through the
 // Vite proxy (vite.config.ts proxy["/api"].ws = true); prod through whatever

@@ -10,7 +10,9 @@ import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 import { getBadges } from "../api/badges";
 import { ApiError } from "../api/client";
 import {
+  type DuelH2HRead,
   existingRoomIdFrom,
+  getH2H,
   getRoom,
   loadDuelSessionToken,
   rematch,
@@ -33,6 +35,7 @@ export default function DuelPage() {
   const [state, dispatch] = useReducer(duelReducer, initialDuelState);
   const [rematchBusy, setRematchBusy] = useState(false);
   const [rematchError, setRematchError] = useState<string | null>(null);
+  const [h2h, setH2h] = useState<DuelH2HRead | null>(null);
 
   // Only present right after HomePage's createRoom / DuelPage's own onRematch
   // navigate() — a bookmarked/reloaded /duel/:roomId simply won't show the
@@ -117,6 +120,26 @@ export default function DuelPage() {
       });
   }, [state.phase]);
 
+  // H2H record (plan: h2h-duel-history). Best-effort, cosmetic — reset on
+  // room change, fetched once the result phase is entered, AbortController-
+  // guarded against StrictMode's double-invoke and unmount mid-flight.
+  useEffect(() => {
+    setH2h(null);
+  }, [roomId]);
+
+  useEffect(() => {
+    if (state.phase !== "result" || !state.roomId) return;
+    const controller = new AbortController();
+    getH2H(state.roomId, controller.signal)
+      .then((record) => setH2h(record))
+      .catch(() => {
+        // best-effort — panel just stays hidden (ApiError, network, or abort)
+      });
+    return () => {
+      controller.abort();
+    };
+  }, [state.phase, state.roomId]);
+
   const socket = useDuelSocket(state.roomId, state.sessionToken, state.yourSlot, dispatch);
 
   const onRematch = async (): Promise<void> => {
@@ -150,6 +173,7 @@ export default function DuelPage() {
           onRematch={() => void onRematch()}
           rematchBusy={rematchBusy}
           rematchError={rematchError}
+          h2h={h2h}
         />
       ) : (
         <DuelRoom state={state} dispatch={dispatch} socket={socket} joinUrl={joinUrl} />

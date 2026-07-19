@@ -23,7 +23,7 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from typing import Any, cast
 
-from sqlalchemy import select, update
+from sqlalchemy import and_, case, func, or_, select, update
 from sqlalchemy.engine import CursorResult
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -374,6 +374,56 @@ def compute_winner(
         return player_a_id if a_finished_at < b_finished_at else player_b_id
 
     return None  # fully identical (pathological) -> tie
+
+
+@dataclass(frozen=True)
+class H2HCounts:
+    """Read-only head-to-head aggregate — see `h2h_record`."""
+
+    played: int
+    your_wins: int
+    opponent_wins: int
+    draws: int
+
+
+async def h2h_record(
+    session: AsyncSession, me_id: uuid.UUID, opponent_id: uuid.UUID
+) -> H2HCounts:
+    """Head-to-head record between `me_id` and `opponent_id`, across every
+    `finished` room where they played each other (either slot order; a
+    rematch child room counts as its own game, never deduped by
+    `parent_room_id`; a room involving any third user is excluded). Read
+    only — no `session.add`, no commit.
+
+    `your_wins`/`opponent_wins` are each counted explicitly by `winner_id`
+    equality (never derived as `played - the other counts`), and `draws`
+    counts `winner_id IS NULL` on its own — a stray `winner_id` matching
+    neither player can never be silently folded into a win count.
+    """
+    pair = and_(
+        DuelRoom.status == "finished",
+        or_(
+            and_(DuelRoom.player_a_id == me_id, DuelRoom.player_b_id == opponent_id),
+            and_(DuelRoom.player_a_id == opponent_id, DuelRoom.player_b_id == me_id),
+        ),
+    )
+    result = await session.execute(
+        select(
+            func.count().label("played"),
+            func.sum(case((DuelRoom.winner_id == me_id, 1), else_=0)).label("your_wins"),
+            func.sum(case((DuelRoom.winner_id == opponent_id, 1), else_=0)).label(
+                "opponent_wins"
+            ),
+            func.sum(case((DuelRoom.winner_id.is_(None), 1), else_=0)).label("draws"),
+        ).where(pair)
+    )
+    row = result.one()
+    return H2HCounts(
+        played=int(row.played or 0),
+        your_wins=int(row.your_wins or 0),
+        opponent_wins=int(row.opponent_wins or 0),
+        draws=int(row.draws or 0),
+    )
 
 
 @dataclass(frozen=True)

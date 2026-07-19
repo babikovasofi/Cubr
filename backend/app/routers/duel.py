@@ -38,6 +38,7 @@ from app.db import get_session
 from app.models import User
 from app.models.duel import DuelRoom
 from app.schemas.duel import (
+    DuelH2HRead,
     DuelJoinRead,
     DuelRoomCreateRead,
     DuelRoomRead,
@@ -218,6 +219,35 @@ async def get_room(
     if room is None or user.id not in (room.player_a_id, room.player_b_id):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Duel room not found")
     return _room_read(room, user.id)
+
+
+@router.get("/rooms/{room_id}/h2h", response_model=DuelH2HRead)
+async def get_h2h(
+    room_id: uuid.UUID,
+    user: User = Depends(current_active_user),
+    session: AsyncSession = Depends(get_session),
+) -> DuelH2HRead:
+    """Head-to-head record between the caller and the room's OTHER player,
+    aggregated live (read-only) over every `finished` room between exactly
+    that pair. Room-scoped (not an arbitrary `opponent_user_id` param) so
+    the opponent is always someone the caller already shares a room with —
+    no enumeration surface. Participant guard mirrors `get_room`; a room
+    with no `player_b_id` yet (nobody to compare against) also 404s.
+    """
+    room = await session.get(DuelRoom, room_id)
+    if room is None or user.id not in (room.player_a_id, room.player_b_id):
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Duel room not found")
+    if room.player_b_id is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Duel room not found")
+    opponent_id = room.player_b_id if user.id == room.player_a_id else room.player_a_id
+    counts = await duel_service.h2h_record(session, user.id, opponent_id)
+    return DuelH2HRead(
+        played=counts.played,
+        your_wins=counts.your_wins,
+        opponent_wins=counts.opponent_wins,
+        draws=counts.draws,
+        opponent_user_id=opponent_id,
+    )
 
 
 @router.post("/join/{invite_token}", response_model=DuelJoinRead, dependencies=[_ip_limit])
