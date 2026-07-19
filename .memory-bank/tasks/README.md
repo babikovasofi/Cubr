@@ -246,6 +246,18 @@
     pytest 206 (40 badge), frontend 362, ruff/mypy/tsc/eslint чисто. [swarm-report/achievements-badges-*].
     Коммит `573b34d`. Первая V2-фича (роадмап-дисциплина: остальной V2 — после деплоя MVP).
 
+- **V2 — график прогресса времён** ✅ код + тесты (frontend-only, read-only) — `frontend/`.
+  - ✅ `components/SolveProgressChart.tsx`: inline-SVG линия `time_ms` валидных сборок по `created_at`
+    из УЖЕ загруженных History-данных (`listSolves(50,0)`, без второго запроса/эндпоинта/миграции/
+    зависимости). Только `status==="valid"` на линии (dnf/rejected — baseline-тики, рвут polyline на
+    сегменты). PB=min(valid) в окне (var(--warning) кольцо). Y-домен устойчив к выбросам
+    (`min(max, p95*1.1)`, выброс пиннится к медленной кромке — Y инвертирован, faster=выше). Empty/
+    zero-valid → placeholder. Окно ≤50 («за последние сборки»). **В SolveRead нет `event`** → фильтр
+    по событию невозможен без бэкенда (выброшен). ПЕРВЫЙ inline-SVG-график в проекте — паттерн на
+    CSS-var токенах (тёмная тема), без charting-либы.
+  - ✅ Review = **ship** (0), qa-smoke pass. frontend vitest 398 (+16), tsc/eslint чисто, package.json
+    без изменений. [swarm-report/progress-graph-*]. Коммит `052fe86`.
+
 ## Planned (следующий фокус)
 - **Этап 1.2 manual QA** — прогнать §5.1 живьём (см. выше), тюнинг порогов `config.ts`.
 - **Этап 3 — серверная честность:** серверные скрамблы, поток событий с таймстампами, кадры-доказательства,
