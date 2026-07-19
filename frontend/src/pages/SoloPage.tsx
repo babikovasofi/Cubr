@@ -34,6 +34,7 @@ export default function SoloPage() {
           cameraVerified={s.state.cameraVerified}
           onAgain={s.again}
           saveState={s.saveState}
+          scramble={s.scramble}
         />
       ) : null}
     </div>

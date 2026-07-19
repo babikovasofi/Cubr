@@ -6,6 +6,8 @@
 import { Link } from "react-router-dom";
 import Button from "../components/Button";
 import Timer from "../components/Timer";
+import type { CardData } from "../share/resultCard";
+import ShareCardButton from "../share/ShareCardButton";
 import type { SaveState } from "./solveSave";
 
 interface ResultScreenProps {
@@ -20,6 +22,9 @@ interface ResultScreenProps {
   cameraVerified: boolean;
   onAgain: () => void;
   saveState: SaveState;
+  // Absent on older/replayed sessions that never threaded a scramble through —
+  // the share card is skipped rather than drawn without it (plan: result-share-card).
+  scramble?: string;
 }
 
 function SaveStatus({ saveState }: { saveState: SaveState }) {
@@ -65,7 +70,18 @@ export default function ResultScreen({
   cameraVerified,
   onAgain,
   saveState,
+  scramble,
 }: ResultScreenProps) {
+  const cardData: CardData | null = scramble
+    ? {
+        kind: "solo",
+        timeLabel: seconds,
+        dnf,
+        scramble,
+        dateLabel: new Date().toLocaleDateString("ru-RU"),
+      }
+    : null;
+
   return (
     <section className="flex flex-col items-center gap-6 rounded-lg border-2 border-ink bg-surface p-7 text-center">
       <span className="font-sans text-overline uppercase text-muted">
@@ -89,6 +105,7 @@ export default function ResultScreen({
         </p>
       ) : null}
       <Button onClick={onAgain}>Ещё раз</Button>
+      {cardData ? <ShareCardButton data={cardData} /> : null}
     </section>
   );
 }

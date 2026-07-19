@@ -174,6 +174,7 @@ export default function DuelPage() {
           rematchBusy={rematchBusy}
           rematchError={rematchError}
           h2h={h2h}
+          scramble={state.scramble}
         />
       ) : (
         <DuelRoom state={state} dispatch={dispatch} socket={socket} joinUrl={joinUrl} />

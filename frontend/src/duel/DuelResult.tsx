@@ -6,6 +6,8 @@
 import Button from "../components/Button";
 import Timer from "../components/Timer";
 import type { DuelH2HRead } from "../api/duel";
+import type { CardData } from "../share/resultCard";
+import ShareCardButton from "../share/ShareCardButton";
 import { useAuthStore } from "../store/authStore";
 import type { DuelResultPayload, PlayerSlot } from "./duelMachine";
 
@@ -16,6 +18,9 @@ export interface DuelResultProps {
   rematchBusy: boolean;
   rematchError: string | null;
   h2h: DuelH2HRead | null;
+  // Absent on a bootstrap-only reload with no live scramble in state — the
+  // share card is skipped rather than drawn without it (plan: result-share-card).
+  scramble: string | null;
 }
 
 function formatTime(status: "pending" | "valid" | "dnf", timeMs: number | null): string {
@@ -52,6 +57,7 @@ export default function DuelResult({
   rematchBusy,
   rematchError,
   h2h,
+  scramble,
 }: DuelResultProps) {
   const ownId = useAuthStore((s) => s.user?.id ?? null);
   const you = result.players.find((p) => p.slot === yourSlot) ?? null;
@@ -62,6 +68,21 @@ export default function DuelResult({
   const quiet = draw || !youWon; // §6.3 quiet loss/draw treatment — no red slab
 
   const outcomeLabel = draw ? "Ничья" : youWon ? "Ты выиграл" : "Не в этот раз";
+
+  // Card mirrors ONLY what's already on screen — the formatted times and this
+  // outcome label. Never winner_id/any UUID/email (privacy, plan: result-share-card).
+  const yourTime = formatTime(you?.status ?? "pending", you?.time_ms ?? null);
+  const opponentTime = formatTime(opponent?.status ?? "pending", opponent?.time_ms ?? null);
+  const cardData: CardData | null = scramble
+    ? {
+        kind: "duel",
+        dnf: false,
+        timeLabel: yourTime,
+        scramble,
+        dateLabel: new Date().toLocaleDateString("ru-RU"),
+        duel: { outcome: outcomeLabel, you: yourTime, opponent: opponentTime },
+      }
+    : null;
 
   return (
     <section className="flex flex-col gap-4 overflow-hidden rounded-lg border border-line bg-surface">
@@ -79,17 +100,11 @@ export default function DuelResult({
       <div className="grid grid-cols-2 gap-4 px-7 pb-7">
         <div className="flex flex-col items-center gap-2 rounded-md border border-line bg-surface-2 p-4">
           <span className="font-sans text-caption uppercase text-muted">Ты</span>
-          <Timer
-            value={formatTime(you?.status ?? "pending", you?.time_ms ?? null)}
-            phase={you?.status === "dnf" ? "dnf" : "success"}
-          />
+          <Timer value={yourTime} phase={you?.status === "dnf" ? "dnf" : "success"} />
         </div>
         <div className="flex flex-col items-center gap-2 rounded-md border border-line bg-surface-2 p-4">
           <span className="font-sans text-caption uppercase text-muted">Соперник</span>
-          <Timer
-            value={formatTime(opponent?.status ?? "pending", opponent?.time_ms ?? null)}
-            phase={opponent?.status === "dnf" ? "dnf" : "success"}
-          />
+          <Timer value={opponentTime} phase={opponent?.status === "dnf" ? "dnf" : "success"} />
         </div>
       </div>
 
@@ -97,6 +112,7 @@ export default function DuelResult({
         <Button onClick={onRematch} disabled={rematchBusy}>
           {rematchBusy ? "Готовлю реванш…" : "Реванш"}
         </Button>
+        {cardData ? <ShareCardButton data={cardData} /> : null}
         {rematchError ? (
           <p role="alert" className="font-sans text-small text-danger">
             {rematchError}

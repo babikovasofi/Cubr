@@ -47,6 +47,7 @@ const defaultProps: DuelResultProps = {
   rematchBusy: false,
   rematchError: null,
   h2h: null,
+  scramble: null,
 };
 
 beforeEach(() => {
@@ -226,5 +227,15 @@ describe("DuelResult", () => {
     // The Timer component should render the formatted times
     expect(screen.getByText("5.00")).toBeTruthy(); // 5000ms = 5.00s
     expect(screen.getByText("6.00")).toBeTruthy(); // 6000ms = 6.00s
+  });
+
+  it("renders the share/download button when a scramble is present", () => {
+    render(<DuelResult {...defaultProps} scramble="R U2 F' D L B2" />);
+    expect(screen.getByRole("button", { name: "Скачать PNG" })).toBeTruthy();
+  });
+
+  it("does not render the share/download button when scramble is null", () => {
+    render(<DuelResult {...defaultProps} scramble={null} />);
+    expect(screen.queryByRole("button", { name: "Скачать PNG" })).toBeNull();
   });
 });
