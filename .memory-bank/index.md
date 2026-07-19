@@ -1,5 +1,8 @@
-<!-- RULE: только указатели, максимум 25 строк. Инжектится в каждую сессию.
-     Факты — в файлах ниже. Перед работой над темой — прочти её файл. -->
+# Memory Bank — Cubr
+
+> Точка входа. Агент читает первым при старте (auto-инжект хуком). Карта ниже —
+> ссылки на тематические файлы с деталями.
+
 # Cubr — веб-дуэли по спидкубингу, судья = компьютерное зрение (React+TS+Vite · FastAPI · Postgres)
 
 Active: этапы 0–2.4 + vision-профили + серверные скрамблы + scramble↔solve binding (Этап 3)
@@ -7,7 +10,7 @@ Active: этапы 0–2.4 + vision-профили + серверные скра
 (frames+OpenCV, event-stream) блокирован R1/камерой или Этапом 4 — вернёмся после ресурса. Открыты
 гейт 0.3 (точность ≥90%), manual QA камеры/соло, живые миграции 0004/0005. Детали: tasks/README.md.
 
-## Map (перед работой над темой — прочти её файл)
+## Map
 - product-overview/README.md — что/кому, MVP, ритуал сборки; нейминг Cubr/CubeDuel
 - product-overview/vision.md — мастер-ТЗ: видение, MVP, модель данных
 - product-overview/risks.md — R1–R9; главный R1: цвета кубика (зрение)
@@ -17,7 +20,7 @@ Active: этапы 0–2.4 + vision-профили + серверные скра
 - tech-details/solutions.md — КАК: зрение, реалтайм, анти-чит (П1–П12)
 - tech-details/user-flow.md — экраны + mermaid-флоу MVP
 - tech-details/design-system.md — дизайн «Плейфул-поп»; макеты в design-reference/
-- steerings/development-conventions.md — конвенции, ветки, секреты, bundled skills, правила index
+- steerings/development-conventions.md — конвенции, ветки, секреты, bundled skills
 - steerings/testing-conventions.md — как тестим
 - steerings/self-improvement.md — рефлексия → правила/хуки
 - tasks/README.md — статус этапов, текущий фокус; полный чеклист в workplan.md

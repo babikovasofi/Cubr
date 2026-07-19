@@ -6,6 +6,7 @@ Sentence fragments are fine. Prefer bullets and tables over paragraphs.
 Lead with the answer/finding; put justification after, short.
 No preamble, no recap of the request, no ceremony, no praise, no sign-off.
 One point once. Do not restate the same fact in two phrasings.
+RETRIEVAL — search before reading. Use ast-index / semantic / grep to locate the exact symbol or lines, then read only those; do not read whole files to explore.
 
 EXACT — never compress these, ever:
 

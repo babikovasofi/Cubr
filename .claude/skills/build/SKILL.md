@@ -28,13 +28,10 @@ main loop.
    If one agent's output changes a contract another needs (e.g. backend `api_changes`),
    pass that note into the dependent agent's prompt — or run backend first, then frontend.
 4b. **Tests on haiku.** After the exec agents implement the feature, spawn ONE test agent
-   (`Task`, `general-purpose`, **`model: haiku`**; prepend the TERSE-output block) to author/
-   expand the tests to match the plan's **Test plan** section (full coverage — happy path,
-   edge cases, error paths, regressions) and RUN the suite. Prompt:
-   > Answer TERSE. Read `.claude/agents/<stack>.md` for conventions. Plan:
-   > swarm-report/<slug>-plan.md — implement its **Test plan** section exactly, then run the
-   > project's test command(s) and report REAL pass/fail counts. Do not modify feature code;
-   > if a test reveals a bug, report it, do not patch it here.
+   (`Task`, `general-purpose`, **`model: haiku`**) whose prompt is the full contents of
+   `.claude/agents/tester.md` (TERSE block + tester duties baked in) plus:
+   > Plan: swarm-report/<slug>-plan.md — implement its **Test plan** section exactly.
+   > Changed files: <list>. Stack conventions: `.claude/agents/<stack>.md`.
    Exec agents may write a few inline tests, but full coverage is this haiku step's job.
 
 5. **Verify**: read each agent's `tests_result` (incl. the haiku test agent's run). Any

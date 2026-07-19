@@ -32,6 +32,7 @@ cited — testing after every feature is enforced, not optional.
 | reviewer | `.claude/agents/reviewer.md` | `/review` |
 | qa-smoke | `.claude/agents/qa-smoke.md` | `/review` (user-facing features — walks acceptance criteria as a user) |
 | debugger | `.claude/agents/debugger.md` | `/debug`  |
+| tester   | `.claude/agents/tester.md`   | `/build` step 4b (haiku) — authors/runs tests per the plan's Test plan |
 
 ### Executing (write code — matched by file scope)
 `/build` maps each plan task's affected files to an exec agent. A feature that touches
