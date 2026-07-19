@@ -223,7 +223,13 @@
     цикл; чинено (одинокий player_a держит сокет, менеджер узнаёт player_b при подключении) + heartbeat
     20с→10с (сервер рвёт на 15с). backend pytest 166, frontend 337, ruff/mypy/tsc/eslint чисто.
     [swarm-report/stage4-duel-by-link-*]. Коммит `dfd5ce7`.
-  - ⏳ Two-browser live: инвайт→старт→сборка камерой→результат→реванш.
+  - ✅ **h2h-история встреч** (V2, read-only): `GET /duel/rooms/{room_id}/h2h` → счёт caller-vs-opponent
+    (played/your_wins/opponent_wins/draws) по `finished` парным комнатам, симметричный предикат, счёт по
+    winner_id (ничья=NULL). Room-scoped (opponent выводится сервером — нет enumeration-surface). Панель
+    «Вы играли N раз, счёт X:Y (+Z ничьих)» на экране результата (fetch на result-фазе, AbortController).
+    Без миграции/записи. Review = **ship** (0), qa-smoke pass. backend 218 (+12), frontend 382 (+24).
+    [swarm-report/h2h-duel-history-*]. Коммит `42cfd40`.
+  - ⏳ Two-browser live: инвайт→старт→сборка камерой→результат→реванш + h2h-панель.
 
 - **V2 — ачивки и бейджи** ✅ код + тесты + live-миграция — `backend/` + `frontend/`.
   - ✅ Event-driven award-движок в СЕССИИ вызывающего (POST /solves / tournament submit / duel
