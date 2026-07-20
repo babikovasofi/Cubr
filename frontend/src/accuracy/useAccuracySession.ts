@@ -182,8 +182,15 @@ export function useAccuracySession(): AccuracySession {
     const v = videoRef.current;
     if (!v) return;
     const r = reader.pushAccuracyFace(v);
+    // Drift is advisory now (auto-WB drift shouldn't block data collection) — the
+    // face was captured; just surface how far it drifted so the tester knows.
+    const driftNote = (d?: { face: string; de: number }): string =>
+      d
+        ? ` (грань ${d.face} уплыла на ΔE ${d.de.toFixed(1)} > ${config.CENTER_DRIFT_DE} — сняли всё равно, попадёт в точность)`
+        : "";
     switch (r.kind) {
       case "pending":
+        setCaptureError(r.drifted ? `Снято${driftNote(r.drifted)}` : null);
         return;
       case "unreadable":
         setCaptureError(faceUnreadableRu());
@@ -191,19 +198,13 @@ export function useAccuracySession(): AccuracySession {
         reader.resetAccuracy();
         bump();
         return;
-      case "drift":
-        // Per-face re-show: don't drop the whole read, don't advance the counter.
-        setCaptureError(
-          `Грань ${r.face} уплыла от калибровки (ΔE ${r.de.toFixed(1)} > ${config.CENTER_DRIFT_DE}). ` +
-            `Покажи её заново ровно в рамке или откалибруйся.`,
-        );
-        return;
       case "complete": {
         const raw = assembleRawRead(r.rawFaceGrids);
         const report = scoreRead(raw, truth);
         appendRead(runRef.current, conditionRef.current, report);
         lastReadKeyRef.current = conditionRef.current;
         setLastReport(report);
+        setCaptureError(r.drifted ? `Чтение готово${driftNote(r.drifted)}` : null);
         bump();
         return;
       }

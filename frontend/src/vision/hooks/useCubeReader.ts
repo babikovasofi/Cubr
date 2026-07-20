@@ -143,14 +143,14 @@ function resolveSixFaces(faces: Lab[][], refs: Refs): SixFaceResolve {
 // silently measuring calibration error. `complete` carries the raw grids for the
 // harness to assemble + score against an INDEPENDENT ground truth.
 export type AccuracyCapture =
-  | { kind: "pending"; facesLength: number }
+  | { kind: "pending"; facesLength: number; drifted?: { face: Face; de: number } }
   | { kind: "unreadable" } // luma/refs gate failed
-  | { kind: "drift"; face: Face; de: number } // captured face center drifted → re-show
   | {
       kind: "complete";
       rawFaceGrids: Face[][]; // 6 × 9 in fixed capture order URFDLB
       resolved: Facelet | null; // informational legality-resolve (NOT scored)
       resolveReason?: ResolveReason;
+      drifted?: { face: Face; de: number }; // last face drifted > threshold (advisory, not a block)
     };
 
 // Quick-adjust outcome (one white face). `ok` applied a session-local von-Kries
@@ -382,14 +382,18 @@ export function useCubeReader(workRef: React.RefObject<HTMLCanvasElement | null>
     const expectedColor = COLOR_NAMES[faceIndex];
     const face = readFace(video, video.videoWidth, video.videoHeight, work);
     const de = deltaE(face.lab[4], refs[expectedColor]);
-    if (de > config.CENTER_DRIFT_DE) {
-      return { kind: "drift", face: expectedColor as string as Face, de };
-    }
+    // Drift is ADVISORY, not a block: on a real webcam the center can legitimately
+    // drift > CENTER_DRIFT_DE (auto-WB/exposure) and refusing the capture just stops
+    // any data from ever being collected. Capture the face anyway and surface the
+    // drift as a warning so the read completes and the report quantifies the real
+    // per-sticker accuracy (that IS the diagnostic we need).
+    const drifted =
+      de > config.CENTER_DRIFT_DE ? { face: expectedColor as string as Face, de } : undefined;
 
     accCollectorRef.current.push(face.lab);
     const n = accCollectorRef.current.length;
     setAccFacesLength(n);
-    if (n < 6) return { kind: "pending", facesLength: n };
+    if (n < 6) return { kind: "pending", facesLength: n, drifted };
 
     const faces = accCollectorRef.current;
     accCollectorRef.current = null;
@@ -397,7 +401,7 @@ export function useCubeReader(workRef: React.RefObject<HTMLCanvasElement | null>
     setAccFacesLength(0);
 
     const { rawFaceGrids, resolved, reason } = resolveSixFaces(faces, refs);
-    return { kind: "complete", rawFaceGrids, resolved, resolveReason: reason };
+    return { kind: "complete", rawFaceGrids, resolved, resolveReason: reason, drifted };
   };
 
   return {
