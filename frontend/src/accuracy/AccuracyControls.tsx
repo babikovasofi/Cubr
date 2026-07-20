@@ -6,6 +6,7 @@
 import { useState } from "react";
 import Button from "../components/Button";
 import Input from "../components/Input";
+import { lab2rgb } from "../vision/colors";
 import {
   CAPTURE_ORDER,
   MIN_READS,
@@ -164,6 +165,34 @@ export default function AccuracyControls({ session }: AccuracyControlsProps) {
             Сбросить калибровку
           </Button>
         </div>
+
+        {/* DEBUG: the 6 learned reference colours. If these 6 swatches are NOT
+            clearly 6 distinct cube colours (muddy / near-identical), calibration
+            failed — the camera/light couldn't produce distinct colours, and every
+            read then collapses to one colour. Screenshot this to diagnose. */}
+        {session.calibratedRefs ? (
+          <div className="flex flex-col gap-1">
+            <span className="font-sans text-caption uppercase text-muted">
+              Снятые эталоны (должны быть 6 РАЗНЫХ цветов кубика)
+            </span>
+            <div className="flex gap-2">
+              {CAPTURE_ORDER.map((face) => {
+                const lab = session.calibratedRefs?.[face];
+                const [r, g, b] = lab ? lab2rgb(lab) : [0, 0, 0];
+                return (
+                  <div key={face} className="flex flex-col items-center gap-0.5">
+                    <span
+                      className="h-9 w-9 rounded border-2 border-ink"
+                      style={{ backgroundColor: `rgb(${r} ${g} ${b})` }}
+                      title={`${face}: rgb(${r} ${g} ${b}) lab(${lab?.map((n) => n.toFixed(0)).join(",")})`}
+                    />
+                    <span className="font-mono text-caption text-muted">{face}</span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        ) : null}
       </section>
 
       {/* Capture */}

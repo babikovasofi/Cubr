@@ -49,6 +49,10 @@ export interface AccuracySession {
   // Calibration.
   calibrationStep: number;
   calibrated: boolean;
+  // The 6 learned reference colours (Lab), for a debug swatch view — lets a
+  // tester SEE whether calibration produced 6 distinct cube colours or muddy,
+  // near-identical refs (which collapse every read to one colour).
+  calibratedRefs: Record<string, [number, number, number]> | null;
   captureCalibration: () => void;
   recalibrate: () => void;
   // Accuracy capture.
@@ -264,6 +268,7 @@ export function useAccuracySession(): AccuracySession {
     setCondition,
     calibrationStep: reader.calibrationStep,
     calibrated: reader.calibrated,
+    calibratedRefs: reader.getProfile(),
     captureCalibration,
     recalibrate,
     collectingAccuracy: reader.collectingAccuracy,
