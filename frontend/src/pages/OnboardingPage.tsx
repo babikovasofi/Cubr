@@ -22,8 +22,12 @@ export default function OnboardingPage() {
     navigate("/", { replace: true });
   }
 
+  // Camera steps (1 «Проверка камеры», 2 «Регистрация») need a wide container so
+  // the live preview isn't squeezed to a tiny column; the intro stays calm/narrow.
+  const containerWidth = step >= 1 ? "max-w-5xl" : "max-w-2xl";
+
   return (
-    <div className="mx-auto flex w-full max-w-2xl flex-col gap-6">
+    <div className={`mx-auto flex w-full ${containerWidth} flex-col gap-6`}>
       <ol className="flex flex-wrap gap-2" aria-label="Шаги онбординга">
         {STEPS.map((label, i) => (
           <li
@@ -108,7 +112,11 @@ function CameraStep({ onNext, onBack }: { onNext: () => void; onBack: () => void
         onRetry={cam.start}
       />
 
-      {!cam.started ? (
+      {cam.starting ? (
+        <p className="font-sans text-small font-bold text-muted" aria-live="polite">
+          Запускаю камеру…
+        </p>
+      ) : !cam.started ? (
         <Button onClick={cam.start}>Включить камеру</Button>
       ) : (
         <p

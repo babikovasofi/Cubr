@@ -90,4 +90,22 @@ describe("CubeRegisterWizard camera start", () => {
     expect(container.querySelector("video")).not.toBeNull();
     expect(screen.getByText("Снять грань 3/6")).toBeTruthy();
   });
+
+  it("labels the colour profile as an auto-captured preview, not a picker", () => {
+    const lab: [number, number, number] = [50, 0, 0];
+    const profile = { U: lab, R: lab, F: lab, D: lab, L: lab, B: lab };
+    const reg = stubReg({ started: true, calibrated: true, profile });
+    useCubeRegisterMock.mockReturnValue(reg);
+
+    render(<CubeRegisterWizard onDone={() => {}} onCancel={() => {}} />);
+
+    expect(screen.getByText("Так Cubr запомнил твой кубик")).toBeTruthy();
+    expect(screen.getByText(/выбирать ничего не нужно/)).toBeTruthy();
+
+    // The swatches are a read-only preview: 6 of them, and none is a button
+    // (regression for the "I click a colour and nothing happens" confusion).
+    const palette = screen.getByLabelText("Цвет-профиль кубика");
+    expect(palette.querySelectorAll("li")).toHaveLength(6);
+    expect(palette.querySelector("button")).toBeNull();
+  });
 });

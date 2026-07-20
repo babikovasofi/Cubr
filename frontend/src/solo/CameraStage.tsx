@@ -23,7 +23,7 @@ export default function CameraStage({
 }: CameraStageProps) {
   return (
     <div className="flex flex-col gap-3">
-      <div className="relative aspect-video w-full overflow-hidden rounded-lg border-2 border-ink bg-surface-2">
+      <div className="relative aspect-video min-h-[16rem] w-full overflow-hidden rounded-lg border-2 border-ink bg-surface-2">
         <video
           ref={videoRef}
           className="absolute inset-0 h-full w-full -scale-x-100 object-cover"

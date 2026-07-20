@@ -38,11 +38,29 @@ function cameraErrorRu(kind: CameraErrorKind): string {
   }
 }
 
+// Hands must be detected for this many CONSECUTIVE frames before the check
+// counts as confirmed. A one-way latch on a single `handsDetected` frame (the
+// old behaviour) let a spurious detector frame declare "готово" with no hands
+// on the table — the sustained run rejects those transients.
+export const HANDS_CONFIRM_FRAMES = 8;
+
+/** Pure hands-gate step: grow the consecutive-detected run, reset it on a miss,
+ * and report `seen` once the run reaches `threshold`. Unit-tested. */
+export function advanceHandsGate(
+  run: number,
+  detected: boolean,
+  threshold: number = HANDS_CONFIRM_FRAMES,
+): { run: number; seen: boolean } {
+  const next = detected ? run + 1 : 0;
+  return { run: next, seen: next >= threshold };
+}
+
 export interface CameraCheck {
   videoRef: React.RefObject<HTMLVideoElement | null>;
   overlayRef: React.RefObject<HTMLCanvasElement | null>;
   workRef: React.RefObject<HTMLCanvasElement | null>;
   started: boolean;
+  starting: boolean;
   handsSeen: boolean;
   error: string | null;
   start: () => Promise<void>;
@@ -57,12 +75,20 @@ export function useCameraCheck(): CameraCheck {
   const hands = useHands();
 
   const [started, setStarted] = useState(false);
+  // Camera requested but no frame has arrived yet — UI shows «Запускаю камеру…»
+  // instead of prematurely prompting for hands.
+  const [starting, setStarting] = useState(false);
   const [handsSeen, setHandsSeen] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Consecutive frames with hands detected (resets on a miss); latches
+  // `handsSeen` once it reaches HANDS_CONFIRM_FRAMES.
+  const handsRunRef = useRef(0);
 
   const onFrame = (info: FrameInfo): void => {
     const { video, nowTs, width, height } = info;
     if (!width || !height) return;
+    setStarting(false); // first real frame — camera is live
     const obs = hands.detect(video, nowTs);
 
     const overlay = overlayRef.current;
@@ -72,18 +98,23 @@ export function useCameraCheck(): CameraCheck {
       const octx = overlay.getContext("2d");
       if (octx) drawOverlay(octx, width, height, obs, ZONES, config.GUIDE_RECT, OVERLAY_LABELS);
     }
-    if (obs.handsDetected) setHandsSeen(true);
+    const gate = advanceHandsGate(handsRunRef.current, obs.handsDetected);
+    handsRunRef.current = gate.run;
+    if (gate.seen) setHandsSeen(true);
   };
 
   const start = async (): Promise<void> => {
     if (started) return;
     try {
       setError(null);
+      setStarting(true);
+      handsRunRef.current = 0;
       await hands.init();
       hands.setZones(ZONES);
       await camera.start(onFrame);
       setStarted(true);
     } catch (e) {
+      setStarting(false);
       if (e instanceof HandsInitError) setError(modelFailedRu());
       else if (e instanceof CameraError) setError(cameraErrorRu(e.kind));
       else setError(cameraDeniedRu());
@@ -98,5 +129,5 @@ export function useCameraCheck(): CameraCheck {
     };
   }, []);
 
-  return { videoRef, overlayRef, workRef, started, handsSeen, error, start };
+  return { videoRef, overlayRef, workRef, started, starting, handsSeen, error, start };
 }

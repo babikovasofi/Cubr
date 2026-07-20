@@ -33,6 +33,7 @@ function stubCam(overrides: Partial<CameraCheck> = {}): CameraCheck {
     overlayRef: { current: null },
     workRef: { current: null },
     started: false,
+    starting: false,
     handsSeen: false,
     error: null,
     start: vi.fn(async () => {}),
@@ -85,5 +86,36 @@ describe("OnboardingPage CameraStep camera start", () => {
 
     expect(container.querySelector("video")).not.toBeNull();
     expect(screen.getByText("Ищу руки в кадре…")).toBeTruthy();
+  });
+
+  it("shows «Запускаю камеру…» while starting, before the first frame", () => {
+    useCameraCheckMock.mockReturnValue(stubCam({ starting: true, started: false }));
+    renderAtCameraStep();
+    expect(screen.getByText("Запускаю камеру…")).toBeTruthy();
+    // Not prompting for hands yet, and no enable button while starting.
+    expect(screen.queryByText("Ищу руки в кадре…")).toBeNull();
+    expect(screen.queryByText("Включить камеру")).toBeNull();
+  });
+
+  it("disables «Далее» until hands are confirmed, and offers the skip hatch", () => {
+    useCameraCheckMock.mockReturnValue(stubCam({ started: true, handsSeen: false }));
+    renderAtCameraStep();
+    expect(screen.getByRole("button", { name: "Далее" })).toHaveProperty("disabled", true);
+    expect(screen.getByText("Пропустить (камера не проверена)")).toBeTruthy();
+  });
+
+  it("enables «Далее» once hands are confirmed (handsSeen), showing success copy", () => {
+    useCameraCheckMock.mockReturnValue(stubCam({ started: true, handsSeen: true }));
+    renderAtCameraStep();
+    expect(screen.getByRole("button", { name: "Далее" })).toHaveProperty("disabled", false);
+    expect(screen.getByText("Камера и руки распознаются — отлично!")).toBeTruthy();
+    // Skip hatch is gone once ready.
+    expect(screen.queryByText("Пропустить (камера не проверена)")).toBeNull();
+  });
+
+  it("widens the container on the camera step (max-w-5xl)", () => {
+    useCameraCheckMock.mockReturnValue(stubCam());
+    const { container } = renderAtCameraStep();
+    expect(container.querySelector(".max-w-5xl")).not.toBeNull();
   });
 });

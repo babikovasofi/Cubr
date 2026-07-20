@@ -35,7 +35,7 @@ export default function ColorPalette({
             key={face}
             title={label}
             aria-label={label}
-            className={`${dim} rounded-sm border-2 border-ink`}
+            className={`${dim} cursor-default rounded-sm border-2 border-ink`}
             style={{ backgroundColor: lab ? css(lab2rgb(lab)) : "transparent" }}
           />
         );

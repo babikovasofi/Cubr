@@ -122,8 +122,13 @@ export default function CubeRegisterWizard({ defaultPrimary = false, onDone, onC
             <h3 className="font-sans text-h3 text-ink">Сохранить кубик</h3>
 
             <div className="flex flex-col gap-1.5">
-              <span className="font-sans text-small font-bold text-ink">Цвет-профиль</span>
+              <span className="font-sans text-small font-bold text-ink">
+                Так Cubr запомнил твой кубик
+              </span>
               {reg.profile ? <ColorPalette profile={reg.profile} size="md" /> : null}
+              <p className="font-sans text-caption text-muted">
+                Профиль снят автоматически с 6 граней — выбирать ничего не нужно.
+              </p>
             </div>
 
             <Input
