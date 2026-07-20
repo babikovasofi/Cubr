@@ -77,6 +77,16 @@ class Settings(BaseSettings):
     TOURNAMENT_STANDINGS_LIMIT_DEFAULT: int = 50
     TOURNAMENT_STANDINGS_LIMIT_MAX: int = 200
 
+    # --- Daily scramble (parallel vertical to the weekly tournament) ---
+    # Window from POST /daily/.../attempt/start to a still-accepted
+    # POST /daily/.../attempt/submit; a submit arriving later is forced to "dnf".
+    DAILY_ATTEMPT_WINDOW_SECONDS: int = 600
+    # GET /daily/current/board `limit` query param: default when omitted,
+    # hard ceiling it is always clamped to.
+    DAILY_BOARD_LIMIT_DEFAULT: int = 50
+    DAILY_BOARD_LIMIT_MAX: int = 200
+    DAILY_RATE_LIMIT: str = "60/minute"
+
     # --- Link-invite duels (Этап 4) ---
     DUEL_RATE_LIMIT: str = "30/minute"
     # Separate CORS-like allowlist for the WS handshake's Origin header — a WS
@@ -111,7 +121,9 @@ class Settings(BaseSettings):
 
     @property
     def duel_allowed_ws_origins(self) -> list[str]:
-        return [origin.strip() for origin in self.DUEL_ALLOWED_WS_ORIGINS.split(",") if origin.strip()]
+        return [
+            origin.strip() for origin in self.DUEL_ALLOWED_WS_ORIGINS.split(",") if origin.strip()
+        ]
 
     @property
     def is_local(self) -> bool:

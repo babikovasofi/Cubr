@@ -1,4 +1,5 @@
 from app.models.cube import Cube
+from app.models.daily import DailyAttempt, DailyChallenge
 from app.models.duel import DuelRoom
 from app.models.duel_participant import DuelParticipant
 from app.models.oauth_account import OAuthAccount
@@ -10,6 +11,8 @@ from app.models.user_badge import UserBadge
 
 __all__ = [
     "Cube",
+    "DailyAttempt",
+    "DailyChallenge",
     "DuelParticipant",
     "DuelRoom",
     "OAuthAccount",

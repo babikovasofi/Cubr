@@ -3,6 +3,7 @@ import { Routes, Route, Link, useNavigate } from "react-router-dom";
 import HomePage from "./pages/HomePage";
 import SoloPage from "./pages/SoloPage";
 import TournamentPage from "./pages/TournamentPage";
+import DailyPage from "./pages/DailyPage";
 import DuelPage from "./pages/DuelPage";
 import DuelJoinPage from "./pages/DuelJoinPage";
 import LoginPage from "./pages/LoginPage";
@@ -213,6 +214,14 @@ export default function App() {
             element={
               <ProtectedRoute>
                 <TournamentPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/daily"
+            element={
+              <ProtectedRoute>
+                <DailyPage />
               </ProtectedRoute>
             }
           />

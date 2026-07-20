@@ -30,6 +30,8 @@ from app.db import Base, get_session  # noqa: E402
 from app.main import app  # noqa: E402
 from app.models import (  # noqa: E402
     Cube,
+    DailyAttempt,
+    DailyChallenge,
     DuelParticipant,
     DuelRoom,
     OAuthAccount,
@@ -106,6 +108,8 @@ async def test_engine() -> AsyncGenerator[AsyncEngine, None]:
                     Solve.__table__,
                     Tournament.__table__,
                     TournamentAttempt.__table__,
+                    DailyChallenge.__table__,
+                    DailyAttempt.__table__,
                     DuelRoom.__table__,
                     DuelParticipant.__table__,
                     UserBadge.__table__,

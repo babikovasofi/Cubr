@@ -55,6 +55,21 @@ export default function HomePage() {
         <span className="font-sans text-caption font-black uppercase text-live">● идёт запись</span>
       </Link>
 
+      {/* daily-scramble: same card treatment as "Челлендж недели" above — one
+          shared scramble a day instead of a week. */}
+      <Link
+        to="/daily"
+        className="flex items-center justify-between rounded-md border border-line bg-surface px-4.5 py-3.5 no-underline transition-[border] duration-150 ease-linear hover:border-2 hover:border-ink"
+      >
+        <div className="flex flex-col gap-1">
+          <span className="font-sans text-body font-bold text-ink">Скрамбл дня</span>
+          <span className="font-sans text-small text-muted">
+            Общий скрамбл на сутки, одна попытка — без турнирной таблицы.
+          </span>
+        </div>
+        <span className="font-sans text-caption font-black uppercase text-live">● идёт запись</span>
+      </Link>
+
       {/* Этап 4: дуэль по ссылке — create-room + invite, no matchmaking yet. */}
       <section className="flex flex-col gap-3 rounded-lg border-2 border-ink bg-surface p-4.5">
         <div className="flex flex-col gap-1">
