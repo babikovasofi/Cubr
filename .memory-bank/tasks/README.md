@@ -299,6 +299,19 @@
     ruff/mypy/tsc/eslint чисто. [swarm-report/daily-scramble-*]. Коммит `187fdcf`.
   - ⏳ Two-account live click-through `/daily` (камера + 2 юзера); внешний cron дёргает `python -m app.jobs.finalize`.
 
+## Manual-QA bug sweep (2026-07-20, из живого теста пользователя)
+Багрепорт по живому прогону сайта; чиним блоками plan→build→тесты (инлайн, субагенты на лимите).
+- ✅ **A онбординг/камера** (`8532b3e`): honest hands-gate (дебаунс 8 кадров вместо латча), больше превью
+  камеры (max-w-5xl+min-h), цвет-профиль = превью не пикер. [swarm-report/onboarding-camera-fixes-*].
+- ✅ **C формат времени** (`7474cc5`): настройка seconds/clock в профиле, `lib/formatTime` + `settingsStore`,
+  применён во всех местах показа времени. [swarm-report/time-format-setting-*].
+- ✅ **B соло-флоу** (`fd17cbb`): зарегистрированный кубик не пересканируется (`useSavedProfile`);
+  `captureCalibration` получил luma-гейт (пустой кадр не захватывается). [swarm-report/solo-flow-fixes-*].
+- ⏳ **D ядро зрения (R1)** — ЗАБЛОКИРОВАН на данных: матчинг (`lenientVerify`) УЖЕ angle-invariant; «35 не
+  совпадают» = испорченная классификация цвета (мусор из calibrate). Нужен прогон пользователем dev-роута
+  **`/accuracy`** (3 света × ≥2 кубика, гейт 0.90 Wilson-LB) — без реальных per-sticker чисел цвет вслепую.
+  Presence-детекция solved-vs-пустой-стол и точность цвета — часть R1, требует железа.
+
 ## Planned (следующий фокус)
 - **Этап 1.2 manual QA** — прогнать §5.1 живьём (см. выше), тюнинг порогов `config.ts`.
 - **Этап 3 — серверная честность:** серверные скрамблы, поток событий с таймстампами, кадры-доказательства,
