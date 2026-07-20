@@ -284,6 +284,21 @@
   - ✅ Review = **ship** (0), qa-smoke pass. frontend vitest 429 (+11), tsc/eslint чисто, package.json
     без изменений. [swarm-report/countdown-sounds-*]. Коммит `aae27f9`.
 
+- **V2 — скрамбл дня** ✅ код + тесты + live-миграция — `backend/` + `frontend/`.
+  - ✅ **Параллельная daily-вертикаль** (Decision B): турнир нетронут; чистые хелперы (`now_utc`/
+    `is_past_deadline`/`display_name_for`) ИМПОРТИРОВАНЫ из `services.tournament`, соло-ритуал переиспользован
+    без форка. `DailyChallenge` (UNIQUE date) + `DailyAttempt` (UNIQUE user_id,daily_id), миграция **0009**.
+    Authed `POST /daily/current/attempt/{start,submit}` (скрамбл только тут — П8, идемпотентно, ~10мин
+    дедлайн → forced dnf), `GET /daily/current` (без скрамбла, read-only, lazy-dnf через СВЕЖИЙ transient —
+    не copy.copy), `GET /daily/current/board` (de-ranked, public_handle/«Аноним», без rank/PII). get-or-create
+    через begin_nested SAVEPOINT; read scoped на сегодняшний daily_id. `finalize.py` аддитивно свипает daily
+    рядом с турниром в одном commit. honesty=pending, ноль solves (§П5).
+  - ✅ Exec-агенты написали код (упали на session-limit до тестов); полный backend-suite + верификация
+    добиты инлайн. Миграция 0009 применена вживую (Postgres 0008→0009). backend pytest **240** (+22 daily:
+    13 REST/сервис + 9 finalize вкл. cross-day rollover + свип обеих вертикалей), frontend **483** (+33 daily),
+    ruff/mypy/tsc/eslint чисто. [swarm-report/daily-scramble-*]. Коммит `187fdcf`.
+  - ⏳ Two-account live click-through `/daily` (камера + 2 юзера); внешний cron дёргает `python -m app.jobs.finalize`.
+
 ## Planned (следующий фокус)
 - **Этап 1.2 manual QA** — прогнать §5.1 живьём (см. выше), тюнинг порогов `config.ts`.
 - **Этап 3 — серверная честность:** серверные скрамблы, поток событий с таймстампами, кадры-доказательства,
