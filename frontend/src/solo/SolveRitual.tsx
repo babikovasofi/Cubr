@@ -134,11 +134,19 @@ function CalibratePanel({ s }: { s: Session }) {
     const cube = s.selectedCubeName ? `«${s.selectedCubeName}»` : "кубика";
     return (
       <div className="flex flex-col gap-3 rounded-lg border-2 border-ink bg-surface p-4.5">
-        <h3 className="font-sans text-h3 text-ink">Быстрая подстройка</h3>
+        <h3 className="font-sans text-h3 text-ink">Твой кубик готов</h3>
         <p className="font-sans text-small text-muted">
-          Покажи в жёлтой рамке белую грань собранного {cube} — подстрою цвета под свет за пару секунд.
+          Cubr уже знает цвета {cube} — можно сразу собирать, показывать его заново не нужно.
+          Если сильно поменялся свет — подстрой по одной белой грани.
         </p>
-        <Button onClick={s.calibrateStep}>Снять белую грань</Button>
+        <Button onClick={s.useSavedProfile}>Использовать сохранённый профиль</Button>
+        <button
+          type="button"
+          onClick={s.calibrateStep}
+          className="self-start font-sans text-small font-bold text-primary"
+        >
+          Подстроить под свет (одна белая грань)
+        </button>
         {s.calibrateError ? (
           <p role="alert" className="font-sans text-small text-danger">
             {s.calibrateError}

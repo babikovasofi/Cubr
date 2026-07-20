@@ -182,7 +182,7 @@ export interface CubeReader {
   validated: boolean; // refs passed a full 6-face registration (accuracy-worthy)
   verifyFacesLength: number; // 0..6, of the in-flight collector
   collecting: boolean;
-  captureCalibration: (video: HTMLVideoElement) => void;
+  captureCalibration: (video: HTMLVideoElement) => boolean;
   /** Seed refs from a stored cube profile (session-local clone). validated=false. */
   seedProfile: (profile: Refs) => void;
   /** One-white-face session white-balance over seeded refs. In-memory only. */
@@ -222,9 +222,18 @@ export function useCubeReader(workRef: React.RefObject<HTMLCanvasElement | null>
     return luma >= config.MIN_FRAME_LUMA && luma <= config.MAX_FRAME_LUMA;
   };
 
-  const captureCalibration = (video: HTMLVideoElement): void => {
+  // Returns false when the guide region isn't a plausible frame to sample (too
+  // dark / blown-out — the SAME luma gate `readable()` applies to quick-adjust
+  // and verify, minus its refs precondition, which don't exist yet mid-6-face
+  // build). This stops an empty/black frame from being captured as a "face" and
+  // silently poisoning the profile (the "снял без кубика → готово" bug). Note:
+  // the luma gate cannot distinguish a solved face from a well-lit empty surface
+  // — that deeper presence check is the R1 vision work (see /accuracy).
+  const captureCalibration = (video: HTMLVideoElement): boolean => {
     const work = workRef.current;
-    if (!work) return;
+    if (!work) return false;
+    const luma = guideRegionLuma(video, video.videoWidth, video.videoHeight, work);
+    if (luma < config.MIN_FRAME_LUMA || luma > config.MAX_FRAME_LUMA) return false;
     let step = calibrationStep;
     if (step >= COLOR_NAMES.length) {
       step = 0;
@@ -241,6 +250,7 @@ export function useCubeReader(workRef: React.RefObject<HTMLCanvasElement | null>
       setValidated(true);
     }
     setCalibrationStep(next);
+    return true;
   };
 
   // Seed from a stored profile: clone so quick-adjust mutates a session-local copy,

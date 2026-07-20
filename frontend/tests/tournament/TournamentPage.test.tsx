@@ -60,6 +60,7 @@ function stubSession(): SoloSession {
     validated: false,
     calibrateError: null,
     calibrateStep: async () => {},
+    useSavedProfile: () => {},
     fallbackToFullCalibration: () => {},
     collecting: false,
     verifyFacesLength: 0,

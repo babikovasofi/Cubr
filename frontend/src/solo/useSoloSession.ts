@@ -87,6 +87,7 @@ export interface SoloSession {
   validated: boolean; // false for the seeded+quick-adjust path (casual only, HIGH#4)
   calibrateError: string | null;
   calibrateStep: () => Promise<void>;
+  useSavedProfile: () => void;
   fallbackToFullCalibration: () => void;
   // Scramble verify.
   collecting: boolean;
@@ -477,6 +478,7 @@ export function useSoloSession(opts?: UseSoloSessionOpts): SoloSession {
     validated: calibrate.validated,
     calibrateError: calibrate.calibrateError,
     calibrateStep: calibrate.calibrateStep,
+    useSavedProfile: calibrate.useSavedProfile,
     fallbackToFullCalibration: calibrate.fallbackToFullCalibration,
     collecting: reader.collecting,
     verifyFacesLength: reader.verifyFacesLength,

@@ -25,6 +25,8 @@ export interface CalibrateApi {
   validated: boolean;
   calibrateError: string | null;
   calibrateStep: () => Promise<void>;
+  /** Skip the scan for an already-registered cube — use its stored profile as-is. */
+  useSavedProfile: () => void;
   fallbackToFullCalibration: () => void;
   /** Reset error state + clear/re-seed refs for a fresh cycle (plan #7 `again`). */
   reseed: () => void;
@@ -97,8 +99,26 @@ export function useCalibrate(opts: {
     }
 
     // Full 6-face fallback (anon / no profile / rejected quick-adjust).
-    reader.captureCalibration(v);
+    const captured = reader.captureCalibration(v);
+    if (!captured) {
+      // Empty/too-dark frame — DON'T advance the 1/6..6/6 counter on nothing
+      // (the "снял без кубика в кадре → готово" bug).
+      setCalibrateError(faceUnreadableRu());
+      return;
+    }
     if (reader.getProfile() !== null) onCalibrated();
+  };
+
+  /** Use the selected cube's stored profile as-is, WITHOUT re-showing the cube.
+   * The reader was already seeded from the profile on selection; this just
+   * advances past the calibrate screen (validated=false, casual-only). Lets a
+   * user who already registered a cube skip the re-scan entirely (plan Block B).
+   */
+  const useSavedProfile = (): void => {
+    if (!hasProfile || !profile) return;
+    setCalibrateError(null);
+    reader.seedProfile(profileToRefs(profile));
+    onCalibrated();
   };
 
   const fallbackToFullCalibration = (): void => {
@@ -122,6 +142,7 @@ export function useCalibrate(opts: {
     validated: reader.validated,
     calibrateError,
     calibrateStep,
+    useSavedProfile,
     fallbackToFullCalibration,
     reseed,
   };
