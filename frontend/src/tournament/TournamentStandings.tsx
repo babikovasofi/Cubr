@@ -9,6 +9,8 @@
 
 import Button from "../components/Button";
 import Spinner from "../components/Spinner";
+import { useSettingsStore } from "../store/settingsStore";
+import { formatSolveMs } from "../lib/formatTime";
 import type { StandingEntry, TournamentStandingsRead } from "../api/tournament";
 
 export interface TournamentStandingsProps {
@@ -18,11 +20,8 @@ export interface TournamentStandingsProps {
   reload: () => void;
 }
 
-function fmtTime(ms: number): string {
-  return (ms / 1000).toFixed(2);
-}
-
 function Row({ entry }: { entry: StandingEntry }) {
+  const timeFormat = useSettingsStore((s) => s.timeFormat);
   return (
     <div
       className={[
@@ -37,7 +36,7 @@ function Row({ entry }: { entry: StandingEntry }) {
         {entry.is_self ? <span className="ml-2 text-caption uppercase text-primary">ты</span> : null}
       </span>
       <span className="font-sans text-small text-ink [font-variant-numeric:tabular-nums]">
-        {fmtTime(entry.time_ms)}
+        {formatSolveMs(entry.time_ms, timeFormat)}
       </span>
     </div>
   );

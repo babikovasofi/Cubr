@@ -15,6 +15,8 @@
 
 import { Link } from "react-router-dom";
 import type { SolveRead } from "../api/solves";
+import { useSettingsStore } from "../store/settingsStore";
+import { formatSolveMs, type TimeFormat } from "../lib/formatTime";
 
 export interface ChartValidPoint {
   id: string;
@@ -53,8 +55,8 @@ const PAD = { top: 14, right: 12, bottom: 22, left: 40 };
 const PLOT_W = VIEW_W - PAD.left - PAD.right;
 const PLOT_H = VIEW_H - PAD.top - PAD.bottom;
 
-function fmtMs(ms: number): string {
-  return `${(ms / 1000).toFixed(2)} с`;
+function fmtMs(ms: number, format: TimeFormat): string {
+  return formatSolveMs(ms, format);
 }
 
 function fmtDate(iso: string): string {
@@ -103,7 +105,10 @@ function compareSolves(a: { s: SolveRead; i: number }, b: { s: SolveRead; i: num
   return a.i - b.i;
 }
 
-export function buildChartModel(solves: SolveRead[]): ChartModel {
+export function buildChartModel(
+  solves: SolveRead[],
+  format: TimeFormat = "clock",
+): ChartModel {
   if (solves.length === 0) return emptyModel();
 
   const indexed = solves.map((s, i) => ({ s, i }));
@@ -153,7 +158,7 @@ export function buildChartModel(solves: SolveRead[]): ChartModel {
       createdAt: s.created_at,
       isPB,
       pinned: s.time_ms > domainMax,
-      title: `${fmtMs(s.time_ms)} · ${fmtDate(s.created_at)}`,
+      title: `${fmtMs(s.time_ms, format)} · ${fmtDate(s.created_at)}`,
     };
   });
 
@@ -212,7 +217,8 @@ function EmptyCard() {
 }
 
 export default function SolveProgressChart({ solves }: { solves: SolveRead[] }) {
-  const model = buildChartModel(solves);
+  const timeFormat = useSettingsStore((s) => s.timeFormat);
+  const model = buildChartModel(solves, timeFormat);
 
   if (model.kind === "empty") return <EmptyCard />;
 
@@ -245,7 +251,7 @@ export default function SolveProgressChart({ solves }: { solves: SolveRead[] }) 
             className="font-mono [font-variant-numeric:tabular-nums]"
             style={{ fontSize: 8 }}
           >
-            {fmtMs(model.domain.min)}
+            {fmtMs(model.domain.min, timeFormat)}
           </text>
           <text
             x={PAD.left - 6}
@@ -255,7 +261,7 @@ export default function SolveProgressChart({ solves }: { solves: SolveRead[] }) 
             className="font-mono [font-variant-numeric:tabular-nums]"
             style={{ fontSize: 8 }}
           >
-            {fmtMs(model.domain.max)}
+            {fmtMs(model.domain.max, timeFormat)}
           </text>
 
           {model.firstDate ? (
@@ -337,7 +343,7 @@ export default function SolveProgressChart({ solves }: { solves: SolveRead[] }) 
                   stroke="var(--ink)"
                   strokeWidth={1.5}
                 >
-                  <title>{`Личный рекорд: ${fmtMs(p.timeMs)}`}</title>
+                  <title>{`Личный рекорд: ${fmtMs(p.timeMs, timeFormat)}`}</title>
                 </circle>
               );
             }

@@ -46,6 +46,8 @@ import { useCalibrate, type CalibrateMode } from "./useCalibrate";
 import { buildSolvePayload, saveSoloResult, type SaveState } from "./solveSave";
 import { isAuthed } from "../store/authStore";
 import { getSelectedCubeId } from "../store/cubesStore";
+import { useSettingsStore } from "../store/settingsStore";
+import { formatSolveMs } from "../lib/formatTime";
 import { SOLVED } from "../vision/cubeState";
 import { createSolve } from "../api/solves";
 import { toast } from "../components/Toast";
@@ -127,6 +129,7 @@ export function useSoloSession(opts?: UseSoloSessionOpts): SoloSession {
   // Track death (device grabbed/unplugged/asleep) → reset so the UI can restart
   // without a page reload.
   const [cameraStarted, setCameraStarted] = useState(false);
+  const timeFormat = useSettingsStore((s) => s.timeFormat);
   const camera = useCamera(videoRef, () => setCameraStarted(false));
   const hands = useHands();
   const reader = useCubeReader(workRef);
@@ -448,10 +451,10 @@ export function useSoloSession(opts?: UseSoloSessionOpts): SoloSession {
 
   const timerSeconds =
     state.phase === "solving"
-      ? (liveMs / 1000).toFixed(2)
+      ? formatSolveMs(liveMs, timeFormat)
       : state.phase === "stopped" || state.phase === "solve_verify" || state.phase === "result"
-        ? (state.elapsedMs / 1000).toFixed(2)
-        : "0.00";
+        ? formatSolveMs(state.elapsedMs, timeFormat)
+        : formatSolveMs(0, timeFormat);
 
   return {
     state,

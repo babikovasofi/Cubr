@@ -5,6 +5,7 @@ import { render, screen, fireEvent, waitFor, act } from "@testing-library/react"
 import { BrowserRouter } from "react-router-dom";
 import ProfilePage from "../../src/pages/ProfilePage";
 import type { SolveRead } from "../../src/api/solves";
+import { useSettingsStore } from "../../src/store/settingsStore";
 
 const { useAuthStoreMock, updateMeMock, listSolvesMock } = vi.hoisted(() => ({
   updateMeMock: vi.fn(),
@@ -204,6 +205,36 @@ describe("ProfilePage — public_handle field", () => {
 
     const input = screen.getByLabelText("Публичное имя в турнире") as HTMLInputElement;
     expect(input.value).toBe("");
+  });
+});
+
+describe("ProfilePage — time-format setting", () => {
+  beforeEach(() => {
+    useSettingsStore.setState({ timeFormat: "clock" });
+    useAuthStoreMock.mockImplementation((selector) =>
+      selector({ user: { ...MOCK_USER, best_single_ms: 65000 }, updateMe: updateMeMock }),
+    );
+  });
+
+  it("renders the «Формат времени» radios and switches the displayed record", () => {
+    render(
+      <BrowserRouter>
+        <ProfilePage />
+      </BrowserRouter>,
+    );
+
+    // Two radios (clock, seconds); clock is the default so the record shows M:SS.
+    const radios = screen.getAllByRole("radio");
+    expect(radios).toHaveLength(2);
+    expect(screen.getByText("1:05.00")).toBeTruthy();
+
+    // Switch to seconds → the same record re-renders as plain seconds.
+    act(() => {
+      fireEvent.click(radios[1]);
+    });
+    expect(useSettingsStore.getState().timeFormat).toBe("seconds");
+    expect(screen.getByText("65.00")).toBeTruthy();
+    expect(screen.queryByText("1:05.00")).toBeNull();
   });
 });
 

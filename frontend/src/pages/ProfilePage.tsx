@@ -10,13 +10,15 @@ import Spinner from "../components/Spinner";
 import BadgeGrid from "../components/BadgeGrid";
 import SolveProgressChart from "../components/SolveProgressChart";
 import { useAuthStore } from "../store/authStore";
+import { useSettingsStore } from "../store/settingsStore";
+import { formatSolveMs, type TimeFormat } from "../lib/formatTime";
 import CubeList from "../cubes/CubeList";
 import { listSolves, type SolveRead } from "../api/solves";
 import { ApiError } from "../api/client";
 
-function fmtMs(ms: number | null): string {
+function fmtMs(ms: number | null, format: TimeFormat): string {
   if (ms == null) return "—";
-  return `${(ms / 1000).toFixed(2)} с`;
+  return formatSolveMs(ms, format);
 }
 
 function fmtDate(iso: string): string {
@@ -49,6 +51,8 @@ export default function ProfilePage() {
         ao5={user.best_ao5_ms}
         cups={user.cups}
       />
+
+      <SettingsSection />
 
       <EditForm
         initialNickname={user.nickname ?? ""}
@@ -98,9 +102,10 @@ function Records({
   ao5: number | null;
   cups: number;
 }) {
+  const timeFormat = useSettingsStore((s) => s.timeFormat);
   const cards: { label: string; value: string }[] = [
-    { label: "Лучшая сборка", value: fmtMs(best) },
-    { label: "Лучший Ao5", value: ao5 == null ? "—" : fmtMs(ao5) },
+    { label: "Лучшая сборка", value: fmtMs(best, timeFormat) },
+    { label: "Лучший Ao5", value: ao5 == null ? "—" : fmtMs(ao5, timeFormat) },
     { label: "Кубки", value: String(cups) },
   ];
   return (
@@ -113,6 +118,42 @@ function Records({
           </span>
         </div>
       ))}
+    </section>
+  );
+}
+
+function SettingsSection() {
+  const timeFormat = useSettingsStore((s) => s.timeFormat);
+  const setTimeFormat = useSettingsStore((s) => s.setTimeFormat);
+  const options: { value: TimeFormat; label: string }[] = [
+    { value: "clock", label: "Минуты : секунды" },
+    { value: "seconds", label: "Секунды" },
+  ];
+  return (
+    <section className="flex flex-col gap-4 rounded-lg border-2 border-ink bg-surface p-6">
+      <h2 className="font-sans text-h3 text-ink">Настройки</h2>
+      <fieldset className="flex flex-col gap-2">
+        <legend className="mb-1 font-sans text-small font-bold text-ink">Формат времени</legend>
+        {options.map((o) => (
+          <label
+            key={o.value}
+            className="flex items-center gap-2 font-sans text-small text-ink"
+          >
+            <input
+              type="radio"
+              name="time-format"
+              value={o.value}
+              checked={timeFormat === o.value}
+              onChange={() => setTimeFormat(o.value)}
+              className="h-4 w-4 accent-primary"
+            />
+            {o.label}
+            <span className="text-muted [font-variant-numeric:tabular-nums]">
+              · {formatSolveMs(83450, o.value)}
+            </span>
+          </label>
+        ))}
+      </fieldset>
     </section>
   );
 }
@@ -203,6 +244,7 @@ type HistoryState =
   | { kind: "ok"; solves: SolveRead[] };
 
 function History() {
+  const timeFormat = useSettingsStore((s) => s.timeFormat);
   const [state, setState] = useState<HistoryState>({ kind: "loading" });
   const [reloadKey, setReloadKey] = useState(0);
 
@@ -271,7 +313,7 @@ function History() {
               {state.solves.map((s) => (
                 <tr key={s.id} className="border-b border-line">
                   <td className="py-2 pr-4 text-ink [font-variant-numeric:tabular-nums]">
-                    {s.status === "dnf" ? "DNF" : fmtMs(s.time_ms)}
+                    {s.status === "dnf" ? "DNF" : fmtMs(s.time_ms, timeFormat)}
                   </td>
                   <td className="py-2 pr-4">
                     <StatusBadge status={s.status} />

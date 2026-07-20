@@ -5,6 +5,8 @@
 // opponent-style "Не в этот раз" framing — there's no opponent in this brick).
 
 import Timer from "../components/Timer";
+import { useSettingsStore } from "../store/settingsStore";
+import { formatSolveMs } from "../lib/formatTime";
 import type { TerminalResult } from "./useTournamentAttempt";
 
 export interface TournamentResultProps {
@@ -12,9 +14,10 @@ export interface TournamentResultProps {
 }
 
 export default function TournamentResult({ result }: TournamentResultProps) {
+  const timeFormat = useSettingsStore((s) => s.timeFormat);
   const { week_label, status, time_ms, forcedLateDnf } = result;
   const dnf = status === "dnf";
-  const seconds = time_ms !== null ? (time_ms / 1000).toFixed(2) : "DNF";
+  const seconds = time_ms !== null ? formatSolveMs(time_ms, timeFormat) : "DNF";
 
   return (
     <section

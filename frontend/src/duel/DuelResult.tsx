@@ -9,6 +9,8 @@ import type { DuelH2HRead } from "../api/duel";
 import type { CardData } from "../share/resultCard";
 import ShareCardButton from "../share/ShareCardButton";
 import { useAuthStore } from "../store/authStore";
+import { useSettingsStore } from "../store/settingsStore";
+import { formatSolveMs, type TimeFormat } from "../lib/formatTime";
 import type { DuelResultPayload, PlayerSlot } from "./duelMachine";
 
 export interface DuelResultProps {
@@ -23,9 +25,13 @@ export interface DuelResultProps {
   scramble: string | null;
 }
 
-function formatTime(status: "pending" | "valid" | "dnf", timeMs: number | null): string {
+function formatTime(
+  status: "pending" | "valid" | "dnf",
+  timeMs: number | null,
+  format: TimeFormat,
+): string {
   if (status === "dnf" || timeMs === null) return "DNF";
-  return (timeMs / 1000).toFixed(2);
+  return formatSolveMs(timeMs, format);
 }
 
 // Standard Russian plural-form picker: [one, few, many] e.g. 1 → forms[0],
@@ -60,6 +66,7 @@ export default function DuelResult({
   scramble,
 }: DuelResultProps) {
   const ownId = useAuthStore((s) => s.user?.id ?? null);
+  const timeFormat = useSettingsStore((s) => s.timeFormat);
   const you = result.players.find((p) => p.slot === yourSlot) ?? null;
   const opponent = result.players.find((p) => p.slot !== yourSlot) ?? null;
 
@@ -71,8 +78,12 @@ export default function DuelResult({
 
   // Card mirrors ONLY what's already on screen — the formatted times and this
   // outcome label. Never winner_id/any UUID/email (privacy, plan: result-share-card).
-  const yourTime = formatTime(you?.status ?? "pending", you?.time_ms ?? null);
-  const opponentTime = formatTime(opponent?.status ?? "pending", opponent?.time_ms ?? null);
+  const yourTime = formatTime(you?.status ?? "pending", you?.time_ms ?? null, timeFormat);
+  const opponentTime = formatTime(
+    opponent?.status ?? "pending",
+    opponent?.time_ms ?? null,
+    timeFormat,
+  );
   const cardData: CardData | null = scramble
     ? {
         kind: "duel",
