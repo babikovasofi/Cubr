@@ -6,7 +6,7 @@
 
 import { useRef, useState } from "react";
 import {
-  calibrate,
+  calibrateByColorIdentity,
   COLOR_NAMES,
   deltaE,
   medianOfCentralRegion,
@@ -245,7 +245,11 @@ export function useCubeReader(workRef: React.RefObject<HTMLCanvasElement | null>
     const next = step + 1;
     if (next >= COLOR_NAMES.length) {
       // A full 6-face registration → accuracy-worthy refs (skeptic HIGH#4).
-      refsRef.current = calibrate(calibRgbRef.current as Record<ColorName, RGB>);
+      // Faces are collected into slots by capture order, but LABELLED by their
+      // actual colour (min-cost bijection to the canonical anchors), so the user
+      // may show the 6 solved faces in any order without mislabelling the refs.
+      const captured = COLOR_NAMES.map((n) => calibRgbRef.current[n]!);
+      refsRef.current = calibrateByColorIdentity(captured);
       setSeeded(false);
       setValidated(true);
     }

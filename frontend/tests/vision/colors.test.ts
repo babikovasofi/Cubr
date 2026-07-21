@@ -7,6 +7,7 @@ import {
   deltaE,
   medianOfCentralRegion,
   calibrate,
+  calibrateByColorIdentity,
   classifyFace,
   assignQuota,
   applyLightGain,
@@ -118,6 +119,51 @@ describe("medianOfCentralRegion", () => {
     }
     const [r, g, b] = medianOfCentralRegion(px, w, h, 0.5);
     expect([r, g, b]).toEqual([128, 128, 128]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// calibrateByColorIdentity: order-independent calibration.
+// ---------------------------------------------------------------------------
+
+describe("calibrateByColorIdentity", () => {
+  // Real cube-ish, well-separated so identity assignment is unambiguous.
+  const rgbByFace: Record<string, RGB> = {
+    U: [245, 245, 245], // white
+    R: [200, 40, 40], // red
+    F: [30, 130, 60], // green
+    D: [235, 220, 40], // yellow
+    L: [225, 110, 30], // orange
+    B: [30, 70, 200], // blue
+  };
+
+  it("labels each slot by actual colour regardless of capture order", () => {
+    const shuffled: RGB[] = [
+      rgbByFace.B,
+      rgbByFace.D,
+      rgbByFace.U,
+      rgbByFace.L,
+      rgbByFace.F,
+      rgbByFace.R,
+    ];
+    const refs = calibrateByColorIdentity(shuffled);
+    // Each ref must equal the Lab of its own colour's RGB, not the shown order.
+    for (const name of COLOR_NAMES) {
+      expect(refs[name]).toEqual(rgb2lab(rgbByFace[name]));
+    }
+  });
+
+  it("is identical to fixed-order calibrate when shown in canonical order", () => {
+    const inOrder = COLOR_NAMES.map((n) => rgbByFace[n]);
+    const byIdentity = calibrateByColorIdentity(inOrder);
+    const byOrder = calibrate(rgbByFace as Record<(typeof COLOR_NAMES)[number], RGB>);
+    for (const name of COLOR_NAMES) {
+      expect(byIdentity[name]).toEqual(byOrder[name]);
+    }
+  });
+
+  it("throws when not given exactly 6 colours", () => {
+    expect(() => calibrateByColorIdentity([rgbByFace.U])).toThrow();
   });
 });
 

@@ -232,6 +232,68 @@ export function calibrate(faceMedians: Record<ColorName, RGB>): Refs {
   return refs;
 }
 
+// Canonical Lab anchors for the standard colour scheme (white top / green front:
+// U=white, R=red, F=green, D=yellow, L=orange, B=blue). The 6 cube colours are
+// far apart, so matching captured colours to these anchors is robust even under a
+// global white-balance/exposure shift (a shifted red is still nearer red than
+// green). Used to LABEL the 6 calibration faces by their actual colour instead of
+// by the order they were shown in.
+const COLOR_ANCHORS: Record<ColorName, Lab> = {
+  U: [92, 0, 2], // white
+  R: [50, 60, 40], // red
+  F: [52, -45, 25], // green
+  D: [85, -10, 75], // yellow
+  L: [62, 45, 58], // orange
+  B: [32, 15, -45], // blue
+};
+
+/**
+ * Order-INDEPENDENT calibration. Given the 6 captured face-center RGBs in ANY
+ * order, assign each to its face slot (U/R/F/D/L/B) by its actual colour — a
+ * minimum-cost bijection between the 6 captured Labs and the 6 canonical anchors
+ * (brute force over 6! = 720 permutations, trivially cheap, globally optimal).
+ *
+ * This fixes the "faces shown in the wrong order → refs mislabeled → every read
+ * lands in the wrong slot" failure: the user can show the 6 faces in any order.
+ * `capturedRGB` MUST have exactly 6 entries (one per solved face).
+ */
+export function calibrateByColorIdentity(capturedRGB: RGB[]): Refs {
+  if (capturedRGB.length !== COLOR_NAMES.length) {
+    throw new Error(`calibrateByColorIdentity needs 6 colours, got ${capturedRGB.length}`);
+  }
+  const labs = capturedRGB.map(rgb2lab);
+  const n = COLOR_NAMES.length;
+
+  // Best permutation perm[faceIndex] = captured index, minimizing total anchor ΔE.
+  const used = new Array(n).fill(false);
+  const current: number[] = [];
+  let bestCost = Infinity;
+  let bestPerm: number[] = [];
+
+  const recurse = (faceIdx: number, cost: number): void => {
+    if (cost >= bestCost) return; // prune
+    if (faceIdx === n) {
+      bestCost = cost;
+      bestPerm = current.slice();
+      return;
+    }
+    const anchor = COLOR_ANCHORS[COLOR_NAMES[faceIdx]];
+    for (let c = 0; c < n; c++) {
+      if (used[c]) continue;
+      used[c] = true;
+      current.push(c);
+      recurse(faceIdx + 1, cost + deltaE76(labs[c], anchor));
+      current.pop();
+      used[c] = false;
+    }
+  };
+  recurse(0, 0);
+
+  const refs = {} as Refs;
+  for (let f = 0; f < n; f++) refs[COLOR_NAMES[f]] = labs[bestPerm[f]];
+  return refs;
+}
+
 /** Independent per-sticker classification (argmin deltaE). No quota. */
 export function classifyFace(
   cellLabs: Lab[],
