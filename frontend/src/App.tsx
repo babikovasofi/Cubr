@@ -14,6 +14,8 @@ import ResetPasswordPage from "./pages/ResetPasswordPage";
 import OAuthCallbackPage from "./pages/OAuthCallbackPage";
 import OnboardingPage from "./pages/OnboardingPage";
 import ProfilePage from "./pages/ProfilePage";
+import RulesPage from "./pages/RulesPage";
+import PrivacyPage from "./pages/PrivacyPage";
 import { ProtectedRoute, GuestOnlyRoute } from "./auth/ProtectedRoute";
 import { ToastViewport, toast } from "./components/Toast";
 import { useAuthStore } from "./store/authStore";
@@ -138,6 +140,24 @@ function Header() {
   );
 }
 
+// Этап 6: единственная сквозная точка входа в правила/приватность — под контентом,
+// нейтральная (§1: цвет живёт в деталях, не в служебных блоках).
+function Footer() {
+  return (
+    <footer className="mt-12 border-t border-line">
+      <div className="mx-auto flex max-w-content flex-wrap items-center gap-x-6 gap-y-2 px-4 py-6">
+        <span className="font-sans text-small text-faint">Cubr</span>
+        <Link to="/rules" className="font-sans text-small font-bold text-muted no-underline">
+          Правила
+        </Link>
+        <Link to="/privacy" className="font-sans text-small font-bold text-muted no-underline">
+          Данные и приватность
+        </Link>
+      </div>
+    </footer>
+  );
+}
+
 export default function App() {
   const bootstrap = useAuthStore((s) => s.bootstrap);
 
@@ -153,6 +173,9 @@ export default function App() {
         <Routes>
           <Route path="/" element={<HomePage />} />
           <Route path="/solo" element={<SoloPage />} />
+          {/* Этап 6: публичные текстовые страницы — читаются ДО регистрации. */}
+          <Route path="/rules" element={<RulesPage />} />
+          <Route path="/privacy" element={<PrivacyPage />} />
 
           {AccuracyPage ? (
             <Route
@@ -243,6 +266,7 @@ export default function App() {
           />
         </Routes>
       </main>
+      <Footer />
       <ToastViewport />
     </div>
   );

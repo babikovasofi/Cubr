@@ -114,6 +114,20 @@ export default function RegisterPage() {
           onChange={(e) => setPassword(e.target.value)}
           error={error}
         />
+        {/* Этап 6: согласие с правилами и политикой — текстом у кнопки, без
+            отдельной галочки: одно действие «Зарегистрироваться», ссылки открыты
+            анонимно. Тот же смысл распространяется и на вход через Google ниже. */}
+        <p className="font-sans text-small text-muted">
+          Регистрируясь, ты соглашаешься с{" "}
+          <Link to="/rules" className="font-bold text-primary">
+            правилами
+          </Link>{" "}
+          и{" "}
+          <Link to="/privacy" className="font-bold text-primary">
+            обработкой данных
+          </Link>
+          .
+        </p>
         <Button type="submit" disabled={busy}>
           {busy ? "Создаю…" : "Зарегистрироваться"}
         </Button>
