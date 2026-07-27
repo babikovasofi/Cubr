@@ -17,6 +17,7 @@ import ProfilePage from "./pages/ProfilePage";
 import RulesPage from "./pages/RulesPage";
 import PrivacyPage from "./pages/PrivacyPage";
 import { ProtectedRoute, GuestOnlyRoute } from "./auth/ProtectedRoute";
+import TrophyIcon from "./components/TrophyIcon";
 import { ToastViewport, toast } from "./components/Toast";
 import { useAuthStore } from "./store/authStore";
 
@@ -52,11 +53,15 @@ function AuthMenu() {
 
   return (
     <div className="flex items-center gap-3" ref={ref}>
+      {/* Бейдж кубков. Отступление от §5.6: заливка нейтральная, а не `warning` —
+          жёлтая пилюля в шапке перетягивала на себя весь экран. Кубок — контуром
+          `ink`, не эмодзи. */}
       <span
-        className="rounded-full border-2 border-ink bg-surface-2 px-2.5 py-0.5 font-sans text-caption uppercase text-ink"
+        className="inline-flex items-center gap-1.5 rounded-full border-2 border-ink bg-surface-2 px-3.5 py-1 font-sans text-small font-black text-ink"
         aria-label={`Кубки: ${user.cups}`}
       >
-        {user.cups} кубк.
+        <TrophyIcon className="h-4 w-4" />
+        {user.cups}
       </span>
       <div className="relative">
         <button
@@ -64,7 +69,7 @@ function AuthMenu() {
           onClick={() => setOpen((v) => !v)}
           aria-haspopup="menu"
           aria-expanded={open}
-          className="flex h-9 w-9 items-center justify-center overflow-hidden rounded-full border-2 border-ink bg-surface-2 font-sans text-small font-black text-ink"
+          className="flex h-11 w-11 items-center justify-center overflow-hidden rounded-full border-2 border-ink bg-surface-2 font-sans text-body font-black text-ink"
         >
           {user.avatar_url ? (
             <img src={user.avatar_url} alt="" className="h-full w-full object-cover" />
@@ -115,21 +120,25 @@ function Header() {
   const status = useAuthStore((s) => s.status);
 
   return (
-    <header className="h-12 border-b border-line bg-surface">
+    // Шапка 64px вместо 48px из §6: со знаком Л1 и словомарком 24px прежняя
+    // высота душила логотип. Граница снизу `1px line` — как в спеке.
+    <header className="h-16 border-b border-line bg-surface">
       <div className="mx-auto flex h-full max-w-content items-center justify-between px-4">
-        <Link to="/" className="font-sans text-h3 font-black text-ink no-underline">
+        {/* Словомарк без знака 2×2: знак из §6 пробовали в шапке — визуально
+            перегружал, оставлен только словомарк. */}
+        <Link to="/" className="font-sans text-h2 font-black text-ink no-underline">
           Cubr
         </Link>
         {status === "authed" ? (
           <AuthMenu />
         ) : status === "anon" ? (
-          <nav className="flex items-center gap-4">
-            <Link to="/login" className="font-sans text-small font-bold text-primary no-underline">
+          <nav className="flex items-center gap-5">
+            <Link to="/login" className="font-sans text-body font-bold text-primary no-underline">
               Войти
             </Link>
             <Link
               to="/register"
-              className="inline-flex h-9 items-center rounded-full border-2 border-ink bg-primary px-4 font-sans text-small font-extrabold text-white no-underline"
+              className="inline-flex h-10 items-center rounded-full border-2 border-ink bg-primary px-5 font-sans text-body font-extrabold text-white no-underline"
             >
               Регистрация
             </Link>

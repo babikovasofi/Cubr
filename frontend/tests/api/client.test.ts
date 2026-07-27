@@ -67,7 +67,17 @@ describe("parseErrorBody — fastapi-users detail shapes", () => {
 
   it("falls back to a reason string, then to a generic RU message", () => {
     expect(parseErrorBody(400, { detail: { reason: "тест" } }).message).toBe("тест");
-    expect(parseErrorBody(500, {}).message).toBe("Что-то пошло не так. Попробуй ещё раз.");
+    expect(parseErrorBody(418, {}).message).toBe("Что-то пошло не так. Попробуй ещё раз.");
+  });
+
+  // Живой прогон: бэкенд не запущен → dev-прокси отвечает 502, fetch НЕ падает,
+  // и пользователь видел общее «Что-то пошло не так» — неотличимо от «пароль
+  // слишком простой». Статусы недоступности объясняются отдельно.
+  it("explains an unreachable/broken server instead of the generic message", () => {
+    expect(parseErrorBody(502, null).message).toBe("Сервер сейчас недоступен. Попробуй через минуту.");
+    expect(parseErrorBody(503, null).message).toBe("Сервер сейчас недоступен. Попробуй через минуту.");
+    expect(parseErrorBody(504, null).message).toBe("Сервер не ответил вовремя. Попробуй ещё раз.");
+    expect(parseErrorBody(500, {}).message).toBe("Ошибка на сервере. Попробуй ещё раз чуть позже.");
   });
 });
 

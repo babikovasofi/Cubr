@@ -39,6 +39,13 @@ describe("HomePage", () => {
     expect(screen.getByText(/Нужен компьютер с камерой/)).toBeTruthy();
   });
 
+  it("грань кубика в герое — декоративная: 9 наклеек, скрыта от скринридера", () => {
+    const { container } = renderHome();
+
+    expect(screen.getAllByTestId("hero-sticker")).toHaveLength(9);
+    expect(container.querySelector('[aria-hidden="true"]')).toBeTruthy();
+  });
+
   it("аноним видит ссылки на правила и приватность", () => {
     renderHome();
 
@@ -77,6 +84,14 @@ describe("HomePage", () => {
       "/tournament",
     );
     expect(screen.getByRole("link", { name: /Скрамбл дня/ }).getAttribute("href")).toBe("/daily");
+  });
+
+  it("у каждого режима своя мини-сетка-индикатор", () => {
+    useAuthStore.setState({ status: "authed" });
+    renderHome();
+
+    // Челлендж, скрамбл дня, дуэль.
+    expect(screen.getAllByTestId("mini-grid")).toHaveLength(3);
   });
 
   it("dev-заглушек на главной больше нет", () => {

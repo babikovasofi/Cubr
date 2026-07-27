@@ -7,6 +7,8 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import Button from "../components/Button";
+import HeroStickers from "../components/HeroStickers";
+import MiniGrid from "../components/MiniGrid";
 import { useUiStore } from "../store/uiStore";
 import { useAuthStore } from "../store/authStore";
 import { createRoom, saveDuelSessionToken } from "../api/duel";
@@ -15,12 +17,41 @@ import { createRoom, saveDuelSessionToken } from "../api/duel";
 const CARD_LINK =
   "flex items-center justify-between gap-4 rounded-md border border-line bg-surface px-4.5 py-3.5 no-underline transition-[border] duration-150 ease-linear hover:border-2 hover:border-ink";
 
-function ModeCard({ to, title, text, live }: { to: string; title: string; text: string; live?: boolean }) {
+// У каждого режима своя мини-сетка §4 — цвет и рисунок ячеек. Это и есть
+// «мелкие яркие детали» вместо цветных заливок панелей (§1: 90/8/2).
+const O = false;
+const X = true;
+const MODE_ICON = {
+  solo: { accent: "var(--success)", cells: [O, O, O, O, X, O, O, O, O] },
+  duel: { accent: "var(--primary)", cells: [X, O, X, O, X, O, X, O, X] },
+  week: { accent: "var(--warning)", cells: [X, X, X, O, X, O, O, X, O] },
+  daily: { accent: "var(--live)", cells: [O, X, O, X, X, X, O, X, O] },
+} as const;
+
+type ModeKey = keyof typeof MODE_ICON;
+
+function ModeCard({
+  to,
+  mode,
+  title,
+  text,
+  live,
+}: {
+  to: string;
+  mode: ModeKey;
+  title: string;
+  text: string;
+  live?: boolean;
+}) {
+  const icon = MODE_ICON[mode];
   return (
     <Link to={to} className={CARD_LINK}>
-      <div className="flex flex-col gap-1">
-        <span className="font-sans text-body font-bold text-ink">{title}</span>
-        <span className="font-sans text-small text-muted">{text}</span>
+      <div className="flex items-center gap-4">
+        <MiniGrid accent={icon.accent} cells={[...icon.cells]} />
+        <div className="flex flex-col gap-1">
+          <span className="font-sans text-body font-bold text-ink">{title}</span>
+          <span className="font-sans text-small text-muted">{text}</span>
+        </div>
       </div>
       {live ? (
         <span className="whitespace-nowrap font-sans text-caption font-black uppercase text-live">
@@ -30,6 +61,9 @@ function ModeCard({ to, title, text, live }: { to: string; title: string; text: 
     </Link>
   );
 }
+
+// Цвета наклеек-номеров шагов ритуала — по одному на шаг, в порядке ритуала.
+const STEP_ACCENTS = ["var(--success)", "var(--warning)", "var(--primary)", "var(--live)"];
 
 const STEPS: { title: string; text: string }[] = [
   {
@@ -53,25 +87,30 @@ const STEPS: { title: string; text: string }[] = [
 function Landing() {
   return (
     <div className="flex flex-col gap-12">
-      <section className="flex flex-col gap-5">
-        <h1 className="max-w-[18ch] font-sans text-h1 text-ink">
-          Дуэли по сборке кубика. Судит камера.
-        </h1>
-        <p className="max-w-prose font-sans text-body text-muted">
-          Показываешь кубик в камеру — браузер сам проверяет скрамбл, ловит старт и стоп по рукам и
-          подтверждает сборку. Ни живого судьи, ни «поверь на слово».
-        </p>
-        <div className="flex flex-wrap items-center gap-4">
-          <Link to="/register" className="no-underline">
-            <Button>Создать аккаунт</Button>
-          </Link>
-          <Link to="/solo" className="no-underline">
-            <Button variant="secondary">Попробовать соло без аккаунта</Button>
-          </Link>
+      {/* Герой: текст слева, живая грань кубика в пустоте справа. Декор —
+          на узких экранах просто снимается, ничего не теряется. */}
+      <section className="flex items-center justify-between gap-10">
+        <div className="flex flex-col gap-5">
+          <h1 className="max-w-[18ch] font-sans text-h1 text-ink">
+            Дуэли по сборке кубика. Судит камера.
+          </h1>
+          <p className="max-w-prose font-sans text-body text-muted">
+            Показываешь кубик в камеру — браузер сам проверяет скрамбл, ловит старт и стоп по рукам и
+            подтверждает сборку. Ни живого судьи, ни «поверь на слово».
+          </p>
+          <div className="flex flex-wrap items-center gap-4">
+            <Link to="/register" className="no-underline">
+              <Button>Создать аккаунт</Button>
+            </Link>
+            <Link to="/solo" className="no-underline">
+              <Button variant="secondary">Попробовать соло без аккаунта</Button>
+            </Link>
+          </div>
+          <p className="font-sans text-small text-faint">
+            Нужен компьютер с камерой и обычный комнатный свет. Видео не покидает браузер.
+          </p>
         </div>
-        <p className="font-sans text-small text-faint">
-          Нужен компьютер с камерой и обычный комнатный свет. Видео не покидает браузер.
-        </p>
+        <HeroStickers className="hidden shrink-0 pr-6 lg:grid" />
       </section>
 
       <section className="flex flex-col gap-4">
@@ -82,7 +121,13 @@ function Landing() {
               key={step.title}
               className="flex flex-col gap-2 rounded-lg border border-line bg-surface p-4.5"
             >
-              <span className="inline-flex h-7 w-7 items-center justify-center rounded-sm border-2 border-ink bg-surface-2 font-sans text-small font-black text-ink">
+              {/* Номер шага — наклейка в цвете кубика: 4 мелких ярких пятна
+                  вместо серых плашек. Текст всегда `ink` (§1: никакого цветного
+                  текста на цветной заливке). */}
+              <span
+                className="inline-flex h-7 w-7 items-center justify-center rounded-sm border-2 border-ink font-sans text-small font-black text-ink"
+                style={{ background: STEP_ACCENTS[i] }}
+              >
                 {i + 1}
               </span>
               <span className="font-sans text-body font-bold text-ink">{step.title}</span>
@@ -100,22 +145,26 @@ function Landing() {
         <div className="flex flex-col gap-3">
           <ModeCard
             to="/solo"
+            mode="solo"
             title="Соло-тренировка"
             text="Весь ритуал целиком, без аккаунта. Сборки сохраняются, если войти."
           />
           <ModeCard
             to="/register"
+            mode="duel"
             title="Дуэль по ссылке"
             text="Создаёшь комнату, кидаешь ссылку другу — старт синхронный, скрамбл один на двоих."
           />
           <ModeCard
             to="/register"
+            mode="week"
             title="Челлендж недели"
             text="Общий скрамбл на неделю, одна попытка."
             live
           />
           <ModeCard
             to="/register"
+            mode="daily"
             title="Скрамбл дня"
             text="Общий скрамбл на сутки, одна попытка."
             live
@@ -200,12 +249,14 @@ function Dashboard() {
       {/* §6.2 карточки-режимы: surface + 1px line, live-бейдж «идёт запись». */}
       <ModeCard
         to="/tournament"
+        mode="week"
         title="Челлендж недели"
         text="Общий скрамбл, одна попытка — без турнирной таблицы."
         live
       />
       <ModeCard
         to="/daily"
+        mode="daily"
         title="Скрамбл дня"
         text="Общий скрамбл на сутки, одна попытка — без турнирной таблицы."
         live
@@ -213,11 +264,14 @@ function Dashboard() {
 
       {/* Этап 4: дуэль по ссылке — create-room + invite, без матчмейкинга. */}
       <section className="flex flex-col gap-3 rounded-lg border-2 border-ink bg-surface p-4.5">
-        <div className="flex flex-col gap-1">
-          <span className="font-sans text-body font-bold text-ink">Дуэль по ссылке</span>
-          <span className="font-sans text-small text-muted">
-            Создай комнату и пришли ссылку сопернику — старт синхронный, один общий скрамбл.
-          </span>
+        <div className="flex items-center gap-4">
+          <MiniGrid accent={MODE_ICON.duel.accent} cells={[...MODE_ICON.duel.cells]} />
+          <div className="flex flex-col gap-1">
+            <span className="font-sans text-body font-bold text-ink">Дуэль по ссылке</span>
+            <span className="font-sans text-small text-muted">
+              Создай комнату и пришли ссылку сопернику — старт синхронный, один общий скрамбл.
+            </span>
+          </div>
         </div>
         <Button onClick={() => void startDuel()} disabled={duelBusy} className="self-start">
           {duelBusy ? "Создаю комнату…" : "Дуэль по ссылке"}
