@@ -8,6 +8,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useTwisty } from "../scramble/hooks/useTwisty";
 import { moveLabelRu } from "../scramble/moveCopy";
+import { useT } from "../i18n/t";
 
 const NOTATION_KEY = "cubr.scramble.showNotation";
 
@@ -22,6 +23,7 @@ export default function ScrambleWalkthrough({
   onDone,
   doneLabel = "Готово, проверить",
 }: ScrambleWalkthroughProps) {
+  const t = useT();
   const total = moves.length;
   const { slotRef, ready, error, showState, animateMove } = useTwisty();
   const [index, setIndex] = useState(0); // moves applied (0 = solved/start)
@@ -92,7 +94,7 @@ export default function ScrambleWalkthrough({
   return (
     <div className="flex flex-col gap-4">
       <p className="rounded-md border border-line bg-surface-2 px-3.5 py-2 font-sans text-small font-bold text-ink">
-        Ориентация: белый верх, зелёный к себе.
+        {t("Ориентация: белый верх, зелёный к себе.")}
       </p>
 
       {error ? (
@@ -104,7 +106,7 @@ export default function ScrambleWalkthrough({
       <div
         ref={slotRef}
         className="mx-auto aspect-square w-full max-w-xs rounded-lg border-2 border-ink bg-surface [&>*]:h-full [&>*]:w-full"
-        aria-label="3D-модель кубика на текущем шаге"
+        aria-label={t("3D-модель кубика на текущем шаге")}
       />
 
       <div className="flex flex-col gap-1.5">
@@ -131,7 +133,7 @@ export default function ScrambleWalkthrough({
           disabled={index === 0}
           className="inline-flex h-10 items-center rounded-full border-2 border-ink bg-surface px-4 font-sans text-small font-extrabold text-ink disabled:cursor-not-allowed disabled:border-line disabled:text-faint"
         >
-          ← назад
+          {t("← назад")}
         </button>
         {atEnd ? (
           <button
@@ -147,7 +149,7 @@ export default function ScrambleWalkthrough({
             onClick={goNext}
             className="inline-flex h-10 items-center rounded-full border-2 border-ink bg-primary px-4 font-sans text-small font-extrabold text-white"
           >
-            дальше →
+            {t("дальше →")}
           </button>
         )}
 
@@ -158,7 +160,7 @@ export default function ScrambleWalkthrough({
             onChange={toggleNotation}
             className="h-4 w-4 accent-primary"
           />
-          Нотация
+          {t("Нотация")}
         </label>
       </div>
 
@@ -167,7 +169,7 @@ export default function ScrambleWalkthrough({
           {moves.join(" ")}
         </p>
       ) : (
-        <div className="flex flex-wrap gap-1.5" aria-label="Мини-карта ходов">
+        <div className="flex flex-wrap gap-1.5" aria-label={t("Мини-карта ходов")}>
           {moves.map((mv, i) => {
             const isCurrent = i === index - 1;
             const isDone = i < index - 1;

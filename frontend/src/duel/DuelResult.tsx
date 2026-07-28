@@ -12,6 +12,7 @@ import { useAuthStore } from "../store/authStore";
 import { useSettingsStore } from "../store/settingsStore";
 import { formatSolveMs, type TimeFormat } from "../lib/formatTime";
 import type { DuelResultPayload, PlayerSlot } from "./duelMachine";
+import { useT } from "../i18n/t";
 
 export interface DuelResultProps {
   result: DuelResultPayload;
@@ -65,6 +66,7 @@ export default function DuelResult({
   h2h,
   scramble,
 }: DuelResultProps) {
+  const t = useT();
   const ownId = useAuthStore((s) => s.user?.id ?? null);
   const timeFormat = useSettingsStore((s) => s.timeFormat);
   const you = result.players.find((p) => p.slot === yourSlot) ?? null;
@@ -98,7 +100,7 @@ export default function DuelResult({
   return (
     <section className="flex flex-col gap-4 overflow-hidden rounded-lg border border-line bg-surface">
       <div className={quiet ? "bg-surface-2 px-7 py-3" : "px-7 pt-7"}>
-        <span className="font-sans text-overline uppercase text-muted">Дуэль</span>
+        <span className="font-sans text-overline uppercase text-muted">{t("Дуэль")}</span>
       </div>
 
       <div className="px-7 text-center">
@@ -110,18 +112,18 @@ export default function DuelResult({
 
       <div className="grid grid-cols-2 gap-4 px-7 pb-7">
         <div className="flex flex-col items-center gap-2 rounded-md border border-line bg-surface-2 p-4">
-          <span className="font-sans text-caption uppercase text-muted">Ты</span>
+          <span className="font-sans text-caption uppercase text-muted">{t("Ты")}</span>
           <Timer value={yourTime} phase={you?.status === "dnf" ? "dnf" : "success"} />
         </div>
         <div className="flex flex-col items-center gap-2 rounded-md border border-line bg-surface-2 p-4">
-          <span className="font-sans text-caption uppercase text-muted">Соперник</span>
+          <span className="font-sans text-caption uppercase text-muted">{t("Соперник")}</span>
           <Timer value={opponentTime} phase={opponent?.status === "dnf" ? "dnf" : "success"} />
         </div>
       </div>
 
       <div className="flex flex-col items-start gap-3 px-7 pb-7">
         <Button onClick={onRematch} disabled={rematchBusy}>
-          {rematchBusy ? "Готовлю реванш…" : "Реванш"}
+          {rematchBusy ? t("Готовлю реванш…") : t("Реванш")}
         </Button>
         {cardData ? <ShareCardButton data={cardData} /> : null}
         {rematchError ? (

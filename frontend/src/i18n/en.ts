@@ -202,4 +202,277 @@ export const EN: Record<string, string> = {
   или: "or",
   "Открываю Google…": "Opening Google…",
   "Не удалось начать вход через Google.": "Could not start the Google login.",
+
+  // --- проход 2: профиль, кубики, бейджи, график ---
+  "Загрузка профиля…": "Loading the profile…",
+  "Без ника": "No nickname",
+  "Почта не подтверждена": "Email not confirmed",
+  Рекорды: "Records",
+  "Лучшая сборка": "Best single",
+  "Лучший Ao5": "Best Ao5",
+  Кубки: "Cups",
+  "Аватар {name}": "{name}'s avatar",
+  "Текущий Ao5 (последние {n} попыток):": "Current Ao5 (last {n} attempts):",
+  "пока нет": "not yet",
+
+  "Формат времени": "Time format",
+  "Минуты : секунды": "Minutes : seconds",
+  Секунды: "Seconds",
+
+  "Ссылка на аватар": "Avatar URL",
+  "Публичное имя в турнире": "Public name on the boards",
+  "Не задано — покажем как «Аноним»": "Not set — shown as «Anonymous»",
+  "Это имя увидят другие участники турнира в таблице недели. Оставь поле пустым — и там будет стоять «Аноним».":
+    "Other players see this name on the weekly board. Leave it empty and it will read «Anonymous» there.",
+  Сохранить: "Save",
+  Сохранено: "Saved",
+  "Не удалось сохранить изменения.": "Could not save the changes.",
+
+  // витрина
+  Витрина: "Showcase",
+  "Метод сборки": "Solving method",
+  "Не указан": "Not set",
+  "Слоями (начинающий)": "Layer by layer (beginner)",
+  Другой: "Other",
+  "Собираю с года": "Solving since",
+  "Сохранить витрину": "Save the showcase",
+  "Не удалось сохранить витрину.": "Could not save the showcase.",
+  "Метод и год начала — для себя: публичных профилей в Cubr нет, на таблицах видно только публичное имя.":
+    "The method and starting year are for you alone: Cubr has no public profiles, and the boards show only your public name.",
+  "с {year} года · первый год": "since {year} · first year",
+  "с {year} года · {years} {word}": "since {year} · {years} {word}",
+  год: "year",
+  года: "years",
+  лет: "years",
+  "Год — это четыре цифры.": "A year is four digits.",
+  "Год не может быть в будущем.": "The year cannot be in the future.",
+
+  // цели
+  Цель: "Goal",
+  "Цель: {milestone}": "Goal: {milestone}",
+  "Цель: все рубежи взяты": "Goal: every milestone reached",
+  "Появится после первой засчитанной сборки — рубеж подбирается по твоему рекорду.":
+    "It appears after your first counted solve — the milestone is picked from your record.",
+  "Рекорд: {best}.": "Record: {best}.",
+  "До рубежа {gap} по личному рекорду ({best}).":
+    "{gap} to the milestone by your personal best ({best}).",
+  "Рекорд ровно на рубеже ({best}) — нужно быстрее.":
+    "Your record sits exactly on the milestone ({best}) — you need to go faster.",
+  "Первый рубеж ещё не пробит — как только уложишься, появится счётчик стабильности.":
+    "No milestone broken yet — the consistency counter shows up once you get under one.",
+  "{target} подряд ниже {milestone} — рубеж держится.":
+    "{target} in a row under {milestone} — the milestone holds.",
+  "{done} из {target} подряд ниже {milestone}.": "{done} of {target} in a row under {milestone}.",
+
+  // история и график
+  "История сборок": "Solve history",
+  "Загружаю историю…": "Loading the history…",
+  "Не удалось загрузить историю.": "Could not load the history.",
+  Повторить: "Retry",
+  Когда: "When",
+  Время: "Time",
+  Статус: "Status",
+  Засчитано: "Counted",
+  Отклонено: "Rejected",
+  "Прогресс времени": "Time progress",
+  "за последние сборки": "over the latest solves",
+  "График времени сборок за последние сборки": "Chart of solve times over the latest solves",
+  "Пока недостаточно засчитанных сборок для графика. Собери кубик в соло-режиме — прогресс появится здесь.":
+    "Not enough counted solves for a chart yet. Solve a cube in solo mode and the progress will show up here.",
+  "Пока нет сохранённых сборок. Собери кубик в соло-режиме — результат появится здесь.":
+    "No saved solves yet. Solve a cube in solo mode and the result will show up here.",
+  "К соло-тренировке →": "To solo practice →",
+
+  // бейджи
+  Бейджи: "Badges",
+  "Загружаю бейджи…": "Loading the badges…",
+  "Не удалось загрузить бейджи.": "Could not load the badges.",
+
+  // кубики
+  "Мои кубики": "My cubes",
+  "Загружаю кубики…": "Loading the cubes…",
+  "Пока нет кубиков. Зарегистрируй свой, чтобы Cubr узнавал его цвета.":
+    "No cubes yet. Register yours so Cubr recognises its colours.",
+  "Добавить кубик": "Add a cube",
+  Название: "Name",
+  "Название не может быть пустым.": "The name cannot be empty.",
+  "Например, MoYu основной": "For example, main MoYu",
+  "Заметка (необязательно)": "Note (optional)",
+  "магнитный, для соревнований…": "magnetic, for competitions…",
+  Переименовать: "Rename",
+  Отмена: "Cancel",
+  Удалить: "Delete",
+  "Сделать основным": "Make it primary",
+  "Сделать основным кубиком": "Make this the primary cube",
+  "(основной)": "(primary)",
+  основной: "primary",
+  "Удалить кубик «{name}»? Сборки на нём сохранятся.":
+    "Delete the cube «{name}»? Solves made with it are kept.",
+  "Не удалось переименовать.": "Could not rename it.",
+  "Не удалось сделать основным.": "Could not make it primary.",
+  "Не удалось удалить.": "Could not delete it.",
+  "Кубик добавлен.": "Cube added.",
+  "Кубик удалён.": "Cube deleted.",
+
+  // мастер регистрации кубика
+  "Снимаем грани": "Capturing the faces",
+  "Включить камеру": "Turn the camera on",
+  "Поднеси собранный кубик к камере: снимем цвет каждой из 6 граней, чтобы Cubr узнавал именно твой кубик.":
+    "Hold the solved cube up to the camera: we capture the colour of each of the 6 faces so Cubr recognises your particular cube.",
+  "Снять заново": "Capture again",
+  "Так Cubr запомнил твой кубик": "This is how Cubr remembers your cube",
+  "Профиль снят автоматически с 6 граней — выбирать ничего не нужно.":
+    "The profile is captured automatically from the 6 faces — there is nothing to pick.",
+  "Цвет-профиль кубика": "Cube colour profile",
+  "Придумай название — так проще отличать кубики.":
+    "Give it a name — that makes cubes easier to tell apart.",
+  "Сначала сними все 6 граней.": "Capture all 6 faces first.",
+  "Сохранить кубик": "Save the cube",
+  "Не удалось сохранить кубик.": "Could not save the cube.",
+
+  // --- проход 2: ритуальные экраны (соло, дуэль, турнир, скрамбл дня, онбординг) ---
+  "Соло — сборка": "Solo — a solve",
+  "← На главную": "← Home",
+  "← Назад": "← Back",
+  "← назад": "← back",
+  "← к инструкции": "← back to the walkthrough",
+  "дальше →": "next →",
+  Далее: "Next",
+  Начать: "Start",
+  "Ещё раз": "Again",
+  Обновить: "Refresh",
+  "Попробовать снова": "Try again",
+  Пропустить: "Skip",
+  Продолжить: "Continue",
+  Ты: "You",
+  Соперник: "Opponent",
+  Звук: "Sound",
+  "Без звука": "Muted",
+
+  // соло-ритуал
+  "Генерирую скрамбл…": "Generating the scramble…",
+  "Не удалось загрузить генератор скрамблов (проверь интернет):":
+    "Could not load the scramble generator (check your connection):",
+  "Запускаю камеру…": "Starting the camera…",
+  "Ищу руки в кадре…": "Looking for your hands…",
+  "Готово к таймеру": "Ready for the timer",
+  "Идёт сборка": "Solving",
+  "Проверка сборки": "Checking the solve",
+  "Сбор не засчитан": "The solve was not counted",
+  "Собери показанный разброс и покажи 6 граней — сверю с эталоном, потом взведу таймер.":
+    "Apply the scramble shown and present all 6 faces — I check it against the expected state, then arm the timer.",
+  "Останови время — покажи 6 граней собранного кубика, я подтвержу сборку.":
+    "Stop the clock — show all 6 faces of the solved cube and I confirm the solve.",
+  "Проверить сборку (6 граней)": "Check the solve (6 faces)",
+  "Подтвердить сборку (6 граней)": "Confirm the solve (6 faces)",
+  "Калибровка цветов": "Colour calibration",
+  "Использовать сохранённый профиль": "Use the saved profile",
+  "Подстроить под свет (одна белая грань)": "Adjust to the light (one white face)",
+  "Перекалибровать по 6 граням": "Recalibrate from 6 faces",
+  "Твой кубик готов": "Your cube is ready",
+  "Эталон скрамбла не готов — обнови скрамбл на экране инструкции.":
+    "The expected scramble state is not ready — refresh the scramble on the walkthrough screen.",
+  "Сохраняю результат…": "Saving the result…",
+  "Результат сохранён в профиль.": "The result is saved to your profile.",
+  "Не удалось сохранить результат на сервере.": "Could not save the result on the server.",
+  ", чтобы сохранить его.": ", to keep it.",
+  ", чтобы сохранять результаты.": ", to keep your results.",
+  ", затем повтори отправку.": ", then send it again.",
+  "войди заново": "log in again",
+  "Casual-результат: цвета подстроены по одной белой грани, без полной калибровки. Для рейтинга нужна полная калибровка по 6 граням.":
+    "Casual result: colours were adjusted from a single white face, without a full calibration. A rating would require the full 6-face calibration.",
+  "Без проверки камерой: скрамбл/сборка не подтверждены (нажата «Пропустить»).":
+    "No camera check: the scramble and the solve are unconfirmed («Skip» was used).",
+  "Камера не подтвердит скрамбл — таймер взведётся без проверки.":
+    "The camera will not confirm the scramble — the timer arms unchecked.",
+  "Камера не подтвердит сборку — результат сохранится с пометкой «без проверки».":
+    "The camera will not confirm the solve — the result is saved as unchecked.",
+
+  // инструкция скрамбла
+  Нотация: "Notation",
+  "Мини-карта ходов": "Move minimap",
+  "3D-модель кубика на текущем шаге": "3D cube model at the current step",
+  "Ориентация: белый верх, зелёный к себе.": "Orientation: white on top, green facing you.",
+
+  // дуэль
+  "Подключаюсь к дуэли…": "Connecting to the duel…",
+  "Подключаюсь к комнате…": "Connecting to the room…",
+  "Переподключаюсь…": "Reconnecting…",
+  "Связь потеряна": "Connection lost",
+  "Не удалось подключиться к дуэли. Попробуй ещё раз.": "Could not connect to the duel. Try again.",
+  "Жду соперника": "Waiting for the opponent",
+  "Ожидаю подключения соперника…": "Waiting for the opponent to connect…",
+  "Соперник ещё не подключился по приглашению.": "The opponent has not joined via the invite yet.",
+  "Отправь эту ссылку тому, с кем хочешь посоревноваться — дуэль начнётся, как только оба будут готовы.":
+    "Send this link to whoever you want to race — the duel starts as soon as you are both ready.",
+  Скопировано: "Copied",
+  "Не удалось скопировать — выдели и скопируй ссылку вручную.":
+    "Could not copy — select the link and copy it by hand.",
+  "Готов. Жду соперника…": "Ready. Waiting for the opponent…",
+  "Приготовься — камера скрыта до старта.": "Get ready — the camera is hidden until the start.",
+  "Жду результат соперника…": "Waiting for the opponent's result…",
+  "Соперник отключился": "The opponent disconnected",
+  Реванш: "Rematch",
+  "Готовлю реванш…": "Preparing the rematch…",
+  "Не удалось создать реванш. Попробуй ещё раз.": "Could not create the rematch. Try again.",
+  "Ссылка на дуэль недействительна или устарела.": "The duel link is invalid or expired.",
+  "Такой дуэли не существует — ссылка неверна или комната закрыта.":
+    "No such duel — the link is wrong or the room is closed.",
+  "У тебя уже есть активная дуэль — одновременно можно участвовать только в одной.":
+    "You already have an active duel — only one at a time is possible.",
+  "У тебя уже есть активная дуэль — сначала заверши её.":
+    "You already have an active duel — finish it first.",
+  "Перейти к активной дуэли": "Go to the active duel",
+  "Включить звук отсчёта": "Turn the countdown sound on",
+  "Выключить звук отсчёта": "Turn the countdown sound off",
+
+  // турнир и скрамбл дня
+  "Загружаю состояние недели…": "Loading this week's state…",
+  "Загружаю состояние дня…": "Loading today's state…",
+  "Загружаю таблицу…": "Loading the board…",
+  "Одна попытка на всю неделю": "One attempt for the whole week",
+  "Одна попытка на весь день": "One attempt for the whole day",
+  "Скрамбл общий для всех участников этой недели. Сборка идёт как в соло, но результат фиксируется сразу и без переигровок. Таблицы результатов пока нет — это личный вызов, не дуэль.":
+    "The scramble is shared by everyone this week. The solve runs like solo, but the result is recorded at once with no replays. There is no ranked table yet — it is a personal challenge, not a duel.",
+  "Скрамбл общий для всех участников этого дня. Сборка идёт как в соло, но результат фиксируется сразу и без переигровок. Таблицы результатов пока нет — это личный вызов, не дуэль.":
+    "The scramble is shared by everyone today. The solve runs like solo, but the result is recorded at once with no replays. There is no ranked table yet — it is a personal challenge, not a duel.",
+  "Сделать попытку": "Make an attempt",
+  "«Сделать попытку» сразу покажет скрамбл этой недели и потратит единственную попытку. Отменить нельзя.":
+    "«Make an attempt» reveals this week's scramble immediately and spends your only attempt. It cannot be undone.",
+  "«Сделать попытку» сразу покажет скрамбл этого дня и потратит единственную попытку. Отменить нельзя.":
+    "«Make an attempt» reveals today's scramble immediately and spends your only attempt. It cannot be undone.",
+  "Точно начать? Скрамбл станет виден сразу, вернуться назад будет нельзя.":
+    "Start for real? The scramble becomes visible at once and there is no way back.",
+  "Да, начать": "Yes, start",
+  "Готовлю попытку…": "Preparing the attempt…",
+  "Попытка уже начата": "The attempt has already started",
+  "Отправляю результат…": "Sending the result…",
+  "Повторить отправку": "Send again",
+  "Окно попытки истекло до того, как результат дошёл до сервера — засчитан DNF.":
+    "The attempt window expired before the result reached the server — it counts as a DNF.",
+  "Кто уже собрал": "Who has finished",
+  "Кто уже собрал сегодня": "Who has finished today",
+  "Пока никто не закончил": "Nobody has finished yet",
+  "Твоё время": "Your time",
+  "Твоё место": "Your entry",
+  "Время участники засекают сами — дружеский зачёт, не рейтинг.":
+    "Participants time themselves — a friendly tally, not a rating.",
+  "Серия ежедневных сборок": "Daily solve streak",
+
+  // онбординг
+  Знакомство: "Getting started",
+  "Шаги онбординга": "Onboarding steps",
+  "Как это работает": "How it works",
+  "Cubr судит сборку по камере: она видит твои руки и грани кубика. Дальше проверим, что камера работает, и покажем, где будет регистрация кубика.":
+    "Cubr judges a solve with your camera: it sees your hands and the cube's faces. Next we check the camera works and show where the cube registration lives.",
+  "Проверка камеры": "Camera check",
+  "Разреши доступ к камере и покажи обе руки в кадре. Как только руки будут видны — можно продолжать.":
+    "Allow camera access and show both hands in frame. Once the hands are visible you can continue.",
+  "Камера и руки распознаются — отлично!": "Camera and hands are recognised — great!",
+  "Регистрация кубика": "Cube registration",
+  "Сними цвет-профиль своего кубика — это первый и основной кубик. Можно пропустить и добавить позже в профиле.":
+    "Capture your cube's colour profile — this is your first and primary cube. You can skip it and add one later from the profile.",
+  "Пропустить (камера не проверена)": "Skip (camera unchecked)",
+  "Пропустить регистрацию": "Skip the registration",
+  "Пропустить онбординг": "Skip onboarding",
 };

@@ -38,6 +38,7 @@ import {
 } from "./duelMachine";
 import type { DuelSocketApi } from "./useDuelSocket";
 
+import { useT } from "../i18n/t";
 function Card({ children }: { children: ReactNode }) {
   return (
     <div className="flex flex-col gap-4 rounded-lg border-2 border-ink bg-surface p-7">
@@ -47,43 +48,46 @@ function Card({ children }: { children: ReactNode }) {
 }
 
 function WaitingCard() {
+  const t = useT();
   return (
     <Card>
-      <span className="font-sans text-overline uppercase text-muted">Дуэль по ссылке</span>
-      <h3 className="font-sans text-h3 text-ink">Жду соперника</h3>
+      <span className="font-sans text-overline uppercase text-muted">{t("Дуэль по ссылке")}</span>
+      <h3 className="font-sans text-h3 text-ink">{t("Жду соперника")}</h3>
       <p className="max-w-prose font-sans text-body text-muted" aria-live="polite">
-        Соперник ещё не подключился по приглашению.
+        {t("Соперник ещё не подключился по приглашению.")}
       </p>
     </Card>
   );
 }
 
 function RoomNotFoundCard() {
+  const t = useT();
   return (
     <Card>
       <p role="alert" className="max-w-prose font-sans text-body text-danger">
-        Такой дуэли не существует — ссылка неверна или комната закрыта.
+        {t("Такой дуэли не существует — ссылка неверна или комната закрыта.")}
       </p>
       <Link to="/">
-        <Button>На главную</Button>
+        <Button>{t("На главную")}</Button>
       </Link>
     </Card>
   );
 }
 
 function DuelAlreadyActiveCard({ existingRoomId }: { existingRoomId: string | null }) {
+  const t = useT();
   return (
     <Card>
       <p role="alert" className="max-w-prose font-sans text-body text-danger">
-        У тебя уже есть активная дуэль — одновременно можно участвовать только в одной.
+        {t("У тебя уже есть активная дуэль — одновременно можно участвовать только в одной.")}
       </p>
       {existingRoomId ? (
         <Link to={`/duel/${existingRoomId}`}>
-          <Button>Перейти к активной дуэли</Button>
+          <Button>{t("Перейти к активной дуэли")}</Button>
         </Link>
       ) : (
         <Link to="/">
-          <Button variant="secondary">На главную</Button>
+          <Button variant="secondary">{t("На главную")}</Button>
         </Link>
       )}
     </Card>
@@ -91,12 +95,13 @@ function DuelAlreadyActiveCard({ existingRoomId }: { existingRoomId: string | nu
 }
 
 function OpponentLeftBanner({ graceSeconds }: { graceSeconds: number | null }) {
+  const t = useT();
   return (
     <div
       role="status"
       className="flex flex-col gap-1 rounded-md border-2 border-l-8 border-ink border-l-warning bg-surface px-4 py-3"
     >
-      <span className="font-sans text-small font-bold text-ink">Соперник отключился</span>
+      <span className="font-sans text-small font-bold text-ink">{t("Соперник отключился")}</span>
       <span className="font-sans text-small text-muted">
         {graceSeconds !== null
           ? `Жду его возвращения ещё ${graceSeconds} с — если не вернётся, дуэль завершится.`
@@ -107,18 +112,20 @@ function OpponentLeftBanner({ graceSeconds }: { graceSeconds: number | null }) {
 }
 
 function DisconnectedBanner() {
+  const t = useT();
   return (
     <div
       role="status"
       className="flex flex-col gap-1 rounded-md border-2 border-l-8 border-ink border-l-danger bg-surface px-4 py-3"
     >
-      <span className="font-sans text-small font-bold text-ink">Связь потеряна</span>
-      <span className="font-sans text-small text-muted">Переподключаюсь…</span>
+      <span className="font-sans text-small font-bold text-ink">{t("Связь потеряна")}</span>
+      <span className="font-sans text-small text-muted">{t("Переподключаюсь…")}</span>
     </div>
   );
 }
 
 function ReadyWaitBanner() {
+  const t = useT();
   return (
     <div
       role="status"
@@ -128,19 +135,20 @@ function ReadyWaitBanner() {
         aria-hidden
         className="inline-block h-2.5 w-2.5 animate-pulse rounded-full bg-success"
       />
-      <span className="font-sans text-small text-ink">Готов. Жду соперника…</span>
+      <span className="font-sans text-small text-ink">{t("Готов. Жду соперника…")}</span>
     </div>
   );
 }
 
 function FinishedWaitBanner() {
+  const t = useT();
   return (
     <div
       role="status"
       className="flex items-center gap-3 rounded-md border border-line bg-surface-2 px-3.5 py-3"
     >
       <Spinner />
-      <span className="font-sans text-small text-ink">Жду результат соперника…</span>
+      <span className="font-sans text-small text-ink">{t("Жду результат соперника…")}</span>
     </div>
   );
 }
@@ -182,7 +190,10 @@ function CountdownOverlay({
   serverStartAt: string;
   onElapsed: () => void;
 }) {
-  const [remainingMs, setRemainingMs] = useState(() => new Date(serverStartAt).getTime() - Date.now());
+  const t = useT();
+  const [remainingMs, setRemainingMs] = useState(
+    () => new Date(serverStartAt).getTime() - Date.now(),
+  );
   const [muted, setMuted] = useState(() => isCountdownMuted());
   const firedRef = useRef(false);
 
@@ -220,14 +231,18 @@ function CountdownOverlay({
         type="button"
         onClick={handleToggleMute}
         aria-pressed={muted}
-        aria-label={muted ? "Включить звук отсчёта" : "Выключить звук отсчёта"}
+        aria-label={muted ? t("Включить звук отсчёта") : t("Выключить звук отсчёта")}
         className="absolute right-3 top-3 inline-flex items-center gap-1.5 rounded-full border border-white/30 bg-white/10 px-3 py-1.5 font-sans text-caption font-bold text-white transition-colors hover:bg-white/20 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
       >
         <SpeakerIcon muted={muted} />
-        <span>{muted ? "Без звука" : "Звук"}</span>
+        <span>{muted ? t("Без звука") : t("Звук")}</span>
       </button>
-      <span className="font-sans text-h1 font-black text-white">{seconds > 0 ? seconds : "Старт!"}</span>
-      <span className="font-sans text-small text-white/80">Приготовься — камера скрыта до старта.</span>
+      <span className="font-sans text-h1 font-black text-white">
+        {seconds > 0 ? seconds : "Старт!"}
+      </span>
+      <span className="font-sans text-small text-white/80">
+        {t("Приготовься — камера скрыта до старта.")}
+      </span>
     </div>
   );
 }
@@ -274,14 +289,19 @@ export interface DuelRoomProps {
 }
 
 export default function DuelRoom({ state, dispatch, socket, joinUrl }: DuelRoomProps) {
+  const t = useT();
   const showRitual = state.scramble !== null;
 
   return (
     <div className="flex flex-col gap-4">
-      {state.phase === "connecting" ? <Spinner label="Подключаюсь к комнате…" /> : null}
+      {state.phase === "connecting" ? <Spinner label={t("Подключаюсь к комнате…")} /> : null}
 
       {state.phase === "waiting_opponent" ? (
-        joinUrl ? <InvitePanel joinUrl={joinUrl} /> : <WaitingCard />
+        joinUrl ? (
+          <InvitePanel joinUrl={joinUrl} />
+        ) : (
+          <WaitingCard />
+        )
       ) : null}
 
       {state.phase === "room_not_found" ? <RoomNotFoundCard /> : null}
@@ -304,7 +324,9 @@ export default function DuelRoom({ state, dispatch, socket, joinUrl }: DuelRoomP
 
       {state.phase === "ready_wait" ? <ReadyWaitBanner /> : null}
       {state.phase === "finished" ? <FinishedWaitBanner /> : null}
-      {state.phase === "opponent_left" ? <OpponentLeftBanner graceSeconds={state.graceSeconds} /> : null}
+      {state.phase === "opponent_left" ? (
+        <OpponentLeftBanner graceSeconds={state.graceSeconds} />
+      ) : null}
       {state.phase === "disconnected" ? <DisconnectedBanner /> : null}
     </div>
   );

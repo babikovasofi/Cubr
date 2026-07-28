@@ -10,11 +10,13 @@ import type { SolveRead } from "../api/solves";
 import { formatSolveMs } from "../lib/formatTime";
 import { useSettingsStore } from "../store/settingsStore";
 import { goalProgress, milestoneLabel, STREAK_TARGET } from "./goals";
+import { useT } from "../i18n/t";
 
 function Shell({ children }: { children: React.ReactNode }) {
+  const t = useT();
   return (
     <section
-      aria-label="Цель"
+      aria-label={t("Цель")}
       className="flex flex-col gap-3 rounded-lg border border-line bg-surface p-4.5"
     >
       {children}
@@ -23,15 +25,16 @@ function Shell({ children }: { children: React.ReactNode }) {
 }
 
 export default function GoalCard({ solves }: { solves: SolveRead[] }) {
+  const t = useT();
   const timeFormat = useSettingsStore((s) => s.timeFormat);
   const { nextMs, bestMs, gapMs, holdMs, streakUnder, stable } = goalProgress(solves);
 
   if (bestMs === null) {
     return (
       <Shell>
-        <h3 className="font-sans text-h3 text-ink">Цель</h3>
+        <h3 className="font-sans text-h3 text-ink">{t("Цель")}</h3>
         <p className="font-sans text-body text-muted">
-          Появится после первой засчитанной сборки — рубеж подбирается по твоему рекорду.
+          {t("Появится после первой засчитанной сборки — рубеж подбирается по твоему рекорду.")}
         </p>
       </Shell>
     );
@@ -42,20 +45,27 @@ export default function GoalCard({ solves }: { solves: SolveRead[] }) {
   return (
     <Shell>
       <h3 className="font-sans text-h3 text-ink">
-        {nextMs === null ? "Цель: все рубежи взяты" : `Цель: ${milestoneLabel(nextMs)}`}
+        {nextMs === null
+          ? t("Цель: все рубежи взяты")
+          : t("Цель: {milestone}", { milestone: milestoneLabel(nextMs) })}
       </h3>
 
       <p className="font-sans text-body text-muted">
         {nextMs === null || gapMs === null
-          ? `Рекорд: ${formatSolveMs(bestMs, timeFormat)}.`
+          ? t("Рекорд: {best}.", { best: formatSolveMs(bestMs, timeFormat) })
           : gapMs > 0
-            ? `До рубежа ${formatSolveMs(gapMs, "seconds")} по личному рекорду (${formatSolveMs(bestMs, timeFormat)}).`
-            : `Рекорд ровно на рубеже (${formatSolveMs(bestMs, timeFormat)}) — нужно быстрее.`}
+            ? t("До рубежа {gap} по личному рекорду ({best}).", {
+                gap: formatSolveMs(gapMs, "seconds"),
+                best: formatSolveMs(bestMs, timeFormat),
+              })
+            : t("Рекорд ровно на рубеже ({best}) — нужно быстрее.", {
+                best: formatSolveMs(bestMs, timeFormat),
+              })}
       </p>
 
       {holdMs === null ? (
         <p className="font-sans text-small text-muted">
-          Первый рубеж ещё не пробит — как только уложишься, появится счётчик стабильности.
+          {t("Первый рубеж ещё не пробит — как только уложишься, появится счётчик стабильности.")}
         </p>
       ) : (
         <div className="flex flex-wrap items-center gap-3">
@@ -72,8 +82,15 @@ export default function GoalCard({ solves }: { solves: SolveRead[] }) {
           </div>
           <span className="font-sans text-small text-muted">
             {stable
-              ? `${STREAK_TARGET} подряд ниже ${milestoneLabel(holdMs)} — рубеж держится.`
-              : `${streakUnder} из ${STREAK_TARGET} подряд ниже ${milestoneLabel(holdMs)}.`}
+              ? t("{target} подряд ниже {milestone} — рубеж держится.", {
+                  target: STREAK_TARGET,
+                  milestone: milestoneLabel(holdMs),
+                })
+              : t("{done} из {target} подряд ниже {milestone}.", {
+                  done: streakUnder,
+                  target: STREAK_TARGET,
+                  milestone: milestoneLabel(holdMs),
+                })}
           </span>
         </div>
       )}

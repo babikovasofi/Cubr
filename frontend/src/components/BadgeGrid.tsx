@@ -8,6 +8,7 @@ import Button from "./Button";
 import Spinner from "./Spinner";
 import { getBadges, type BadgeRead } from "../api/badges";
 import { ApiError } from "../api/client";
+import { useT } from "../i18n/t";
 
 function fmtEarnedAt(iso: string): string {
   const d = new Date(iso);
@@ -16,11 +17,10 @@ function fmtEarnedAt(iso: string): string {
 }
 
 type BadgeGridState =
-  | { kind: "loading" }
-  | { kind: "error"; message: string }
-  | { kind: "ok"; badges: BadgeRead[] };
+  { kind: "loading" } | { kind: "error"; message: string } | { kind: "ok"; badges: BadgeRead[] };
 
 export default function BadgeGrid() {
+  const t = useT();
   const [state, setState] = useState<BadgeGridState>({ kind: "loading" });
   const [reloadKey, setReloadKey] = useState(0);
 
@@ -33,7 +33,7 @@ export default function BadgeGrid() {
         if (!alive) return;
         setState({
           kind: "error",
-          message: e instanceof ApiError ? e.message : "Не удалось загрузить бейджи.",
+          message: e instanceof ApiError ? e.message : t("Не удалось загрузить бейджи."),
         });
       });
     return () => {
@@ -43,19 +43,19 @@ export default function BadgeGrid() {
 
   return (
     <section className="flex flex-col gap-4">
-      <h2 className="font-sans text-h3 text-ink">Бейджи</h2>
+      <h2 className="font-sans text-h3 text-ink">{t("Бейджи")}</h2>
 
-      {state.kind === "loading" ? <Spinner label="Загружаю бейджи…" /> : null}
+      {state.kind === "loading" ? <Spinner label={t("Загружаю бейджи…")} /> : null}
 
       {state.kind === "error" ? (
         <div role="alert" className="flex flex-col items-start gap-3">
           <p className="font-sans text-small text-danger">{state.message}</p>
-          <Button onClick={() => setReloadKey((k) => k + 1)}>Повторить</Button>
+          <Button onClick={() => setReloadKey((k) => k + 1)}>{t("Повторить")}</Button>
         </div>
       ) : null}
 
       {state.kind === "ok" ? (
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3" aria-label="Бейджи">
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3" aria-label={t("Бейджи")}>
           {state.badges.map((b) => (
             <div
               key={b.code}

@@ -17,6 +17,7 @@ import { Link } from "react-router-dom";
 import type { SolveRead } from "../api/solves";
 import { useSettingsStore } from "../store/settingsStore";
 import { formatSolveMs, type TimeFormat } from "../lib/formatTime";
+import { useT } from "../i18n/t";
 
 export interface ChartValidPoint {
   id: string;
@@ -105,10 +106,7 @@ function compareSolves(a: { s: SolveRead; i: number }, b: { s: SolveRead; i: num
   return a.i - b.i;
 }
 
-export function buildChartModel(
-  solves: SolveRead[],
-  format: TimeFormat = "clock",
-): ChartModel {
+export function buildChartModel(solves: SolveRead[], format: TimeFormat = "clock"): ChartModel {
   if (solves.length === 0) return emptyModel();
 
   const indexed = solves.map((s, i) => ({ s, i }));
@@ -203,20 +201,23 @@ export function buildChartModel(
 }
 
 function EmptyCard() {
+  const t = useT();
   return (
     <div className="flex flex-col items-start gap-3 rounded-lg border border-line bg-surface p-6">
       <p className="font-sans text-body text-muted">
-        Пока недостаточно засчитанных сборок для графика. Собери кубик в соло-режиме — прогресс
-        появится здесь.
+        {t(
+          "Пока недостаточно засчитанных сборок для графика. Собери кубик в соло-режиме — прогресс появится здесь.",
+        )}
       </p>
       <Link to="/solo" className="font-sans text-small font-bold text-primary">
-        К соло-тренировке →
+        {t("К соло-тренировке →")}
       </Link>
     </div>
   );
 }
 
 export default function SolveProgressChart({ solves }: { solves: SolveRead[] }) {
+  const t = useT();
   const timeFormat = useSettingsStore((s) => s.timeFormat);
   const model = buildChartModel(solves, timeFormat);
 
@@ -232,7 +233,7 @@ export default function SolveProgressChart({ solves }: { solves: SolveRead[] }) 
           preserveAspectRatio="xMidYMid meet"
           className="h-full w-full"
           role="img"
-          aria-label="График времени сборок за последние сборки"
+          aria-label={t("График времени сборок за последние сборки")}
         >
           <line
             x1={PAD.left}

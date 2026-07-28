@@ -11,10 +11,12 @@ import Button from "../components/Button";
 import Spinner from "../components/Spinner";
 import { ApiError } from "../api/client";
 import { existingRoomIdFrom, joinRoom, saveDuelSessionToken } from "../api/duel";
+import { useT } from "../i18n/t";
 
 type JoinState = "joining" | "not_found" | "already_active" | "error";
 
 export default function DuelJoinPage() {
+  const t = useT();
   const { token = "" } = useParams<{ token: string }>();
   const navigate = useNavigate();
   const [state, setState] = useState<JoinState>("joining");
@@ -51,7 +53,7 @@ export default function DuelJoinPage() {
   if (state === "joining") {
     return (
       <div className="flex min-h-[40vh] items-center justify-center" aria-live="polite">
-        <Spinner label="Подключаюсь к дуэли…" />
+        <Spinner label={t("Подключаюсь к дуэли…")} />
       </div>
     );
   }
@@ -60,18 +62,18 @@ export default function DuelJoinPage() {
     <div className="flex flex-col items-start gap-4 rounded-lg border-2 border-ink bg-surface p-7">
       {state === "not_found" ? (
         <p role="alert" className="max-w-prose font-sans text-body text-danger">
-          Ссылка на дуэль недействительна или устарела.
+          {t("Ссылка на дуэль недействительна или устарела.")}
         </p>
       ) : null}
 
       {state === "already_active" ? (
         <>
           <p role="alert" className="max-w-prose font-sans text-body text-danger">
-            У тебя уже есть активная дуэль — сначала заверши её.
+            {t("У тебя уже есть активная дуэль — сначала заверши её.")}
           </p>
           {existingRoomId ? (
             <Link to={`/duel/${existingRoomId}`}>
-              <Button>Перейти к активной дуэли</Button>
+              <Button>{t("Перейти к активной дуэли")}</Button>
             </Link>
           ) : null}
         </>
@@ -79,12 +81,12 @@ export default function DuelJoinPage() {
 
       {state === "error" ? (
         <p role="alert" className="max-w-prose font-sans text-body text-danger">
-          Не удалось подключиться к дуэли. Попробуй ещё раз.
+          {t("Не удалось подключиться к дуэли. Попробуй ещё раз.")}
         </p>
       ) : null}
 
       <Link to="/">
-        <Button variant="secondary">На главную</Button>
+        <Button variant="secondary">{t("На главную")}</Button>
       </Link>
     </div>
   );

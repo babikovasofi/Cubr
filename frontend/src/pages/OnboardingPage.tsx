@@ -10,10 +10,12 @@ import CameraStage from "../solo/CameraStage";
 import CubeRegisterWizard from "../cubes/CubeRegisterWizard";
 import { useCameraCheck } from "../onboarding/useCameraCheck";
 import { markOnboarded } from "../auth/onboarding";
+import { useT } from "../i18n/t";
 
 const STEPS = ["Знакомство", "Проверка камеры", "Регистрация кубика"] as const;
 
 export default function OnboardingPage() {
+  const t = useT();
   const navigate = useNavigate();
   const [step, setStep] = useState(0);
 
@@ -28,7 +30,7 @@ export default function OnboardingPage() {
 
   return (
     <div className={`mx-auto flex w-full ${containerWidth} flex-col gap-6`}>
-      <ol className="flex flex-wrap gap-2" aria-label="Шаги онбординга">
+      <ol className="flex flex-wrap gap-2" aria-label={t("Шаги онбординга")}>
         {STEPS.map((label, i) => (
           <li
             key={label}
@@ -56,7 +58,7 @@ export default function OnboardingPage() {
         onClick={finish}
         className="self-center font-sans text-small font-bold text-muted underline"
       >
-        Пропустить онбординг
+        {t("Пропустить онбординг")}
       </button>
     </div>
   );
@@ -72,26 +74,30 @@ function StepCard({ title, children }: { title: string; children: React.ReactNod
 }
 
 function IntroStep({ onNext }: { onNext: () => void }) {
+  const t = useT();
   return (
-    <StepCard title="Как это работает">
+    <StepCard title={t("Как это работает")}>
       <p className="font-sans text-body text-muted">
-        Cubr судит сборку по камере: она видит твои руки и грани кубика. Дальше проверим, что камера
-        работает, и покажем, где будет регистрация кубика.
+        {t(
+          "Cubr судит сборку по камере: она видит твои руки и грани кубика. Дальше проверим, что камера работает, и покажем, где будет регистрация кубика.",
+        )}
       </p>
-      <Button onClick={onNext}>Начать</Button>
+      <Button onClick={onNext}>{t("Начать")}</Button>
     </StepCard>
   );
 }
 
 function CameraStep({ onNext, onBack }: { onNext: () => void; onBack: () => void }) {
+  const t = useT();
   const cam = useCameraCheck();
   const ready = cam.started && cam.handsSeen;
 
   return (
-    <StepCard title="Проверка камеры">
+    <StepCard title={t("Проверка камеры")}>
       <p className="font-sans text-body text-muted">
-        Разреши доступ к камере и покажи обе руки в кадре. Как только руки будут видны — можно
-        продолжать.
+        {t(
+          "Разреши доступ к камере и покажи обе руки в кадре. Как только руки будут видны — можно продолжать.",
+        )}
       </p>
 
       {/*
@@ -112,16 +118,16 @@ function CameraStep({ onNext, onBack }: { onNext: () => void; onBack: () => void
 
       {cam.starting ? (
         <p className="font-sans text-small font-bold text-muted" aria-live="polite">
-          Запускаю камеру…
+          {t("Запускаю камеру…")}
         </p>
       ) : !cam.started ? (
-        <Button onClick={cam.start}>Включить камеру</Button>
+        <Button onClick={cam.start}>{t("Включить камеру")}</Button>
       ) : (
         <p
           className={`font-sans text-small font-bold ${ready ? "text-success" : "text-muted"}`}
           aria-live="polite"
         >
-          {ready ? "Камера и руки распознаются — отлично!" : "Ищу руки в кадре…"}
+          {ready ? t("Камера и руки распознаются — отлично!") : t("Ищу руки в кадре…")}
         </p>
       )}
 
@@ -131,10 +137,10 @@ function CameraStep({ onNext, onBack }: { onNext: () => void; onBack: () => void
           onClick={onBack}
           className="font-sans text-small font-bold text-muted"
         >
-          ← Назад
+          {t("← Назад")}
         </button>
         <Button onClick={onNext} disabled={!ready}>
-          Далее
+          {t("Далее")}
         </Button>
         {cam.started && !ready ? (
           <button
@@ -142,7 +148,7 @@ function CameraStep({ onNext, onBack }: { onNext: () => void; onBack: () => void
             onClick={onNext}
             className="font-sans text-small font-bold text-warning underline"
           >
-            Пропустить (камера не проверена)
+            {t("Пропустить (камера не проверена)")}
           </button>
         ) : null}
       </div>
@@ -151,11 +157,13 @@ function CameraStep({ onNext, onBack }: { onNext: () => void; onBack: () => void
 }
 
 function CubeStep({ onFinish, onBack }: { onFinish: () => void; onBack: () => void }) {
+  const t = useT();
   return (
-    <StepCard title="Регистрация кубика">
+    <StepCard title={t("Регистрация кубика")}>
       <p className="font-sans text-body text-muted">
-        Сними цвет-профиль своего кубика — это первый и основной кубик. Можно пропустить и добавить
-        позже в профиле.
+        {t(
+          "Сними цвет-профиль своего кубика — это первый и основной кубик. Можно пропустить и добавить позже в профиле.",
+        )}
       </p>
       <CubeRegisterWizard defaultPrimary onDone={onFinish} onCancel={onFinish} />
       <div className="flex flex-wrap items-center gap-3">
@@ -164,14 +172,14 @@ function CubeStep({ onFinish, onBack }: { onFinish: () => void; onBack: () => vo
           onClick={onBack}
           className="font-sans text-small font-bold text-muted"
         >
-          ← Назад
+          {t("← Назад")}
         </button>
         <button
           type="button"
           onClick={onFinish}
           className="font-sans text-small font-bold text-warning underline"
         >
-          Пропустить регистрацию
+          {t("Пропустить регистрацию")}
         </button>
       </div>
     </StepCard>

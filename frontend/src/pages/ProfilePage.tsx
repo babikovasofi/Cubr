@@ -18,6 +18,7 @@ import { formatSolveMs, type TimeFormat } from "../lib/formatTime";
 import CubeList from "../cubes/CubeList";
 import { listSolves, type SolveRead } from "../api/solves";
 import { ApiError } from "../api/client";
+import { useT } from "../i18n/t";
 
 function fmtMs(ms: number | null, format: TimeFormat): string {
   if (ms == null) return "—";
@@ -31,20 +32,21 @@ function fmtDate(iso: string): string {
 }
 
 export default function ProfilePage() {
+  const t = useT();
   const user = useAuthStore((s) => s.user);
   const updateMe = useAuthStore((s) => s.updateMe);
 
-  if (!user) return <Spinner label="Загрузка профиля…" />;
+  if (!user) return <Spinner label={t("Загрузка профиля…")} />;
 
   return (
     <div className="flex flex-col gap-7">
       <header className="flex items-center gap-4">
         <Avatar url={user.avatar_url} name={user.nickname ?? user.email} />
         <div className="flex flex-col">
-          <h1 className="font-sans text-h2 text-ink">{user.nickname ?? "Без ника"}</h1>
+          <h1 className="font-sans text-h2 text-ink">{user.nickname ?? t("Без ника")}</h1>
           <span className="font-sans text-small text-muted">{user.email}</span>
           {!user.is_verified ? (
-            <span className="font-sans text-small text-warning">Почта не подтверждена</span>
+            <span className="font-sans text-small text-warning">{t("Почта не подтверждена")}</span>
           ) : null}
         </div>
       </header>
@@ -78,11 +80,12 @@ export default function ProfilePage() {
 }
 
 function Avatar({ url, name }: { url: string | null; name: string }) {
+  const t = useT();
   if (url) {
     return (
       <img
         src={url}
-        alt={`Аватар ${name}`}
+        alt={t("Аватар {name}", { name })}
         className="h-16 w-16 rounded-full border-2 border-ink object-cover"
       />
     );
@@ -102,27 +105,29 @@ function Avatar({ url, name }: { url: string | null; name: string }) {
 // приходит с сервера; здесь — «как я иду прямо сейчас», считается из уже
 // загруженной истории (без второго запроса).
 function CurrentAverage({ solves }: { solves: SolveRead[] }) {
+  const t = useT();
   const timeFormat = useSettingsStore((s) => s.timeFormat);
   const value = currentAo5(solves);
   return (
     <p className="font-sans text-small text-muted">
-      Текущий Ao5 (последние {AVERAGE_SIZE} попыток):{" "}
+      {t("Текущий Ao5 (последние {n} попыток):", { n: AVERAGE_SIZE })}{" "}
       <span className="font-bold text-ink">
-        {value === null ? "пока нет" : formatSolveMs(value, timeFormat)}
+        {value === null ? t("пока нет") : formatSolveMs(value, timeFormat)}
       </span>
     </p>
   );
 }
 
 function Records({ best, ao5, cups }: { best: number | null; ao5: number | null; cups: number }) {
+  const t = useT();
   const timeFormat = useSettingsStore((s) => s.timeFormat);
   const cards: { label: string; value: string }[] = [
-    { label: "Лучшая сборка", value: fmtMs(best, timeFormat) },
-    { label: "Лучший Ao5", value: ao5 == null ? "—" : fmtMs(ao5, timeFormat) },
-    { label: "Кубки", value: String(cups) },
+    { label: t("Лучшая сборка"), value: fmtMs(best, timeFormat) },
+    { label: t("Лучший Ao5"), value: ao5 == null ? "—" : fmtMs(ao5, timeFormat) },
+    { label: t("Кубки"), value: String(cups) },
   ];
   return (
-    <section className="grid gap-4 sm:grid-cols-3" aria-label="Рекорды">
+    <section className="grid gap-4 sm:grid-cols-3" aria-label={t("Рекорды")}>
       {cards.map((c) => (
         <div
           key={c.label}
@@ -139,17 +144,20 @@ function Records({ best, ao5, cups }: { best: number | null; ao5: number | null;
 }
 
 function SettingsSection() {
+  const t = useT();
   const timeFormat = useSettingsStore((s) => s.timeFormat);
   const setTimeFormat = useSettingsStore((s) => s.setTimeFormat);
   const options: { value: TimeFormat; label: string }[] = [
-    { value: "clock", label: "Минуты : секунды" },
-    { value: "seconds", label: "Секунды" },
+    { value: "clock", label: t("Минуты : секунды") },
+    { value: "seconds", label: t("Секунды") },
   ];
   return (
     <section className="flex flex-col gap-4 rounded-lg border-2 border-ink bg-surface p-6">
-      <h2 className="font-sans text-h3 text-ink">Настройки</h2>
+      <h2 className="font-sans text-h3 text-ink">{t("Настройки")}</h2>
       <fieldset className="flex flex-col gap-2">
-        <legend className="mb-1 font-sans text-small font-bold text-ink">Формат времени</legend>
+        <legend className="mb-1 font-sans text-small font-bold text-ink">
+          {t("Формат времени")}
+        </legend>
         {options.map((o) => (
           <label key={o.value} className="flex items-center gap-2 font-sans text-small text-ink">
             <input
@@ -186,6 +194,7 @@ function EditForm({
     publicHandle: string | null,
   ) => Promise<unknown>;
 }) {
+  const t = useT();
   const [nickname, setNickname] = useState(initialNickname);
   const [avatar, setAvatar] = useState(initialAvatar);
   const [publicHandle, setPublicHandle] = useState(initialPublicHandle);
@@ -202,7 +211,7 @@ function EditForm({
       await onSave(nickname.trim(), avatar.trim() || null, publicHandle.trim() || null);
       setSaved(true);
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Не удалось сохранить изменения.");
+      setError(err instanceof ApiError ? err.message : t("Не удалось сохранить изменения."));
     } finally {
       setBusy(false);
     }
@@ -210,16 +219,16 @@ function EditForm({
 
   return (
     <section className="flex flex-col gap-4 rounded-lg border-2 border-ink bg-surface p-6">
-      <h2 className="font-sans text-h3 text-ink">Профиль</h2>
+      <h2 className="font-sans text-h3 text-ink">{t("Профиль")}</h2>
       <form className="flex flex-col gap-4" onSubmit={onSubmit} noValidate>
         <Input
-          label="Никнейм"
+          label={t("Никнейм")}
           maxLength={64}
           value={nickname}
           onChange={(e) => setNickname(e.target.value)}
         />
         <Input
-          label="Ссылка на аватар"
+          label={t("Ссылка на аватар")}
           type="url"
           placeholder="https://…"
           maxLength={512}
@@ -228,23 +237,26 @@ function EditForm({
         />
         <div className="flex flex-col gap-1.5">
           <Input
-            label="Публичное имя в турнире"
-            placeholder="Не задано — покажем как «Аноним»"
+            label={t("Публичное имя в турнире")}
+            placeholder={t("Не задано — покажем как «Аноним»")}
             maxLength={64}
             value={publicHandle}
             onChange={(e) => setPublicHandle(e.target.value)}
             error={error}
           />
           <p className="font-sans text-small text-muted">
-            Это имя увидят другие участники турнира в таблице недели. Оставь поле пустым — и там
-            будет стоять «Аноним».
+            {t(
+              "Это имя увидят другие участники турнира в таблице недели. Оставь поле пустым — и там будет стоять «Аноним».",
+            )}
           </p>
         </div>
         <div className="flex items-center gap-3">
           <Button type="submit" disabled={busy}>
-            {busy ? "Сохраняю…" : "Сохранить"}
+            {busy ? t("Сохраняю…") : t("Сохранить")}
           </Button>
-          {saved ? <span className="font-sans text-small text-success">Сохранено</span> : null}
+          {saved ? (
+            <span className="font-sans text-small text-success">{t("Сохранено")}</span>
+          ) : null}
         </div>
       </form>
     </section>
@@ -255,6 +267,7 @@ type HistoryState =
   { kind: "loading" } | { kind: "error"; message: string } | { kind: "ok"; solves: SolveRead[] };
 
 function History() {
+  const t = useT();
   const timeFormat = useSettingsStore((s) => s.timeFormat);
   const [state, setState] = useState<HistoryState>({ kind: "loading" });
   const [reloadKey, setReloadKey] = useState(0);
@@ -268,7 +281,7 @@ function History() {
         if (!alive) return;
         setState({
           kind: "error",
-          message: e instanceof ApiError ? e.message : "Не удалось загрузить историю.",
+          message: e instanceof ApiError ? e.message : t("Не удалось загрузить историю."),
         });
       });
     return () => {
@@ -278,14 +291,14 @@ function History() {
 
   return (
     <section className="flex flex-col gap-4">
-      <h2 className="font-sans text-h3 text-ink">История сборок</h2>
+      <h2 className="font-sans text-h3 text-ink">{t("История сборок")}</h2>
 
-      {state.kind === "loading" ? <Spinner label="Загружаю историю…" /> : null}
+      {state.kind === "loading" ? <Spinner label={t("Загружаю историю…")} /> : null}
 
       {state.kind === "error" ? (
         <div role="alert" className="flex flex-col items-start gap-3">
           <p className="font-sans text-small text-danger">{state.message}</p>
-          <Button onClick={() => setReloadKey((k) => k + 1)}>Повторить</Button>
+          <Button onClick={() => setReloadKey((k) => k + 1)}>{t("Повторить")}</Button>
         </div>
       ) : null}
 
@@ -297,8 +310,8 @@ function History() {
       {state.kind === "ok" ? (
         <section className="flex flex-col gap-3">
           <div className="flex flex-col gap-1">
-            <h2 className="font-sans text-h3 text-ink">Прогресс времени</h2>
-            <span className="font-sans text-small text-muted">за последние сборки</span>
+            <h2 className="font-sans text-h3 text-ink">{t("Прогресс времени")}</h2>
+            <span className="font-sans text-small text-muted">{t("за последние сборки")}</span>
           </div>
           <SolveProgressChart solves={state.solves} />
         </section>
@@ -307,10 +320,12 @@ function History() {
       {state.kind === "ok" && state.solves.length === 0 ? (
         <div className="flex flex-col items-start gap-3 rounded-lg border border-line bg-surface p-6">
           <p className="font-sans text-body text-muted">
-            Пока нет сохранённых сборок. Собери кубик в соло-режиме — результат появится здесь.
+            {t(
+              "Пока нет сохранённых сборок. Собери кубик в соло-режиме — результат появится здесь.",
+            )}
           </p>
           <Link to="/solo" className="font-sans text-small font-bold text-primary">
-            К соло-тренировке →
+            {t("К соло-тренировке →")}
           </Link>
         </div>
       ) : null}
@@ -320,9 +335,9 @@ function History() {
           <table className="w-full border-collapse text-left font-sans text-small">
             <thead>
               <tr className="border-b-2 border-ink text-muted">
-                <th className="py-2 pr-4 font-bold">Время</th>
-                <th className="py-2 pr-4 font-bold">Статус</th>
-                <th className="py-2 font-bold">Когда</th>
+                <th className="py-2 pr-4 font-bold">{t("Время")}</th>
+                <th className="py-2 pr-4 font-bold">{t("Статус")}</th>
+                <th className="py-2 font-bold">{t("Когда")}</th>
               </tr>
             </thead>
             <tbody>
@@ -346,10 +361,11 @@ function History() {
 }
 
 function StatusBadge({ status }: { status: string }) {
+  const t = useT();
   const map: Record<string, { text: string; cls: string }> = {
-    valid: { text: "Засчитано", cls: "text-success" },
+    valid: { text: t("Засчитано"), cls: "text-success" },
     dnf: { text: "DNF", cls: "text-danger" },
-    rejected: { text: "Отклонено", cls: "text-danger" },
+    rejected: { text: t("Отклонено"), cls: "text-danger" },
   };
   const m = map[status] ?? { text: status, cls: "text-muted" };
   return <span className={`font-bold ${m.cls}`}>{m.text}</span>;

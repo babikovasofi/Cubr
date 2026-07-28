@@ -19,6 +19,7 @@ import {
   type RitualResult,
   type TournamentState,
 } from "../tournament/useTournamentAttempt";
+import { useT } from "../i18n/t";
 
 function useCountdown(deadlineIso: string | null): { label: string; expired: boolean } {
   const [now, setNow] = useState(() => Date.now());
@@ -71,39 +72,41 @@ function PrecommitCard({
   current: TournamentState["current"];
   commit: () => void;
 }) {
+  const t = useT();
   const [confirming, setConfirming] = useState(false);
 
   return (
     <Card>
       <Overline>Челлендж недели{current ? ` · ${current.week_label}` : ""}</Overline>
-      <h3 className="font-sans text-h3 text-ink">Одна попытка на всю неделю</h3>
+      <h3 className="font-sans text-h3 text-ink">{t("Одна попытка на всю неделю")}</h3>
       <p className="max-w-prose font-sans text-body text-muted">
-        Скрамбл общий для всех участников этой недели. Сборка идёт как в соло, но результат
-        фиксируется сразу и без переигровок. Таблицы результатов пока нет — это личный вызов, не
-        дуэль.
+        {t(
+          "Скрамбл общий для всех участников этой недели. Сборка идёт как в соло, но результат фиксируется сразу и без переигровок. Таблицы результатов пока нет — это личный вызов, не дуэль.",
+        )}
       </p>
       <div className="rounded-md border border-line bg-surface-2 px-3.5 py-3">
         <p className="font-sans text-small font-bold text-ink">
-          «Сделать попытку» сразу покажет скрамбл этой недели и потратит единственную попытку.
-          Отменить нельзя.
+          {t(
+            "«Сделать попытку» сразу покажет скрамбл этой недели и потратит единственную попытку. Отменить нельзя.",
+          )}
         </p>
       </div>
 
       {!confirming ? (
         <Button onClick={() => setConfirming(true)} className="self-start">
-          Сделать попытку
+          {t("Сделать попытку")}
         </Button>
       ) : (
         <div className="flex flex-col gap-3 rounded-md border border-line px-3.5 py-3">
           <p className="font-sans text-small text-ink">
-            Точно начать? Скрамбл станет виден сразу, вернуться назад будет нельзя.
+            {t("Точно начать? Скрамбл станет виден сразу, вернуться назад будет нельзя.")}
           </p>
           <div className="flex flex-wrap gap-3">
             <Button variant="danger" onClick={commit}>
-              Да, начать
+              {t("Да, начать")}
             </Button>
             <Button variant="secondary" onClick={() => setConfirming(false)}>
-              Отмена
+              {t("Отмена")}
             </Button>
           </div>
         </div>
@@ -119,19 +122,20 @@ function ResumeCard({
   current: TournamentState["current"];
   commit: () => void;
 }) {
+  const t = useT();
   const { label, expired } = useCountdown(current?.deadline_at ?? null);
 
   return (
     <Card>
       <Overline>Челлендж недели{current ? ` · ${current.week_label}` : ""}</Overline>
-      <h3 className="font-sans text-h3 text-ink">Попытка уже начата</h3>
+      <h3 className="font-sans text-h3 text-ink">{t("Попытка уже начата")}</h3>
       <p className="max-w-prose font-sans text-body text-muted">
         {expired
           ? "Окно попытки, похоже, истекло — жми «Продолжить», сервер сам защитает результат."
           : `Осталось ${label} на эту попытку. Скрамбл прежний — «Продолжить» вернёт к нему.`}
       </p>
       <Button onClick={commit} className="self-start">
-        Продолжить
+        {t("Продолжить")}
       </Button>
     </Card>
   );
@@ -148,6 +152,7 @@ function ErrorCard({
   onRetry: () => void;
   reauth?: boolean;
 }) {
+  const t = useT();
   return (
     <Card>
       <p role="alert" className="max-w-prose font-sans text-body text-danger">
@@ -157,9 +162,9 @@ function ErrorCard({
         <p className="font-sans text-small text-muted">
           Результат сохранён локально —{" "}
           <Link to="/login?next=/tournament" className="font-bold text-primary">
-            войди заново
+            {t("войди заново")}
           </Link>
-          , затем повтори отправку.
+          {t(", затем повтори отправку.")}
         </p>
       ) : null}
       <Button onClick={onRetry} className="self-start">
@@ -170,6 +175,7 @@ function ErrorCard({
 }
 
 export default function TournamentPage() {
+  const t = useT();
   const { state, commit, submit, retrySubmit, retryLoad } = useTournamentAttempt();
   const { phase, current, attempt, terminal, error, submitErrorKind } = state;
   const standings = useTournamentStandings();
@@ -181,16 +187,16 @@ export default function TournamentPage() {
   return (
     <div className="flex flex-col gap-6">
       <div className="flex flex-wrap items-center justify-between gap-4">
-        <h2 className="font-sans text-h2 text-ink">Челлендж недели</h2>
+        <h2 className="font-sans text-h2 text-ink">{t("Челлендж недели")}</h2>
         <Link to="/" className="font-sans text-body font-bold text-primary no-underline">
-          ← На главную
+          {t("← На главную")}
         </Link>
       </div>
 
-      {phase === "loading" ? <Spinner label="Загружаю состояние недели…" /> : null}
+      {phase === "loading" ? <Spinner label={t("Загружаю состояние недели…")} /> : null}
 
       {phase === "load_error" ? (
-        <ErrorCard message={error} retryLabel="Повторить" onRetry={() => void retryLoad()} />
+        <ErrorCard message={error} retryLabel={t("Повторить")} onRetry={() => void retryLoad()} />
       ) : null}
 
       {phase === "precommit" ? (
@@ -199,17 +205,17 @@ export default function TournamentPage() {
 
       {phase === "resume" ? <ResumeCard current={current} commit={() => void commit()} /> : null}
 
-      {phase === "committing" ? <Spinner label="Готовлю попытку…" /> : null}
+      {phase === "committing" ? <Spinner label={t("Готовлю попытку…")} /> : null}
 
       {phase === "commit_error" ? (
-        <ErrorCard message={error} retryLabel="Повторить" onRetry={() => void commit()} />
+        <ErrorCard message={error} retryLabel={t("Повторить")} onRetry={() => void commit()} />
       ) : null}
 
       {phase === "active" && attempt ? (
         <ActiveRitual scramble={attempt.scramble} onResult={onResult} />
       ) : null}
 
-      {phase === "submitting" ? <Spinner label="Отправляю результат…" /> : null}
+      {phase === "submitting" ? <Spinner label={t("Отправляю результат…")} /> : null}
 
       {phase === "submit_error" ? (
         <ErrorCard
@@ -220,7 +226,7 @@ export default function TournamentPage() {
                 ? "Не удалось отправить результат — проверь интернет."
                 : error
           }
-          retryLabel="Повторить отправку"
+          retryLabel={t("Повторить отправку")}
           onRetry={() => void retrySubmit()}
           reauth={submitErrorKind === "unauthorized"}
         />

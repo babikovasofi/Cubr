@@ -6,12 +6,14 @@
 
 import { useState } from "react";
 import Button from "../components/Button";
+import { useT } from "../i18n/t";
 
 export interface InvitePanelProps {
   joinUrl: string;
 }
 
 export default function InvitePanel({ joinUrl }: InvitePanelProps) {
+  const t = useT();
   const [copied, setCopied] = useState(false);
   const [copyError, setCopyError] = useState(false);
 
@@ -30,11 +32,12 @@ export default function InvitePanel({ joinUrl }: InvitePanelProps) {
 
   return (
     <section className="flex flex-col gap-4 rounded-lg border-2 border-ink bg-surface p-7">
-      <span className="font-sans text-overline uppercase text-muted">Дуэль по ссылке</span>
-      <h3 className="font-sans text-h3 text-ink">Жду соперника</h3>
+      <span className="font-sans text-overline uppercase text-muted">{t("Дуэль по ссылке")}</span>
+      <h3 className="font-sans text-h3 text-ink">{t("Жду соперника")}</h3>
       <p className="max-w-prose font-sans text-body text-muted">
-        Отправь эту ссылку тому, с кем хочешь посоревноваться — дуэль начнётся, как только оба
-        будут готовы.
+        {t(
+          "Отправь эту ссылку тому, с кем хочешь посоревноваться — дуэль начнётся, как только оба будут готовы.",
+        )}
       </p>
 
       <div className="flex flex-wrap items-center gap-3 rounded-md border border-line bg-surface-2 px-3.5 py-3">
@@ -46,19 +49,19 @@ export default function InvitePanel({ joinUrl }: InvitePanelProps) {
         </a>
         {canCopy ? (
           <Button variant="secondary" onClick={() => void copy()}>
-            {copied ? "Скопировано" : "Скопировать ссылку"}
+            {copied ? t("Скопировано") : t("Скопировать ссылку")}
           </Button>
         ) : null}
       </div>
 
       {copyError ? (
         <p role="alert" className="font-sans text-small text-danger">
-          Не удалось скопировать — выдели и скопируй ссылку вручную.
+          {t("Не удалось скопировать — выдели и скопируй ссылку вручную.")}
         </p>
       ) : null}
 
       <p className="font-sans text-small text-muted" aria-live="polite">
-        Ожидаю подключения соперника…
+        {t("Ожидаю подключения соперника…")}
       </p>
     </section>
   );

@@ -24,12 +24,14 @@ import DuelResult from "../duel/DuelResult";
 import DuelRoom from "../duel/DuelRoom";
 import { duelReducer, initialDuelState } from "../duel/duelMachine";
 import { useDuelSocket } from "../duel/useDuelSocket";
+import { useT } from "../i18n/t";
 
 interface DuelLocationState {
   joinUrl?: string;
 }
 
 export default function DuelPage() {
+  const t = useT();
   const { roomId = "" } = useParams<{ roomId: string }>();
   const location = useLocation();
   const navigate = useNavigate();
@@ -170,9 +172,9 @@ export default function DuelPage() {
   return (
     <div className="flex flex-col gap-6">
       <div className="flex flex-wrap items-center justify-between gap-4">
-        <h2 className="font-sans text-h2 text-ink">Дуэль</h2>
+        <h2 className="font-sans text-h2 text-ink">{t("Дуэль")}</h2>
         <Link to="/" className="font-sans text-body font-bold text-primary no-underline">
-          ← На главную
+          {t("← На главную")}
         </Link>
       </div>
 

@@ -7,19 +7,21 @@ import CubeSelect from "../cubes/CubeSelect";
 import ResultScreen from "../solo/ResultScreen";
 import SolveRitual from "../solo/SolveRitual";
 import { useSoloSession } from "../solo/useSoloSession";
+import { useT } from "../i18n/t";
 
 export default function SoloPage() {
+  const t = useT();
   const s = useSoloSession();
   const { phase } = s.state;
 
   return (
     <div className="flex flex-col gap-6">
       <div className="flex flex-wrap items-center justify-between gap-4">
-        <h2 className="font-sans text-h2 text-ink">Соло — сборка</h2>
+        <h2 className="font-sans text-h2 text-ink">{t("Соло — сборка")}</h2>
         <div className="flex items-center gap-4">
           <CubeSelect />
           <Link to="/" className="font-sans text-body font-bold text-primary no-underline">
-            ← На главную
+            {t("← На главную")}
           </Link>
         </div>
       </div>

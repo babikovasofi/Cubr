@@ -8,6 +8,7 @@
 import { useEffect, useState } from "react";
 import { ApiError } from "../api/client";
 import { getDailyStreak, type DailyStreakRead } from "../api/daily";
+import { useT } from "../i18n/t";
 
 export function daysWord(n: number): string {
   const mod10 = n % 10;
@@ -31,6 +32,7 @@ export function streakHeadline(data: DailyStreakRead): string {
 }
 
 export default function StreakBadge() {
+  const t = useT();
   const [data, setData] = useState<DailyStreakRead | null>(null);
 
   useEffect(() => {
@@ -55,7 +57,7 @@ export default function StreakBadge() {
 
   return (
     <section
-      aria-label="Серия ежедневных сборок"
+      aria-label={t("Серия ежедневных сборок")}
       className="flex flex-wrap items-center gap-4 rounded-lg border border-line bg-surface px-4.5 py-3.5"
     >
       <span

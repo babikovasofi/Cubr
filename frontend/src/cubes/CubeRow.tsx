@@ -9,6 +9,7 @@ import { useCubesStore } from "../store/cubesStore";
 import { ApiError } from "../api/client";
 import { toast } from "../components/Toast";
 import type { CubeRead } from "../api/cubes";
+import { useT } from "../i18n/t";
 
 function fmtDate(iso: string): string {
   const d = new Date(iso);
@@ -17,6 +18,7 @@ function fmtDate(iso: string): string {
 }
 
 export default function CubeRow({ cube }: { cube: CubeRead }) {
+  const t = useT();
   const update = useCubesStore((s) => s.update);
   const remove = useCubesStore((s) => s.remove);
 
@@ -43,25 +45,30 @@ export default function CubeRow({ cube }: { cube: CubeRead }) {
   async function saveName() {
     const trimmed = name.trim();
     if (!trimmed) {
-      setError("Название не может быть пустым.");
+      setError(t("Название не может быть пустым."));
       return;
     }
     if (trimmed === cube.name) {
       setEditing(false);
       return;
     }
-    const ok = await run(() => update(cube.id, { name: trimmed }), "Не удалось переименовать.");
+    const ok = await run(() => update(cube.id, { name: trimmed }), t("Не удалось переименовать."));
     if (ok) setEditing(false);
   }
 
   async function makePrimary() {
-    await run(() => update(cube.id, { is_primary: true }), "Не удалось сделать основным.");
+    await run(() => update(cube.id, { is_primary: true }), t("Не удалось сделать основным."));
   }
 
   async function del() {
-    if (!globalThis.confirm(`Удалить кубик «${cube.name}»? Сборки на нём сохранятся.`)) return;
-    const ok = await run(() => remove(cube.id), "Не удалось удалить.");
-    if (ok) toast("Кубик удалён.", "info");
+    if (
+      !globalThis.confirm(
+        t("Удалить кубик «{name}»? Сборки на нём сохранятся.", { name: cube.name }),
+      )
+    )
+      return;
+    const ok = await run(() => remove(cube.id), t("Не удалось удалить."));
+    if (ok) toast(t("Кубик удалён."), "info");
   }
 
   return (
@@ -73,7 +80,7 @@ export default function CubeRow({ cube }: { cube: CubeRead }) {
             <div className="flex items-end gap-2">
               <div className="flex-1">
                 <Input
-                  label="Название"
+                  label={t("Название")}
                   maxLength={64}
                   value={name}
                   onChange={(e) => setName(e.target.value)}
@@ -86,7 +93,7 @@ export default function CubeRow({ cube }: { cube: CubeRead }) {
                 disabled={busy}
                 className="h-11 shrink-0 font-sans text-small font-bold text-primary disabled:text-faint"
               >
-                Сохранить
+                {t("Сохранить")}
               </button>
               <button
                 type="button"
@@ -97,7 +104,7 @@ export default function CubeRow({ cube }: { cube: CubeRead }) {
                 }}
                 className="h-11 shrink-0 font-sans text-small font-bold text-muted"
               >
-                Отмена
+                {t("Отмена")}
               </button>
             </div>
           ) : (
@@ -105,13 +112,15 @@ export default function CubeRow({ cube }: { cube: CubeRead }) {
               <span className="truncate font-sans text-body font-bold text-ink">{cube.name}</span>
               {cube.is_primary ? (
                 <span className="rounded-full border-2 border-success px-2 py-0.5 font-sans text-caption uppercase text-success">
-                  основной
+                  {t("основной")}
                 </span>
               ) : null}
             </div>
           )}
           {cube.note ? <span className="font-sans text-small text-muted">{cube.note}</span> : null}
-          <span className="font-sans text-caption text-muted">Добавлен {fmtDate(cube.created_at)}</span>
+          <span className="font-sans text-caption text-muted">
+            Добавлен {fmtDate(cube.created_at)}
+          </span>
         </div>
       </div>
 
@@ -128,7 +137,7 @@ export default function CubeRow({ cube }: { cube: CubeRead }) {
             onClick={() => setEditing(true)}
             className="font-sans text-small font-bold text-primary"
           >
-            Переименовать
+            {t("Переименовать")}
           </button>
           {!cube.is_primary ? (
             <button
@@ -137,7 +146,7 @@ export default function CubeRow({ cube }: { cube: CubeRead }) {
               disabled={busy}
               className="font-sans text-small font-bold text-ink disabled:text-faint"
             >
-              Сделать основным
+              {t("Сделать основным")}
             </button>
           ) : null}
           <button
@@ -146,7 +155,7 @@ export default function CubeRow({ cube }: { cube: CubeRead }) {
             disabled={busy}
             className="font-sans text-small font-bold text-danger disabled:text-faint"
           >
-            Удалить
+            {t("Удалить")}
           </button>
         </div>
       ) : null}

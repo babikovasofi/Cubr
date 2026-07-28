@@ -11,6 +11,7 @@ import CameraStage from "./CameraStage";
 import ScrambleWalkthrough from "./ScrambleWalkthrough";
 import type { useSoloSession } from "./useSoloSession";
 import { verifyMismatchRu } from "../vision/guide";
+import { useT } from "../i18n/t";
 
 type Session = ReturnType<typeof useSoloSession>;
 
@@ -19,6 +20,7 @@ export interface SolveRitualProps {
 }
 
 export default function SolveRitual({ s }: SolveRitualProps) {
+  const t = useT();
   const { phase } = s.state;
 
   return (
@@ -41,9 +43,7 @@ export default function SolveRitual({ s }: SolveRitualProps) {
       {phase !== "loading" && phase !== "result" ? (
         <div
           className={
-            phase === "walkthrough"
-              ? "hidden"
-              : "grid gap-6 md:grid-cols-[minmax(0,1fr)_20rem]"
+            phase === "walkthrough" ? "hidden" : "grid gap-6 md:grid-cols-[minmax(0,1fr)_20rem]"
           }
         >
           <CameraStage
@@ -58,7 +58,7 @@ export default function SolveRitual({ s }: SolveRitualProps) {
             {phase === "verify" ? <VerifyPanel s={s} /> : null}
             {phase === "armed" ? (
               <StatusPanel
-                title="Готово к таймеру"
+                title={t("Готово к таймеру")}
                 body="Поставь обе руки в зелёные зоны и замри — таймер запустится сам. Убрал руки — старт, вернул — стоп."
                 timerValue="0.00"
                 timerPhase="ready"
@@ -66,15 +66,13 @@ export default function SolveRitual({ s }: SolveRitualProps) {
             ) : null}
             {phase === "solving" ? (
               <StatusPanel
-                title="Идёт сборка"
+                title={t("Идёт сборка")}
                 body="Собирай! Верни обе руки в зоны и замри — таймер остановится."
                 timerValue={s.timerSeconds}
                 timerPhase="running"
               />
             ) : null}
-            {phase === "stopped" || phase === "solve_verify" ? (
-              <SolveVerifyPanel s={s} />
-            ) : null}
+            {phase === "stopped" || phase === "solve_verify" ? <SolveVerifyPanel s={s} /> : null}
           </aside>
         </div>
       ) : null}
@@ -87,19 +85,23 @@ export default function SolveRitual({ s }: SolveRitualProps) {
 }
 
 function LoadingBlock({ error, onRetry }: { error: string | null; onRetry: () => void }) {
+  const t = useT();
   if (error) {
     return (
-      <div role="alert" className="flex flex-col items-start gap-3 rounded-lg border-2 border-ink bg-surface p-6">
+      <div
+        role="alert"
+        className="flex flex-col items-start gap-3 rounded-lg border-2 border-ink bg-surface p-6"
+      >
         <p className="max-w-prose font-sans text-body text-danger">
-          Не удалось загрузить генератор скрамблов (проверь интернет): {error}
+          {t("Не удалось загрузить генератор скрамблов (проверь интернет):")} {error}
         </p>
-        <Button onClick={onRetry}>Обновить</Button>
+        <Button onClick={onRetry}>{t("Обновить")}</Button>
       </div>
     );
   }
   return (
     <p className="font-sans text-body text-muted" aria-live="polite">
-      Генерирую скрамбл…
+      {t("Генерирую скрамбл…")}
     </p>
   );
 }
@@ -128,24 +130,25 @@ function StatusPanel({
 // With a selected profile → one white face (quick von-Kries adjust); otherwise a
 // full 6-face registration (anon / no profile / a rejected quick-adjust).
 function CalibratePanel({ s }: { s: Session }) {
+  const t = useT();
   const total = 6;
 
   if (s.calibrateMode === "quick") {
     const cube = s.selectedCubeName ? `«${s.selectedCubeName}»` : "кубика";
     return (
       <div className="flex flex-col gap-3 rounded-lg border-2 border-ink bg-surface p-4.5">
-        <h3 className="font-sans text-h3 text-ink">Твой кубик готов</h3>
+        <h3 className="font-sans text-h3 text-ink">{t("Твой кубик готов")}</h3>
         <p className="font-sans text-small text-muted">
-          Cubr уже знает цвета {cube} — можно сразу собирать, показывать его заново не нужно.
-          Если сильно поменялся свет — подстрой по одной белой грани.
+          Cubr уже знает цвета {cube} — можно сразу собирать, показывать его заново не нужно. Если
+          сильно поменялся свет — подстрой по одной белой грани.
         </p>
-        <Button onClick={s.useSavedProfile}>Использовать сохранённый профиль</Button>
+        <Button onClick={s.useSavedProfile}>{t("Использовать сохранённый профиль")}</Button>
         <button
           type="button"
           onClick={s.calibrateStep}
           className="self-start font-sans text-small font-bold text-primary"
         >
-          Подстроить под свет (одна белая грань)
+          {t("Подстроить под свет (одна белая грань)")}
         </button>
         {s.calibrateError ? (
           <p role="alert" className="font-sans text-small text-danger">
@@ -157,7 +160,7 @@ function CalibratePanel({ s }: { s: Session }) {
           onClick={s.fallbackToFullCalibration}
           className="self-start font-sans text-small font-bold text-muted"
         >
-          Перекалибровать по 6 граням
+          {t("Перекалибровать по 6 граням")}
         </button>
       </div>
     );
@@ -165,9 +168,10 @@ function CalibratePanel({ s }: { s: Session }) {
 
   return (
     <div className="flex flex-col gap-3 rounded-lg border-2 border-ink bg-surface p-4.5">
-      <h3 className="font-sans text-h3 text-ink">Калибровка цветов</h3>
+      <h3 className="font-sans text-h3 text-ink">{t("Калибровка цветов")}</h3>
       <p className="font-sans text-small text-muted">
-        Поднеси к жёлтой рамке грань собранного кубика и снимай по очереди — снято {s.calibrationStep}/{total}.
+        Поднеси к жёлтой рамке грань собранного кубика и снимай по очереди — снято{" "}
+        {s.calibrationStep}/{total}.
       </p>
       <Button onClick={s.calibrateStep}>
         Снять грань {Math.min(s.calibrationStep + 1, total)}/{total}
@@ -184,11 +188,12 @@ function CalibratePanel({ s }: { s: Session }) {
 // Honest finish: after the timer freezes, confirm the cube is actually SOLVED
 // (ground truth = solved facelets, not the scramble target).
 function SolveVerifyPanel({ s }: { s: Session }) {
+  const t = useT();
   const total = 6;
   const collecting = s.state.phase === "solve_verify" && s.collecting;
   return (
     <div className="flex flex-col gap-3 rounded-lg border-2 border-ink bg-surface p-4.5">
-      <h3 className="font-sans text-h3 text-ink">Проверка сборки</h3>
+      <h3 className="font-sans text-h3 text-ink">{t("Проверка сборки")}</h3>
       <Timer value={s.timerSeconds} phase="success" />
       {collecting ? (
         <>
@@ -202,9 +207,9 @@ function SolveVerifyPanel({ s }: { s: Session }) {
       ) : (
         <>
           <p className="font-sans text-small text-muted">
-            Останови время — покажи 6 граней собранного кубика, я подтвержу сборку.
+            {t("Останови время — покажи 6 граней собранного кубика, я подтвержу сборку.")}
           </p>
-          <Button onClick={s.solveVerifyStep}>Подтвердить сборку (6 граней)</Button>
+          <Button onClick={s.solveVerifyStep}>{t("Подтвердить сборку (6 граней)")}</Button>
         </>
       )}
       {s.solveVerifyError ? (
@@ -214,9 +219,9 @@ function SolveVerifyPanel({ s }: { s: Session }) {
       ) : null}
       {s.solveVerifyFailCount >= 2 ? (
         <>
-          <Button onClick={s.skipSolveVerify}>Пропустить</Button>
+          <Button onClick={s.skipSolveVerify}>{t("Пропустить")}</Button>
           <p className="font-sans text-caption text-muted">
-            Камера не подтвердит сборку — результат сохранится с пометкой «без проверки».
+            {t("Камера не подтвердит сборку — результат сохранится с пометкой «без проверки».")}
           </p>
         </>
       ) : null}
@@ -225,30 +230,35 @@ function SolveVerifyPanel({ s }: { s: Session }) {
 }
 
 function VerifyPanel({ s }: { s: Session }) {
+  const t = useT();
   const total = 6;
 
   return (
     <div className="flex flex-col gap-3 rounded-lg border-2 border-ink bg-surface p-4.5">
-      <h3 className="font-sans text-h3 text-ink">Проверка сборки</h3>
+      <h3 className="font-sans text-h3 text-ink">{t("Проверка сборки")}</h3>
       {s.collecting ? (
         <>
           <p className="font-sans text-small text-muted">
             Держи грань в жёлтой рамке и снимай — прочитано {s.verifyFacesLength}/{total}.
           </p>
-          <Button onClick={s.verifyStep}>Снять грань {Math.min(s.verifyFacesLength + 1, total)}/{total}</Button>
+          <Button onClick={s.verifyStep}>
+            Снять грань {Math.min(s.verifyFacesLength + 1, total)}/{total}
+          </Button>
         </>
       ) : (
         <>
           <p className="font-sans text-small text-muted">
-            Собери показанный разброс и покажи 6 граней — сверю с эталоном, потом взведу таймер.
+            {t(
+              "Собери показанный разброс и покажи 6 граней — сверю с эталоном, потом взведу таймер.",
+            )}
           </p>
           {!s.canVerify ? (
             <p role="alert" className="font-sans text-small text-danger">
-              Эталон скрамбла не готов — обнови скрамбл на экране инструкции.
+              {t("Эталон скрамбла не готов — обнови скрамбл на экране инструкции.")}
             </p>
           ) : null}
           <Button onClick={s.verifyStep} disabled={!s.canVerify}>
-            Проверить сборку (6 граней)
+            {t("Проверить сборку (6 граней)")}
           </Button>
         </>
       )}
@@ -265,9 +275,9 @@ function VerifyPanel({ s }: { s: Session }) {
       ) : null}
       {s.verifyFailCount >= 2 ? (
         <>
-          <Button onClick={s.skipVerify}>Пропустить</Button>
+          <Button onClick={s.skipVerify}>{t("Пропустить")}</Button>
           <p className="font-sans text-caption text-muted">
-            Камера не подтвердит скрамбл — таймер взведётся без проверки.
+            {t("Камера не подтвердит скрамбл — таймер взведётся без проверки.")}
           </p>
         </>
       ) : null}
@@ -278,7 +288,7 @@ function VerifyPanel({ s }: { s: Session }) {
           onClick={s.backToWalkthrough}
           className="font-sans text-small font-bold text-primary"
         >
-          ← к инструкции
+          {t("← к инструкции")}
         </button>
       </div>
     </div>

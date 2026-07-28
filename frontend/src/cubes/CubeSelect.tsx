@@ -5,8 +5,10 @@
 
 import { useEffect } from "react";
 import { useCubesStore } from "../store/cubesStore";
+import { useT } from "../i18n/t";
 
 export default function CubeSelect() {
+  const t = useT();
   const list = useCubesStore((s) => s.list);
   const status = useCubesStore((s) => s.status);
   const load = useCubesStore((s) => s.load);
@@ -30,7 +32,7 @@ export default function CubeSelect() {
         {list.map((cube) => (
           <option key={cube.id} value={cube.id}>
             {cube.name}
-            {cube.is_primary ? " (основной)" : ""}
+            {cube.is_primary ? ` ${t("(основной)")}` : ""}
           </option>
         ))}
       </select>

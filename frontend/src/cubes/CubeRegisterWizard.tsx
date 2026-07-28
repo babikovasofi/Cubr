@@ -13,6 +13,7 @@ import { useCubeRegister, REGISTER_FACES } from "./useCubeRegister";
 import { useCubesStore } from "../store/cubesStore";
 import { ApiError } from "../api/client";
 import type { CubeRead } from "../api/cubes";
+import { useT } from "../i18n/t";
 
 interface Props {
   defaultPrimary?: boolean;
@@ -21,6 +22,7 @@ interface Props {
 }
 
 export default function CubeRegisterWizard({ defaultPrimary = false, onDone, onCancel }: Props) {
+  const t = useT();
   const reg = useCubeRegister();
   const createCube = useCubesStore((s) => s.create);
 
@@ -34,11 +36,11 @@ export default function CubeRegisterWizard({ defaultPrimary = false, onDone, onC
     e.preventDefault();
     const trimmed = name.trim();
     if (!trimmed) {
-      setFormError("Придумай название — так проще отличать кубики.");
+      setFormError(t("Придумай название — так проще отличать кубики."));
       return;
     }
     if (!reg.profile) {
-      setFormError("Сначала сними все 6 граней.");
+      setFormError(t("Сначала сними все 6 граней."));
       return;
     }
     setBusy(true);
@@ -52,7 +54,7 @@ export default function CubeRegisterWizard({ defaultPrimary = false, onDone, onC
       });
       onDone(cube);
     } catch (err) {
-      setFormError(err instanceof ApiError ? err.message : "Не удалось сохранить кубик.");
+      setFormError(err instanceof ApiError ? err.message : t("Не удалось сохранить кубик."));
     } finally {
       setBusy(false);
     }
@@ -81,26 +83,27 @@ export default function CubeRegisterWizard({ defaultPrimary = false, onDone, onC
         {!reg.started ? (
           <div className="flex flex-col gap-4 rounded-lg border-2 border-ink bg-surface p-4.5">
             <p className="font-sans text-body text-muted">
-              Поднеси собранный кубик к камере: снимем цвет каждой из 6 граней,
-              чтобы Cubr узнавал именно твой кубик.
+              {t(
+                "Поднеси собранный кубик к камере: снимем цвет каждой из 6 граней, чтобы Cubr узнавал именно твой кубик.",
+              )}
             </p>
             <div className="flex flex-wrap items-center gap-3">
-              <Button onClick={reg.start}>Включить камеру</Button>
+              <Button onClick={reg.start}>{t("Включить камеру")}</Button>
               <button
                 type="button"
                 onClick={onCancel}
                 className="font-sans text-small font-bold text-muted"
               >
-                Отмена
+                {t("Отмена")}
               </button>
             </div>
           </div>
         ) : !done ? (
           <div className="flex flex-col gap-3 rounded-lg border-2 border-ink bg-surface p-4.5">
-            <h3 className="font-sans text-h3 text-ink">Снимаем грани</h3>
+            <h3 className="font-sans text-h3 text-ink">{t("Снимаем грани")}</h3>
             <p className="font-sans text-small text-muted">
-              Держи одну грань в жёлтой рамке и снимай по очереди — снято{" "}
-              {reg.calibrationStep}/{REGISTER_FACES}.
+              Держи одну грань в жёлтой рамке и снимай по очереди — снято {reg.calibrationStep}/
+              {REGISTER_FACES}.
             </p>
             <Button onClick={reg.capture}>
               Снять грань {nextFace}/{REGISTER_FACES}
@@ -110,7 +113,7 @@ export default function CubeRegisterWizard({ defaultPrimary = false, onDone, onC
               onClick={onCancel}
               className="self-start font-sans text-small font-bold text-muted"
             >
-              Отмена
+              {t("Отмена")}
             </button>
           </div>
         ) : (
@@ -119,32 +122,32 @@ export default function CubeRegisterWizard({ defaultPrimary = false, onDone, onC
             onSubmit={onSubmit}
             noValidate
           >
-            <h3 className="font-sans text-h3 text-ink">Сохранить кубик</h3>
+            <h3 className="font-sans text-h3 text-ink">{t("Сохранить кубик")}</h3>
 
             <div className="flex flex-col gap-1.5">
               <span className="font-sans text-small font-bold text-ink">
-                Так Cubr запомнил твой кубик
+                {t("Так Cubr запомнил твой кубик")}
               </span>
               {reg.profile ? <ColorPalette profile={reg.profile} size="md" /> : null}
               <p className="font-sans text-caption text-muted">
-                Профиль снят автоматически с 6 граней — выбирать ничего не нужно.
+                {t("Профиль снят автоматически с 6 граней — выбирать ничего не нужно.")}
               </p>
             </div>
 
             <Input
-              label="Название"
+              label={t("Название")}
               maxLength={64}
               value={name}
               onChange={(e) => setName(e.target.value)}
-              placeholder="Например, MoYu основной"
+              placeholder={t("Например, MoYu основной")}
               required
             />
             <Input
-              label="Заметка (необязательно)"
+              label={t("Заметка (необязательно)")}
               maxLength={255}
               value={note}
               onChange={(e) => setNote(e.target.value)}
-              placeholder="магнитный, для соревнований…"
+              placeholder={t("магнитный, для соревнований…")}
             />
 
             <label className="flex items-center gap-2 font-sans text-small text-ink">
@@ -154,7 +157,7 @@ export default function CubeRegisterWizard({ defaultPrimary = false, onDone, onC
                 onChange={(e) => setPrimary(e.target.checked)}
                 className="h-4 w-4 accent-primary"
               />
-              Сделать основным кубиком
+              {t("Сделать основным кубиком")}
             </label>
 
             {formError ? (
@@ -165,21 +168,21 @@ export default function CubeRegisterWizard({ defaultPrimary = false, onDone, onC
 
             <div className="flex flex-wrap items-center gap-3">
               <Button type="submit" disabled={busy}>
-                {busy ? "Сохраняю…" : "Сохранить кубик"}
+                {busy ? t("Сохраняю…") : t("Сохранить кубик")}
               </Button>
               <button
                 type="button"
                 onClick={reg.reset}
                 className="font-sans text-small font-bold text-muted"
               >
-                Снять заново
+                {t("Снять заново")}
               </button>
               <button
                 type="button"
                 onClick={onCancel}
                 className="font-sans text-small font-bold text-muted"
               >
-                Отмена
+                {t("Отмена")}
               </button>
             </div>
           </form>

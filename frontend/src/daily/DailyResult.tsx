@@ -7,12 +7,14 @@
 
 import Timer from "../components/Timer";
 import type { TerminalResult } from "./useDailyAttempt";
+import { useT } from "../i18n/t";
 
 export interface DailyResultProps {
   result: TerminalResult;
 }
 
 export default function DailyResult({ result }: DailyResultProps) {
+  const t = useT();
   const { day_label, status, time_ms, forcedLateDnf } = result;
   const dnf = status === "dnf";
   const seconds = time_ms !== null ? (time_ms / 1000).toFixed(2) : "DNF";
@@ -36,7 +38,11 @@ export default function DailyResult({ result }: DailyResultProps) {
         </span>
       )}
 
-      <div className={["flex flex-col items-center gap-4 text-center", dnf ? "px-7 pb-7" : ""].join(" ")}>
+      <div
+        className={["flex flex-col items-center gap-4 text-center", dnf ? "px-7 pb-7" : ""].join(
+          " ",
+        )}
+      >
         <Timer value={dnf ? "DNF" : seconds} phase={dnf ? "dnf" : "success"} />
         <p className="max-w-prose font-sans text-body text-muted">
           {dnf
@@ -45,7 +51,7 @@ export default function DailyResult({ result }: DailyResultProps) {
         </p>
         {forcedLateDnf ? (
           <p className="max-w-prose font-sans text-small text-muted">
-            Окно попытки истекло до того, как результат дошёл до сервера — засчитан DNF.
+            {t("Окно попытки истекло до того, как результат дошёл до сервера — засчитан DNF.")}
           </p>
         ) : null}
       </div>
