@@ -36,8 +36,7 @@ export function rgb2lab([r, g, b]: RGB): Lab {
   y /= 1.0;
   z /= 1.08883;
 
-  const f = (t: number) =>
-    t > 0.008856 ? Math.cbrt(t) : 7.787 * t + 16 / 116;
+  const f = (t: number) => (t > 0.008856 ? Math.cbrt(t) : 7.787 * t + 16 / 116);
   const fx = f(x);
   const fy = f(y);
   const fz = f(z);
@@ -137,10 +136,7 @@ export function deltaE2000(lab1: Lab, lab2: Lab): number {
   const dtheta = 30 * Math.exp(-Math.pow((hbarp - 275) / 25, 2));
   const Cbarp7 = Math.pow(Cbarp, 7);
   const RC = 2 * Math.sqrt(Cbarp7 / (Cbarp7 + Math.pow(25, 7)));
-  const SL =
-    1 +
-    (0.015 * Math.pow(Lbarp - 50, 2)) /
-      Math.sqrt(20 + Math.pow(Lbarp - 50, 2));
+  const SL = 1 + (0.015 * Math.pow(Lbarp - 50, 2)) / Math.sqrt(20 + Math.pow(Lbarp - 50, 2));
   const SC = 1 + 0.045 * Cbarp;
   const SH = 1 + 0.015 * Cbarp * T;
   const RT = -Math.sin(deg2rad(2 * dtheta)) * RC;
@@ -185,6 +181,74 @@ export function deltaE(a: Lab, b: Lab, mode: DeltaEMode = config.DELTA_E_MODE): 
  * Median RGB over the central `centerFrac` region of a WxH block of RGBA pixels.
  * `pixels` is a flat RGBA array (like ImageData.data) of size w*h*4.
  */
+/**
+ * Устойчивый цвет ячейки: медиана по центру ячейки, но БЕЗ бликов и теней.
+ *
+ * Зачем: обычная медиана по центральным 50% ловит блик от лампы (пересвеченное
+ * пятно почти всегда бело-жёлтое) и тень от пальца. В багрепорте белая наклейка
+ * читалась как красная/оранжевая — ровно этот механизм: часть ячейки выбита в
+ * пересвет, часть затенена, медиана уезжает.
+ *
+ * Как: берём яркость каждого пикселя, считаем медианную яркость ячейки и
+ * оставляем только пиксели в коридоре вокруг неё, дополнительно выкидывая
+ * заведомо выбитые (яркость выше `blownLuma`). Если после отбраковки осталось
+ * слишком мало — возвращаем медиану по всему центру и честно сообщаем низкую
+ * долю `kept`: вызывающий может переспросить грань вместо того, чтобы гадать.
+ */
+export interface RobustCell {
+  rgb: RGB;
+  /** Доля пикселей, переживших отбраковку (0..1). Низкая — ячейка ненадёжна. */
+  kept: number;
+}
+
+export function robustCellColor(
+  pixels: Uint8ClampedArray | number[],
+  w: number,
+  h: number,
+  centerFrac: number = config.CELL_CENTER_FRAC,
+  lumaTol: number = config.CELL_LUMA_TOLERANCE,
+  blownLuma: number = config.CELL_BLOWN_LUMA,
+): RobustCell {
+  const marginX = Math.floor((w * (1 - centerFrac)) / 2);
+  const marginY = Math.floor((h * (1 - centerFrac)) / 2);
+  const rs: number[] = [];
+  const gs: number[] = [];
+  const bs: number[] = [];
+  const lumas: number[] = [];
+  for (let y = marginY; y < h - marginY; y++) {
+    for (let x = marginX; x < w - marginX; x++) {
+      const i = (y * w + x) * 4;
+      const r = pixels[i];
+      const g = pixels[i + 1];
+      const b = pixels[i + 2];
+      rs.push(r);
+      gs.push(g);
+      bs.push(b);
+      lumas.push(0.2126 * r + 0.7152 * g + 0.0722 * b);
+    }
+  }
+  if (rs.length === 0) return { rgb: [0, 0, 0], kept: 0 };
+
+  const medLuma = median(lumas);
+  const keepR: number[] = [];
+  const keepG: number[] = [];
+  const keepB: number[] = [];
+  for (let i = 0; i < rs.length; i++) {
+    if (lumas[i] > blownLuma) continue;
+    if (Math.abs(lumas[i] - medLuma) > lumaTol) continue;
+    keepR.push(rs[i]);
+    keepG.push(gs[i]);
+    keepB.push(bs[i]);
+  }
+  const kept = keepR.length / rs.length;
+  if (keepR.length < rs.length * config.CELL_MIN_KEPT_FRAC) {
+    // Отбраковка съела почти всё (сплошной пересвет или мимо кубика) — отдаём
+    // сырую медиану, но с честным низким `kept`.
+    return { rgb: [median(rs), median(gs), median(bs)], kept };
+  }
+  return { rgb: [median(keepR), median(keepG), median(keepB)], kept };
+}
+
 export function medianOfCentralRegion(
   pixels: Uint8ClampedArray | number[],
   w: number,
@@ -365,6 +429,28 @@ export function applyVonKries(refs: Refs, g: [number, number, number]): Refs {
   const out = {} as Refs;
   for (const name of COLOR_NAMES) out[name] = applyGainToRef(refs[name], g);
   return out;
+}
+
+/**
+ * Пер-грань нормировка света по её собственному центру.
+ *
+ * Эталоны снимаются один раз на калибровке, а свет плывёт: солнце уходит, рука
+ * бросает тень, камера подкручивает баланс белого. Центр наклейки не двигается
+ * НИКОГДА, поэтому его цвет — известная точка отсчёта именно для этой грани:
+ * зная, каким он должен быть, считаем канальный коэффициент (фон-Крис в
+ * линейном sRGB) и применяем ко всем девяти ячейкам этой грани.
+ *
+ * Возвращает исправленные RGB. Коэффициент зажат `clampGain`, поэтому
+ * промах в опознании центра не может вывернуть грань наизнанку.
+ */
+export function normalizeFaceByCenter(faceRGB: RGB[], centerRef: Lab): RGB[] {
+  if (faceRGB.length !== 9) return faceRGB;
+  const observedCenter = faceRGB[4];
+  const gain = vonKriesGain(observedCenter, centerRef);
+  // Коэффициент считался «наблюдаемое / эталон», значит для исправления
+  // наблюдаемого к эталонному свету его надо применить в обратную сторону.
+  const inverse: [number, number, number] = [1 / gain[0], 1 / gain[1], 1 / gain[2]];
+  return faceRGB.map((rgb) => applyLightGain(rgb, inverse));
 }
 
 /** Simulate a global illuminant change: linear-sRGB per-channel gain on an sRGB color. */

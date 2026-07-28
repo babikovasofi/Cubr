@@ -10,7 +10,8 @@ import {
   COLOR_NAMES,
   assignQuota,
   deltaE,
-  medianOfCentralRegion,
+  robustCellColor,
+  normalizeFaceByCenter,
   rgb2lab,
   type ColorName,
   type Lab,
@@ -25,6 +26,8 @@ import { diffFacelets, validateFacelets, type Face, type Facelet } from "../cube
 export interface FaceSample {
   rgb: RGB[]; // 9 median RGBs, grid order 0..8 (row-major, TL..BR)
   lab: Lab[]; // same, in Lab
+  /** Доля пикселей, переживших отбраковку бликов/теней в каждой ячейке (0..1). */
+  kept: number[];
 }
 
 /**
@@ -59,6 +62,7 @@ export function readFace(
 
   const rgb: RGB[] = [];
   const lab: Lab[] = [];
+  const kept: number[] = [];
   for (let row = 0; row < 3; row++) {
     for (let col = 0; col < 3; col++) {
       const cx = xEdges[col];
@@ -66,12 +70,13 @@ export function readFace(
       const cellW = xEdges[col + 1] - cx;
       const cellH = yEdges[row + 1] - cy;
       const data = ctx.getImageData(cx, cy, cellW, cellH).data;
-      const med = medianOfCentralRegion(data, cellW, cellH, centerFrac);
-      rgb.push(med);
-      lab.push(rgb2lab(med));
+      const cell = robustCellColor(data, cellW, cellH, centerFrac);
+      kept.push(cell.kept);
+      rgb.push(cell.rgb);
+      lab.push(rgb2lab(cell.rgb));
     }
   }
-  return { rgb, lab };
+  return { rgb, lab, kept };
 }
 
 /** Mean luma (Rec. 601) of the guide region, 0..255. */
@@ -133,6 +138,43 @@ interface SixFaceResolve {
  * Возврат к argmin — только если центры не разложились по шести цветам: тогда
  * пиновать нечего и квоты применять не к чему.
  */
+/**
+ * Уверенность чтения наклейки: насколько ближайший эталон оторвался от второго.
+ * Маленький отрыв — это не чтение, а угадывание: такую грань честнее переспросить.
+ */
+export function stickerConfidence(
+  lab: Lab,
+  refs: Refs,
+): { best: ColorName; margin: number; d: number } {
+  let best: ColorName = COLOR_NAMES[0];
+  let d1 = Infinity;
+  let d2 = Infinity;
+  for (const name of COLOR_NAMES) {
+    const d = deltaE(lab, refs[name]);
+    if (d < d1) {
+      d2 = d1;
+      d1 = d;
+      best = name;
+    } else if (d < d2) {
+      d2 = d;
+    }
+  }
+  return { best, margin: d2 - d1, d: d1 };
+}
+
+/** Сколько ячеек грани прочитаны уверенно (см. config.STICKER_*). */
+export function confidentCells(labs: Lab[], refs: Refs, kept: number[]): number {
+  let n = 0;
+  for (let i = 0; i < labs.length; i++) {
+    const { margin, d } = stickerConfidence(labs[i], refs);
+    const reliablePixels = (kept[i] ?? 1) >= config.CELL_MIN_KEPT_FRAC;
+    if (reliablePixels && margin >= config.STICKER_MARGIN_MIN && d <= config.STICKER_MAX_DELTA_E) {
+      n++;
+    }
+  }
+  return n;
+}
+
 function classifyWithQuota(faces: Lab[][], refs: Refs, centers: Face[] | null): Face[][] {
   const argminGrids = (): Face[][] =>
     faces.map((grid) => grid.map((lab) => argminRef(lab, refs) as string as Face));
@@ -364,7 +406,19 @@ export function useCubeReader(workRef: React.RefObject<HTMLCanvasElement | null>
     if (!readable(video, work)) return { kind: "unreadable" };
 
     const face = readFace(video, video.videoWidth, video.videoHeight, work);
-    collectorRef.current.push(face.lab);
+
+    // Пер-грань нормировка света по своему центру + порог уверенности. Грань,
+    // прочитанную наугад (мало отрыва до второго цвета, блик съел ячейку),
+    // честнее переспросить сразу, чем тащить её в сборку кубика: там она
+    // превратится в «расходится N наклеек» без объяснения причины.
+    const centerName = argminRef(face.lab[4], refs);
+    const fixedRGB = normalizeFaceByCenter(face.rgb, refs[centerName]);
+    const fixedLab = fixedRGB.map((rgb) => rgb2lab(rgb));
+    if (confidentCells(fixedLab, refs, face.kept) < config.FACE_MIN_CONFIDENT_CELLS) {
+      return { kind: "unreadable" };
+    }
+
+    collectorRef.current.push(fixedLab);
     const n = collectorRef.current.length;
     setVerifyFacesLength(n);
     if (n < 6) return { kind: "pending", facesLength: n };

@@ -62,6 +62,14 @@ export interface Config {
   // ---- Guide frame / cell sampling ------------------------------------------
   GUIDE_RECT: Rect; // where the cube face should sit in the frame
   CELL_CENTER_FRAC: number; // central region of each cell sampled for color (0.5 = central 50%)
+  // Отбраковка бликов/теней внутри ячейки (см. colors.robustCellColor).
+  CELL_LUMA_TOLERANCE: number; // коридор яркости вокруг медианы ячейки
+  CELL_BLOWN_LUMA: number; // выше этой яркости пиксель считается выбитым в пересвет
+  CELL_MIN_KEPT_FRAC: number; // если выжило меньше — цвет ячейки ненадёжен
+  // Порог уверенности классификации наклейки (см. hooks/useCubeReader).
+  STICKER_MARGIN_MIN: number; // минимальный отрыв ΔE второго кандидата от первого
+  STICKER_MAX_DELTA_E: number; // дальше этого от эталона — чтение не считается уверенным
+  FACE_MIN_CONFIDENT_CELLS: number; // сколько из 9 ячеек должны быть уверенными
 
   // ---- Color classification -------------------------------------------------
   QUOTA: number; // stickers per color on a 3x3x3 cube (always 9)
@@ -115,6 +123,12 @@ export const config: Config = {
   // the background, so a solved cube verified ~70% wrong.
   GUIDE_RECT: { x: 0.35, y: 0.24, w: 0.3, h: 0.55 },
   CELL_CENTER_FRAC: 0.5,
+  CELL_LUMA_TOLERANCE: 34,
+  CELL_BLOWN_LUMA: 246,
+  CELL_MIN_KEPT_FRAC: 0.25,
+  STICKER_MARGIN_MIN: 4,
+  STICKER_MAX_DELTA_E: 34,
+  FACE_MIN_CONFIDENT_CELLS: 8,
 
   QUOTA: 9,
   DELTA_E_MODE: "ciede2000",
