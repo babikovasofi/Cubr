@@ -10,6 +10,7 @@ import Button from "../components/Button";
 import HeroStickers from "../components/HeroStickers";
 import MiniGrid from "../components/MiniGrid";
 import { useIsHandheld } from "../lib/useIsHandheld";
+import { useT } from "../i18n/t";
 import { useUiStore } from "../store/uiStore";
 import { useAuthStore } from "../store/authStore";
 import { createRoom, saveDuelSessionToken } from "../api/duel";
@@ -44,6 +45,7 @@ function ModeCard({
   text: string;
   live?: boolean;
 }) {
+  const t = useT();
   const icon = MODE_ICON[mode];
   return (
     <Link to={to} className={CARD_LINK}>
@@ -56,7 +58,7 @@ function ModeCard({
       </div>
       {live ? (
         <span className="whitespace-nowrap font-sans text-caption font-black uppercase text-live">
-          ● идёт запись
+          {t("● идёт запись")}
         </span>
       ) : null}
     </Link>
@@ -86,6 +88,7 @@ const STEPS: { title: string; text: string }[] = [
 ];
 
 function Landing() {
+  const t = useT();
   // Этап 6 (R8): с телефона предупреждаем ДО клика по CTA — иначе человек уйдёт
   // в ритуал и упрётся в заглушку уже после решения попробовать.
   const handheld = useIsHandheld();
@@ -96,28 +99,30 @@ function Landing() {
       <section className="flex items-center justify-between gap-10">
         <div className="flex flex-col gap-5">
           <h1 className="max-w-[18ch] font-sans text-h1 text-ink">
-            Дуэли по сборке кубика. Судит камера.
+            {t("Дуэли по сборке кубика. Судит камера.")}
           </h1>
           <p className="max-w-prose font-sans text-body text-muted">
-            Показываешь кубик в камеру — браузер сам проверяет скрамбл, ловит старт и стоп по рукам
-            и подтверждает сборку. Ни живого судьи, ни «поверь на слово».
+            {t(
+              "Показываешь кубик в камеру — браузер сам проверяет скрамбл, ловит старт и стоп по рукам и подтверждает сборку. Ни живого судьи, ни «поверь на слово».",
+            )}
           </p>
           <div className="flex flex-wrap items-center gap-4">
             <Link to="/register" className="no-underline">
-              <Button>Создать аккаунт</Button>
+              <Button>{t("Создать аккаунт")}</Button>
             </Link>
             <Link to="/solo" className="no-underline">
-              <Button variant="secondary">Попробовать соло без аккаунта</Button>
+              <Button variant="secondary">{t("Попробовать соло без аккаунта")}</Button>
             </Link>
           </div>
           {handheld ? (
             <p className="font-sans text-small font-bold text-ink">
-              Сборка идёт с компьютера: нужна камера, кубик и обе руки на столе. С телефона можно
-              почитать правила и завести аккаунт.
+              {t(
+                "Сборка идёт с компьютера: нужна камера, кубик и обе руки на столе. С телефона можно почитать правила и завести аккаунт.",
+              )}
             </p>
           ) : (
             <p className="font-sans text-small text-faint">
-              Нужен компьютер с камерой и обычный комнатный свет. Видео не покидает браузер.
+              {t("Нужен компьютер с камерой и обычный комнатный свет. Видео не покидает браузер.")}
             </p>
           )}
         </div>
@@ -125,7 +130,7 @@ function Landing() {
       </section>
 
       <section className="flex flex-col gap-4">
-        <h2 className="font-sans text-h2 text-ink">Как проходит сборка</h2>
+        <h2 className="font-sans text-h2 text-ink">{t("Как проходит сборка")}</h2>
         <ol className="grid list-none grid-cols-1 gap-3 p-0 sm:grid-cols-2">
           {STEPS.map((step, i) => (
             <li
@@ -141,86 +146,91 @@ function Landing() {
               >
                 {i + 1}
               </span>
-              <span className="font-sans text-body font-bold text-ink">{step.title}</span>
-              <span className="font-sans text-small text-muted">{step.text}</span>
+              <span className="font-sans text-body font-bold text-ink">{t(step.title)}</span>
+              <span className="font-sans text-small text-muted">{t(step.text)}</span>
             </li>
           ))}
         </ol>
         <Link to="/rules" className="font-sans text-small font-bold text-primary">
-          Правила целиком: что засчитывается, а что DNF
+          {t("Правила целиком: что засчитывается, а что DNF")}
         </Link>
       </section>
 
       <section className="flex flex-col gap-4">
-        <h2 className="font-sans text-h2 text-ink">Где соревноваться</h2>
+        <h2 className="font-sans text-h2 text-ink">{t("Где соревноваться")}</h2>
         <div className="flex flex-col gap-3">
           <ModeCard
             to="/solo"
             mode="solo"
-            title="Соло-тренировка"
-            text="Весь ритуал целиком, без аккаунта. Сборки сохраняются, если войти."
+            title={t("Соло-тренировка")}
+            text={t("Весь ритуал целиком, без аккаунта. Сборки сохраняются, если войти.")}
           />
           <ModeCard
             to="/register"
             mode="duel"
-            title="Дуэль по ссылке"
-            text="Создаёшь комнату, кидаешь ссылку другу — старт синхронный, скрамбл один на двоих."
+            title={t("Дуэль по ссылке")}
+            text={t(
+              "Создаёшь комнату, кидаешь ссылку другу — старт синхронный, скрамбл один на двоих.",
+            )}
           />
           <ModeCard
             to="/register"
             mode="week"
-            title="Челлендж недели"
-            text="Общий скрамбл на неделю, одна попытка."
+            title={t("Челлендж недели")}
+            text={t("Общий скрамбл на неделю, одна попытка.")}
             live
           />
           <ModeCard
             to="/register"
             mode="daily"
-            title="Скрамбл дня"
-            text="Общий скрамбл на сутки, одна попытка."
+            title={t("Скрамбл дня")}
+            text={t("Общий скрамбл на сутки, одна попытка.")}
             live
           />
         </div>
       </section>
 
       <section className="flex flex-col gap-4 rounded-lg border-2 border-ink bg-surface p-4.5">
-        <h2 className="font-sans text-h2 text-ink">Честно и без слежки</h2>
+        <h2 className="font-sans text-h2 text-ink">{t("Честно и без слежки")}</h2>
         <ul className="flex list-none flex-col gap-2 p-0">
           <li className="font-sans text-body text-muted">
-            <span className="font-bold text-ink">Скрамбл генерит сервер</span> — не браузер, так что
-            подсмотреть его заранее нельзя.
+            <span className="font-bold text-ink">{t("Скрамбл генерит сервер")}</span>{" "}
+            {t("— не браузер, так что подсмотреть его заранее нельзя.")}
           </li>
           <li className="font-sans text-body text-muted">
-            <span className="font-bold text-ink">Видео остаётся у тебя</span> — кадры с камеры
-            обрабатываются прямо в браузере и никуда не отправляются.
+            <span className="font-bold text-ink">{t("Видео остаётся у тебя")}</span>{" "}
+            {t("— кадры с камеры обрабатываются прямо в браузере и никуда не отправляются.")}
           </li>
           <li className="font-sans text-body text-muted">
-            <span className="font-bold text-ink">Мест и рейтинга пока нет</span> — времена сейчас
-            заявляет клиент, поэтому таблицы показывают участников без номеров. Рейтинг появится,
-            когда заработает серверная проверка.
+            <span className="font-bold text-ink">{t("Мест и рейтинга пока нет")}</span>{" "}
+            {t(
+              "— времена сейчас заявляет клиент, поэтому таблицы показывают участников без номеров. Рейтинг появится, когда заработает серверная проверка.",
+            )}
           </li>
         </ul>
         <div className="flex flex-wrap gap-4">
           <Link to="/rules" className="font-sans text-small font-bold text-primary">
-            Правила
+            {t("Правила")}
           </Link>
           <Link to="/privacy" className="font-sans text-small font-bold text-primary">
-            Данные и приватность
+            {t("Данные и приватность")}
           </Link>
         </div>
       </section>
 
       <section className="flex flex-col gap-4">
-        <h2 className="font-sans text-h2 text-ink">Готов?</h2>
+        <h2 className="font-sans text-h2 text-ink">{t("Готов?")}</h2>
         <p className="max-w-prose font-sans text-body text-muted">
-          Аккаунт нужен для дуэлей, челленджа недели и истории сборок. Соло работает и без него.
+          {t(
+            "Аккаунт нужен для дуэлей, челленджа недели и истории сборок. Соло работает и без него.",
+          )}
         </p>
         <div className="flex flex-wrap items-center gap-4">
           <Link to="/register" className="no-underline">
-            <Button>Создать аккаунт</Button>
+            <Button>{t("Создать аккаунт")}</Button>
           </Link>
           <Link to="/login" className="font-sans text-small font-bold text-primary">
-            У меня уже есть аккаунт
+            {t("У меня уже есть аккаунт")}
           </Link>
         </div>
       </section>
@@ -229,6 +239,7 @@ function Landing() {
 }
 
 function Dashboard() {
+  const t = useT();
   const theme = useUiStore((s) => s.theme);
   const toggleTheme = useUiStore((s) => s.toggleTheme);
   const navigate = useNavigate();
@@ -243,7 +254,7 @@ function Dashboard() {
       saveDuelSessionToken(room.room_id, room.session_token);
       navigate(`/duel/${room.room_id}`, { state: { joinUrl: room.join_url } });
     } catch {
-      setDuelError("Не удалось создать дуэль. Попробуй ещё раз.");
+      setDuelError(t("Не удалось создать дуэль. Попробуй ещё раз."));
       setDuelBusy(false);
     }
   }
@@ -251,9 +262,11 @@ function Dashboard() {
   return (
     <div className="flex flex-col gap-7">
       <section className="flex flex-col gap-2">
-        <h1 className="font-sans text-h1 text-ink">С чего начнём?</h1>
+        <h1 className="font-sans text-h1 text-ink">{t("С чего начнём?")}</h1>
         <p className="max-w-prose font-sans text-body text-muted">
-          Соло — на разогрев, дуэль — на соперника, челлендж и скрамбл дня — на общем скрамбле.
+          {t(
+            "Соло — на разогрев, дуэль — на соперника, челлендж и скрамбл дня — на общем скрамбле.",
+          )}
         </p>
       </section>
 
@@ -261,15 +274,15 @@ function Dashboard() {
       <ModeCard
         to="/tournament"
         mode="week"
-        title="Челлендж недели"
-        text="Общий скрамбл, одна попытка — без турнирной таблицы."
+        title={t("Челлендж недели")}
+        text={t("Общий скрамбл, одна попытка — без турнирной таблицы.")}
         live
       />
       <ModeCard
         to="/daily"
         mode="daily"
-        title="Скрамбл дня"
-        text="Общий скрамбл на сутки, одна попытка — без турнирной таблицы."
+        title={t("Скрамбл дня")}
+        text={t("Общий скрамбл на сутки, одна попытка — без турнирной таблицы.")}
         live
       />
 
@@ -278,14 +291,16 @@ function Dashboard() {
         <div className="flex items-center gap-4">
           <MiniGrid accent={MODE_ICON.duel.accent} cells={[...MODE_ICON.duel.cells]} />
           <div className="flex flex-col gap-1">
-            <span className="font-sans text-body font-bold text-ink">Дуэль по ссылке</span>
+            <span className="font-sans text-body font-bold text-ink">{t("Дуэль по ссылке")}</span>
             <span className="font-sans text-small text-muted">
-              Создай комнату и пришли ссылку сопернику — старт синхронный, один общий скрамбл.
+              {t(
+                "Создай комнату и пришли ссылку сопернику — старт синхронный, один общий скрамбл.",
+              )}
             </span>
           </div>
         </div>
         <Button onClick={() => void startDuel()} disabled={duelBusy} className="self-start">
-          {duelBusy ? "Создаю комнату…" : "Дуэль по ссылке"}
+          {duelBusy ? t("Создаю комнату…") : t("Дуэль по ссылке")}
         </Button>
         {duelError ? (
           <p role="alert" className="font-sans text-small text-danger">
@@ -296,14 +311,14 @@ function Dashboard() {
 
       <section className="flex flex-wrap items-center gap-4">
         <Link to="/solo" className="no-underline">
-          <Button>Соло-тренировка</Button>
+          <Button>{t("Соло-тренировка")}</Button>
         </Link>
         <Button variant="secondary" onClick={toggleTheme}>
-          Тема: {theme === "light" ? "светлая" : "тёмная"}
+          {t("Тема: {theme}", { theme: theme === "light" ? t("светлая") : t("тёмная") })}
         </Button>
         {import.meta.env.DEV ? (
           <Link to="/accuracy" className="no-underline">
-            <Button variant="secondary">Замер точности (dev)</Button>
+            <Button variant="secondary">{t("Замер точности (dev)")}</Button>
           </Link>
         ) : null}
       </section>

@@ -5,7 +5,7 @@
 // главной ушли. Дуэль-API мокается, чтобы дашборд не ходил в сеть.
 
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, act } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 
 vi.mock("../../src/api/duel", () => ({
@@ -15,6 +15,7 @@ vi.mock("../../src/api/duel", () => ({
 
 import HomePage from "../../src/pages/HomePage";
 import { useAuthStore } from "../../src/store/authStore";
+import { useLangStore } from "../../src/store/langStore";
 
 function renderHome() {
   return render(
@@ -120,5 +121,22 @@ describe("HomePage", () => {
 
     expect(screen.queryByRole("button", { name: "Недоступно" })).toBeNull();
     expect(screen.queryByText("0.00")).toBeNull();
+  });
+});
+
+// Локализация: на английском лендинг говорит по-английски. Проверяем ровно факт
+// переключения (полнота словаря — забота tests/i18n/t.test.ts).
+describe("HomePage — английский", () => {
+  it("герой и CTA переводятся", () => {
+    useAuthStore.setState({ user: null, status: "anon" });
+    act(() => useLangStore.setState({ lang: "en" }));
+    try {
+      renderHome();
+      expect(screen.getByText("Cube duels. The camera is the judge.")).toBeTruthy();
+      expect(screen.getAllByRole("button", { name: "Create an account" }).length).toBe(2);
+      expect(screen.queryByText("Дуэли по сборке кубика. Судит камера.")).toBeNull();
+    } finally {
+      act(() => useLangStore.setState({ lang: "ru" }));
+    }
   });
 });

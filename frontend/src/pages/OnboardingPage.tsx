@@ -48,9 +48,7 @@ export default function OnboardingPage() {
       </ol>
 
       {step === 0 ? <IntroStep onNext={() => setStep(1)} /> : null}
-      {step === 1 ? (
-        <CameraStep onNext={() => setStep(2)} onBack={() => setStep(0)} />
-      ) : null}
+      {step === 1 ? <CameraStep onNext={() => setStep(2)} onBack={() => setStep(0)} /> : null}
       {step === 2 ? <CubeStep onFinish={finish} onBack={() => setStep(1)} /> : null}
 
       <button
@@ -77,8 +75,8 @@ function IntroStep({ onNext }: { onNext: () => void }) {
   return (
     <StepCard title="Как это работает">
       <p className="font-sans text-body text-muted">
-        Cubr судит сборку по камере: она видит твои руки и грани кубика. Дальше проверим,
-        что камера работает, и покажем, где будет регистрация кубика.
+        Cubr судит сборку по камере: она видит твои руки и грани кубика. Дальше проверим, что камера
+        работает, и покажем, где будет регистрация кубика.
       </p>
       <Button onClick={onNext}>Начать</Button>
     </StepCard>
@@ -92,8 +90,8 @@ function CameraStep({ onNext, onBack }: { onNext: () => void; onBack: () => void
   return (
     <StepCard title="Проверка камеры">
       <p className="font-sans text-body text-muted">
-        Разреши доступ к камере и покажи обе руки в кадре. Как только руки будут видны —
-        можно продолжать.
+        Разреши доступ к камере и покажи обе руки в кадре. Как только руки будут видны — можно
+        продолжать.
       </p>
 
       {/*
@@ -128,7 +126,11 @@ function CameraStep({ onNext, onBack }: { onNext: () => void; onBack: () => void
       )}
 
       <div className="flex flex-wrap items-center gap-3">
-        <button type="button" onClick={onBack} className="font-sans text-small font-bold text-muted">
+        <button
+          type="button"
+          onClick={onBack}
+          className="font-sans text-small font-bold text-muted"
+        >
           ← Назад
         </button>
         <Button onClick={onNext} disabled={!ready}>
@@ -152,12 +154,16 @@ function CubeStep({ onFinish, onBack }: { onFinish: () => void; onBack: () => vo
   return (
     <StepCard title="Регистрация кубика">
       <p className="font-sans text-body text-muted">
-        Сними цвет-профиль своего кубика — это первый и основной кубик. Можно пропустить
-        и добавить позже в профиле.
+        Сними цвет-профиль своего кубика — это первый и основной кубик. Можно пропустить и добавить
+        позже в профиле.
       </p>
       <CubeRegisterWizard defaultPrimary onDone={onFinish} onCancel={onFinish} />
       <div className="flex flex-wrap items-center gap-3">
-        <button type="button" onClick={onBack} className="font-sans text-small font-bold text-muted">
+        <button
+          type="button"
+          onClick={onBack}
+          className="font-sans text-small font-bold text-muted"
+        >
           ← Назад
         </button>
         <button

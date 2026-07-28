@@ -11,8 +11,10 @@ import Input from "../components/Input";
 import { useAuthStore } from "../store/authStore";
 import { ApiError } from "../api/client";
 import { requestVerify } from "../api/auth";
+import { useT } from "../i18n/t";
 
 export default function RegisterPage() {
+  const t = useT();
   const register = useAuthStore((s) => s.register);
 
   const [email, setEmail] = useState("");
@@ -47,27 +49,27 @@ export default function RegisterPage() {
   if (done) {
     return (
       <AuthShell
-        title="Подтвердите почту"
-        subtitle="Мы отправили письмо со ссылкой подтверждения."
+        title={t("Подтвердите почту")}
+        subtitle={t("Мы отправили письмо со ссылкой подтверждения.")}
         footer={
           <Link to="/login" className="font-bold text-primary">
-            Вернуться ко входу
+            {t("Вернуться ко входу")}
           </Link>
         }
       >
         <p className="font-sans text-body text-muted">
-          Открой письмо на адрес <span className="font-bold text-ink">{email}</span> и перейди по
-          ссылке. После подтверждения сможешь войти.
+          {t("Открой письмо на адрес")} <span className="font-bold text-ink">{email}</span>{" "}
+          {t("и перейди по ссылке. После подтверждения сможешь войти.")}
         </p>
         {resent ? (
-          <p className="font-sans text-small text-success">Письмо отправлено ещё раз.</p>
+          <p className="font-sans text-small text-success">{t("Письмо отправлено ещё раз.")}</p>
         ) : (
           <button
             type="button"
             onClick={resend}
             className="self-start font-sans text-small font-bold text-primary"
           >
-            Отправить письмо ещё раз
+            {t("Отправить письмо ещё раз")}
           </button>
         )}
       </AuthShell>
@@ -76,20 +78,20 @@ export default function RegisterPage() {
 
   return (
     <AuthShell
-      title="Регистрация"
-      subtitle="Создай аккаунт, чтобы сохранять сборки."
+      title={t("Регистрация")}
+      subtitle={t("Создай аккаунт, чтобы сохранять сборки.")}
       footer={
         <>
           Уже есть аккаунт?{" "}
           <Link to="/login" className="font-bold text-primary">
-            Войти
+            {t("Войти")}
           </Link>
         </>
       }
     >
       <form className="flex flex-col gap-4" onSubmit={onSubmit} noValidate>
         <Input
-          label="Почта"
+          label={t("Почта")}
           type="email"
           autoComplete="email"
           required
@@ -97,7 +99,7 @@ export default function RegisterPage() {
           onChange={(e) => setEmail(e.target.value)}
         />
         <Input
-          label="Никнейм"
+          label={t("Никнейм")}
           type="text"
           autoComplete="nickname"
           maxLength={64}
@@ -105,7 +107,7 @@ export default function RegisterPage() {
           onChange={(e) => setNickname(e.target.value)}
         />
         <Input
-          label="Пароль"
+          label={t("Пароль")}
           type="password"
           autoComplete="new-password"
           required
@@ -118,24 +120,24 @@ export default function RegisterPage() {
             отдельной галочки: одно действие «Зарегистрироваться», ссылки открыты
             анонимно. Тот же смысл распространяется и на вход через Google ниже. */}
         <p className="font-sans text-small text-muted">
-          Регистрируясь, ты соглашаешься с{" "}
+          {t("Регистрируясь, ты соглашаешься с")}{" "}
           <Link to="/rules" className="font-bold text-primary">
-            правилами
+            {t("правилами")}
           </Link>{" "}
-          и{" "}
+          {t("и")}{" "}
           <Link to="/privacy" className="font-bold text-primary">
-            обработкой данных
+            {t("обработкой данных")}
           </Link>
           .
         </p>
         <Button type="submit" disabled={busy}>
-          {busy ? "Создаю…" : "Зарегистрироваться"}
+          {busy ? t("Создаю…") : t("Зарегистрироваться")}
         </Button>
       </form>
 
       <div className="flex items-center gap-3">
         <span className="h-px flex-1 bg-line" />
-        <span className="font-sans text-caption uppercase text-faint">или</span>
+        <span className="font-sans text-caption uppercase text-faint">{t("или")}</span>
         <span className="h-px flex-1 bg-line" />
       </div>
 

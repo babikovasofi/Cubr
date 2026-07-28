@@ -11,6 +11,7 @@ import { Link } from "react-router-dom";
 import Button from "./Button";
 import { useIsHandheld } from "../lib/useIsHandheld";
 import { useDeviceStore } from "../store/deviceStore";
+import { useT } from "../i18n/t";
 
 // Копируем ИМЕННО текущий адрес, а не корень: приглашение в дуэль
 // (`/duel/join/<token>`) без токена бесполезно — человек должен перенести на
@@ -27,6 +28,7 @@ function readableUrl(): string {
 }
 
 function HandheldNotice() {
+  const t = useT();
   const allowHandheld = useDeviceStore((s) => s.allowHandheld);
   const [copied, setCopied] = useState(false);
   const url = readableUrl();
@@ -43,25 +45,25 @@ function HandheldNotice() {
 
   return (
     <section className="flex max-w-prose flex-col gap-5 rounded-lg border-2 border-ink bg-surface p-4.5">
-      <h1 className="font-sans text-h1 text-ink">Сборку судит камера компьютера</h1>
+      <h1 className="font-sans text-h1 text-ink">{t("Сборку судит камера компьютера")}</h1>
       <p className="font-sans text-body text-muted">
-        Ритуал Cubr держится на камере: браузер смотрит, как ты мешаешь кубик, ловит старт и стоп по
-        рукам на столе и подтверждает сборку. С телефона так не выйдет — руки заняты кубиком, а
-        камера смотрит куда угодно, только не на стол.
+        {t(
+          "Ритуал Cubr держится на камере: браузер смотрит, как ты мешаешь кубик, ловит старт и стоп по рукам на столе и подтверждает сборку. С телефона так не выйдет — руки заняты кубиком, а камера смотрит куда угодно, только не на стол.",
+        )}
       </p>
       <p className="font-sans text-body text-muted">
-        Открой этот адрес на ноутбуке или компьютере с камерой:
+        {t("Открой этот адрес на ноутбуке или компьютере с камерой:")}
       </p>
       <p className="break-all font-sans text-h2 text-ink">{url}</p>
       <div className="flex flex-wrap items-center gap-4">
         <Button onClick={() => void copyLink()}>
-          {copied ? "Ссылка скопирована" : "Скопировать ссылку"}
+          {copied ? t("Ссылка скопирована") : t("Скопировать ссылку")}
         </Button>
         <Link to="/" className="font-sans text-small font-bold text-primary">
-          На главную
+          {t("На главную")}
         </Link>
         <Link to="/rules" className="font-sans text-small font-bold text-primary">
-          Правила
+          {t("Правила")}
         </Link>
       </div>
       {/* Ложные срабатывания (планшет с клавиатурой, экзотический браузер) не должны
@@ -71,7 +73,7 @@ function HandheldNotice() {
         onClick={allowHandheld}
         className="self-start font-sans text-small text-faint underline"
       >
-        Всё равно открыть здесь
+        {t("Всё равно открыть здесь")}
       </button>
     </section>
   );

@@ -21,12 +21,15 @@ import DesktopOnlyGate from "./components/DesktopOnlyGate";
 import TrophyIcon from "./components/TrophyIcon";
 import { ToastViewport, toast } from "./components/Toast";
 import { useAuthStore } from "./store/authStore";
+import { useLangStore, type Lang } from "./store/langStore";
+import { useT } from "./i18n/t";
 
 // DEV-only Stage-0.3 accuracy gate. React.lazy + import.meta.env.DEV so the whole
 // module (camera harness + accuracy panel) tree-shakes out of the prod bundle.
 const AccuracyPage = import.meta.env.DEV ? lazy(() => import("./accuracy/AccuracyPage")) : null;
 
 function AuthMenu() {
+  const t = useT();
   const user = useAuthStore((s) => s.user);
   const logout = useAuthStore((s) => s.logout);
   const navigate = useNavigate();
@@ -64,7 +67,7 @@ function AuthMenu() {
       {user.cups > 0 ? (
         <span
           className="inline-flex items-center gap-1.5 rounded-full border-2 border-ink bg-surface-2 px-3.5 py-1 font-sans text-small font-black text-ink"
-          aria-label={`Кубки: ${user.cups}`}
+          aria-label={t("Кубки: {n}", { n: user.cups })}
         >
           <TrophyIcon className="h-4 w-4" />
           {user.cups}
@@ -95,18 +98,18 @@ function AuthMenu() {
               onClick={() => setOpen(false)}
               className="rounded px-3 py-2 font-sans text-small text-ink no-underline hover:bg-surface-2"
             >
-              Профиль
+              {t("Профиль")}
             </Link>
             <button
               type="button"
               role="menuitem"
               onClick={() => {
                 setOpen(false);
-                toast("Настройки появятся позже.", "info");
+                toast(t("Настройки появятся позже."), "info");
               }}
               className="rounded px-3 py-2 text-left font-sans text-small text-muted hover:bg-surface-2"
             >
-              Настройки
+              {t("Настройки")}
             </button>
             <button
               type="button"
@@ -114,7 +117,7 @@ function AuthMenu() {
               onClick={onLogout}
               className="rounded px-3 py-2 text-left font-sans text-small font-bold text-danger hover:bg-surface-2"
             >
-              Выйти
+              {t("Выйти")}
             </button>
           </div>
         ) : null}
@@ -124,6 +127,7 @@ function AuthMenu() {
 }
 
 function Header() {
+  const t = useT();
   const status = useAuthStore((s) => s.status);
 
   return (
@@ -141,13 +145,13 @@ function Header() {
         ) : status === "anon" ? (
           <nav className="flex items-center gap-5">
             <Link to="/login" className="font-sans text-body font-bold text-primary no-underline">
-              Войти
+              {t("Войти")}
             </Link>
             <Link
               to="/register"
               className="inline-flex h-10 items-center rounded-full border-2 border-ink bg-primary px-5 font-sans text-body font-extrabold text-white no-underline"
             >
-              Регистрация
+              {t("Регистрация")}
             </Link>
           </nav>
         ) : null}
@@ -158,17 +162,48 @@ function Header() {
 
 // Этап 6: единственная сквозная точка входа в правила/приватность — под контентом,
 // нейтральная (§1: цвет живёт в деталях, не в служебных блоках).
+function LanguageSwitcher() {
+  const t = useT();
+  const lang = useLangStore((s) => s.lang);
+  const setLang = useLangStore((s) => s.setLang);
+  const options: { value: Lang; label: string }[] = [
+    { value: "ru", label: "Русский" },
+    { value: "en", label: "English" },
+  ];
+
+  return (
+    <label className="flex items-center gap-2 font-sans text-small text-muted">
+      {t("Язык интерфейса")}
+      <select
+        value={lang}
+        onChange={(e) => setLang(e.target.value as Lang)}
+        className="rounded-md border border-line bg-surface px-2 py-1 font-sans text-small text-ink"
+      >
+        {options.map((o) => (
+          <option key={o.value} value={o.value}>
+            {o.label}
+          </option>
+        ))}
+      </select>
+    </label>
+  );
+}
+
 function Footer() {
+  const t = useT();
   return (
     <footer className="mt-12 border-t border-line">
       <div className="mx-auto flex max-w-content flex-wrap items-center gap-x-6 gap-y-2 px-4 py-6">
         <span className="font-sans text-small text-faint">Cubr</span>
         <Link to="/rules" className="font-sans text-small font-bold text-muted no-underline">
-          Правила
+          {t("Правила")}
         </Link>
         <Link to="/privacy" className="font-sans text-small font-bold text-muted no-underline">
-          Данные и приватность
+          {t("Данные и приватность")}
         </Link>
+        {/* Переключатель языка — в футере, единственной сквозной служебной точке
+            (там же, где правила и приватность). В шапке он отвлекал бы от CTA. */}
+        <LanguageSwitcher />
       </div>
     </footer>
   );

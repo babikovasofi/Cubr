@@ -7,8 +7,10 @@ import AuthShell from "../auth/AuthShell";
 import Button from "../components/Button";
 import Input from "../components/Input";
 import { forgotPassword } from "../api/auth";
+import { useT } from "../i18n/t";
 
 export default function ForgotPasswordPage() {
+  const t = useT();
   const [email, setEmail] = useState("");
   const [sent, setSent] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -28,23 +30,24 @@ export default function ForgotPasswordPage() {
 
   return (
     <AuthShell
-      title="Сброс пароля"
-      subtitle="Укажи почту — пришлём ссылку для сброса."
+      title={t("Сброс пароля")}
+      subtitle={t("Укажи почту — пришлём ссылку для сброса.")}
       footer={
         <Link to="/login" className="font-bold text-primary">
-          Вернуться ко входу
+          {t("Вернуться ко входу")}
         </Link>
       }
     >
       {sent ? (
         <p className="font-sans text-body text-muted" role="status">
-          Если этот адрес зарегистрирован, мы отправили на него ссылку для сброса пароля.
-          Проверь почту.
+          {t(
+            "Если этот адрес зарегистрирован, мы отправили на него ссылку для сброса пароля. Проверь почту.",
+          )}
         </p>
       ) : (
         <form className="flex flex-col gap-4" onSubmit={onSubmit} noValidate>
           <Input
-            label="Почта"
+            label={t("Почта")}
             type="email"
             autoComplete="email"
             required
@@ -52,7 +55,7 @@ export default function ForgotPasswordPage() {
             onChange={(e) => setEmail(e.target.value)}
           />
           <Button type="submit" disabled={busy}>
-            {busy ? "Отправляю…" : "Отправить ссылку"}
+            {busy ? t("Отправляю…") : t("Отправить ссылку")}
           </Button>
         </form>
       )}

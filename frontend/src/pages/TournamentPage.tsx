@@ -64,7 +64,13 @@ function Overline({ children }: { children: ReactNode }) {
   return <span className="font-sans text-overline uppercase text-muted">{children}</span>;
 }
 
-function PrecommitCard({ current, commit }: { current: TournamentState["current"]; commit: () => void }) {
+function PrecommitCard({
+  current,
+  commit,
+}: {
+  current: TournamentState["current"];
+  commit: () => void;
+}) {
   const [confirming, setConfirming] = useState(false);
 
   return (
@@ -106,7 +112,13 @@ function PrecommitCard({ current, commit }: { current: TournamentState["current"
   );
 }
 
-function ResumeCard({ current, commit }: { current: TournamentState["current"]; commit: () => void }) {
+function ResumeCard({
+  current,
+  commit,
+}: {
+  current: TournamentState["current"];
+  commit: () => void;
+}) {
   const { label, expired } = useCountdown(current?.deadline_at ?? null);
 
   return (
