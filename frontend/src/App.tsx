@@ -56,14 +56,20 @@ function AuthMenu() {
     <div className="flex items-center gap-3" ref={ref}>
       {/* Бейдж кубков. Отступление от §5.6: заливка нейтральная, а не `warning` —
           жёлтая пилюля в шапке перетягивала на себя весь экран. Кубок — контуром
-          `ink`, не эмодзи. */}
-      <span
-        className="inline-flex items-center gap-1.5 rounded-full border-2 border-ink bg-surface-2 px-3.5 py-1 font-sans text-small font-black text-ink"
-        aria-label={`Кубки: ${user.cups}`}
-      >
-        <TrophyIcon className="h-4 w-4" />
-        {user.cups}
-      </span>
+          `ink`, не эмодзи.
+
+          Показывается ТОЛЬКО когда кубки есть. Начислять их пока некому (рейтинг
+          ждёт честностный кирпич), а «🏆 0» в шапке у каждого — обещание системы,
+          которой нет. Появятся кубки — появится и бейдж, без правок здесь. */}
+      {user.cups > 0 ? (
+        <span
+          className="inline-flex items-center gap-1.5 rounded-full border-2 border-ink bg-surface-2 px-3.5 py-1 font-sans text-small font-black text-ink"
+          aria-label={`Кубки: ${user.cups}`}
+        >
+          <TrophyIcon className="h-4 w-4" />
+          {user.cups}
+        </span>
+      ) : null}
       <div className="relative">
         <button
           type="button"
