@@ -69,6 +69,28 @@ idempotently. Add a Postgres advisory lock (`pg_try_advisory_lock`) around the j
 only once finalize grows a **non-idempotent** step (e.g. awarding cups/points once per week) that
 must not run twice concurrently.
 
+## Funnel counters (operator only)
+
+`GET /admin/funnel` answers "регистрация → первая сборка → первая дуэль" with plain integers:
+how many people registered, verified their email, registered a cube, made a solve, played the
+weekly / daily challenge, played a duel, plus 7/30-day signup windows and a 7-day active count.
+
+There is **no tracker and no event table** — every number is a `COUNT(DISTINCT …)` over rows the
+product writes anyway. That keeps the promise the public landing page makes, and it means the
+answers are about *states* ("ever did X"), not *events* ("dropped off at step 3"). A real event
+stream belongs to the honesty brick, where client timestamps are needed regardless.
+
+The route is superuser-only (anonymous → 401, ordinary user → 403). Promote yourself once,
+directly in the database:
+
+```sql
+UPDATE "user" SET is_superuser = true WHERE email = 'you@example.com';
+```
+
+```bash
+curl -s --cookie "cubr_auth=<your JWT cookie>" http://127.0.0.1:8000/admin/funnel | jq
+```
+
 ## Tests
 
 ```bash

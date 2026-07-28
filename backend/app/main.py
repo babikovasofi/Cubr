@@ -9,7 +9,18 @@ from slowapi.middleware import SlowAPIMiddleware
 from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
 
 from app.config import get_settings
-from app.routers import auth, badges, cubes, daily, duel, health, scramble, solves, tournament
+from app.routers import (
+    auth,
+    badges,
+    cubes,
+    daily,
+    duel,
+    funnel,
+    health,
+    scramble,
+    solves,
+    tournament,
+)
 from app.services.ratelimit import limiter
 
 settings = get_settings()
@@ -77,3 +88,4 @@ app.include_router(tournament.router)
 app.include_router(daily.router)
 app.include_router(duel.router)
 app.include_router(badges.router)
+app.include_router(funnel.router)
