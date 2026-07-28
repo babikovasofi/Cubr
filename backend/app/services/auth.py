@@ -15,8 +15,8 @@ import uuid
 from collections.abc import AsyncGenerator
 
 import httpx
-from fastapi import Depends, Request
-from fastapi_users import BaseUserManager, FastAPIUsers, UUIDIDMixin
+from fastapi import Depends, HTTPException, Request, status
+from fastapi_users import BaseUserManager, FastAPIUsers, UUIDIDMixin, schemas
 from fastapi_users.authentication import (
     AuthenticationBackend,
     CookieTransport,
@@ -32,6 +32,7 @@ from app.config import get_settings
 from app.db import get_user_db
 from app.models import User
 from app.services import email as email_service
+from app.services.moderation import check_display_name, sanitize_derived_nickname
 
 logger = logging.getLogger("cubr.auth")
 
@@ -51,9 +52,14 @@ google_oauth_client = GoogleOAuth2(
 
 
 def _derive_nickname(email: str) -> str:
-    """Best-effort nickname from the email local-part (max 64 chars)."""
+    """Best-effort nickname from the email local-part (max 64 chars).
+
+    Run through the name filter too: the local-part is not user-typed *here*,
+    but it still ends up as a display name, so a rude one falls back to "cuber"
+    instead of failing the OAuth redirect (see `sanitize_derived_nickname`).
+    """
     local = email.split("@", 1)[0].strip() or "cuber"
-    return local[:64]
+    return sanitize_derived_nickname(local[:64])
 
 
 async def google_email_verified(access_token: str) -> bool:
@@ -76,9 +82,53 @@ async def google_email_verified(access_token: str) -> bool:
     return bool(data.get("email_verified", False))
 
 
+def _reject_bad_names(*values: object) -> None:
+    """Stage 6 name filter — raises 400 with the SPA's `{code, reason}` shape.
+
+    Deliberately not a pydantic validator: pydantic answers 422 with a
+    `detail[]` array, which `api/client.ts` collapses into the generic "что-то
+    пошло не так" — indistinguishable from a server error. The manager layer can
+    speak the same `detail: {code, reason}` dialect as CUBE_LIMIT.
+    """
+    for value in values:
+        if not isinstance(value, str):
+            continue
+        rejection = check_display_name(value)
+        if rejection is not None:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail={"code": rejection.code, "reason": rejection.reason},
+            )
+
+
 class UserManager(UUIDIDMixin, BaseUserManager[User, uuid.UUID]):
     reset_password_token_secret = settings.RESET_VERIFY_SECRET
     verification_token_secret = settings.RESET_VERIFY_SECRET
+
+    async def create(
+        self,
+        user_create: schemas.UC,
+        safe: bool = False,
+        request: Request | None = None,
+    ) -> User:
+        # Registration may carry a nickname; refuse before the row exists.
+        _reject_bad_names(getattr(user_create, "nickname", None))
+        return await super().create(user_create, safe, request)
+
+    async def update(
+        self,
+        user_update: schemas.UU,
+        user: User,
+        safe: bool = False,
+        request: Request | None = None,
+    ) -> User:
+        # PATCH /users/me — both name fields, `public_handle` being the one that
+        # actually reaches other people (tournament / daily boards, П10).
+        _reject_bad_names(
+            getattr(user_update, "nickname", None),
+            getattr(user_update, "public_handle", None),
+        )
+        return await super().update(user_update, user, safe, request)
 
     async def on_after_register(self, user: User, request: Request | None = None) -> None:
         # Kick off email verification right after sign-up. `request_verify`

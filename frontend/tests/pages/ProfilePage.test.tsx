@@ -4,6 +4,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent, waitFor, act } from "@testing-library/react";
 import { BrowserRouter } from "react-router-dom";
 import ProfilePage from "../../src/pages/ProfilePage";
+import { ApiError } from "../../src/api/client";
 import type { SolveRead } from "../../src/api/solves";
 import { useSettingsStore } from "../../src/store/settingsStore";
 
@@ -71,9 +72,7 @@ describe("ProfilePage — public_handle field", () => {
     expect(
       screen.getByText(/Это имя увидят другие участники турнира в таблице недели/),
     ).toBeTruthy();
-    expect(
-      screen.getByText(/Оставь поле пустым — и там будет стоять «Аноним»/),
-    ).toBeTruthy();
+    expect(screen.getByText(/Оставь поле пустым — и там будет стоять «Аноним»/)).toBeTruthy();
   });
 
   it("saves public_handle via PATCH /users/me when form submitted", async () => {
@@ -184,6 +183,37 @@ describe("ProfilePage — public_handle field", () => {
     await waitFor(() => {
       expect(screen.getByText("Сохранено")).toBeTruthy();
     });
+  });
+
+  // Этап 6: серверный фильтр имён отвечает 400 {code, reason} — пользователь должен
+  // увидеть внятную причину, а не молча несохранённую форму.
+  it("показывает причину, когда фильтр имён отклонил публичное имя", async () => {
+    updateMeMock.mockRejectedValue(
+      new ApiError(400, "NAME_NOT_ALLOWED", "Такое имя не подходит. Выбери другое."),
+    );
+    useAuthStoreMock.mockImplementation((selector) => {
+      const state = { user: MOCK_USER, updateMe: updateMeMock };
+      return selector(state);
+    });
+
+    render(
+      <BrowserRouter>
+        <ProfilePage />
+      </BrowserRouter>,
+    );
+
+    const input = screen.getByLabelText("Публичное имя в турнире") as HTMLInputElement;
+    await act(async () => {
+      fireEvent.change(input, { target: { value: "мудак" } });
+    });
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Сохранить" }));
+    });
+
+    await waitFor(() => {
+      expect(screen.getByText("Такое имя не подходит. Выбери другое.")).toBeTruthy();
+    });
+    expect(screen.queryByText("Сохранено")).toBeNull();
   });
 
   it("handles unset public_handle (null) by showing empty input", () => {

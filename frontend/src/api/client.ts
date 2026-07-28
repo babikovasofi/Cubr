@@ -36,7 +36,15 @@ const RU_BY_CODE: Record<string, string> = {
   RESET_PASSWORD_BAD_TOKEN: "Ссылка сброса недействительна или устарела. Запроси новую.",
   VERIFY_USER_BAD_TOKEN: "Ссылка подтверждения недействительна или устарела.",
   VERIFY_USER_ALREADY_VERIFIED: "Почта уже подтверждена. Можно входить.",
-  CUBE_LIMIT: "Достигнут лимит: можно хранить не больше 5 кубиков. Удали лишний, чтобы добавить новый.",
+  CUBE_LIMIT:
+    "Достигнут лимит: можно хранить не больше 5 кубиков. Удали лишний, чтобы добавить новый.",
+  // Этап 6, фильтр имён. Копия текста живёт тут, а не берётся из серверного
+  // `reason`: формулировка — часть интерфейса, бэк может её менять молча.
+  NAME_NOT_ALLOWED: "Такое имя не подходит. Выбери другое.",
+  NAME_RESERVED: "Это имя зарезервировано за сервисом. Выбери другое.",
+  NAME_INVALID_CHARS:
+    "В имени можно использовать буквы, цифры, пробел, дефис, точку и подчёркивание.",
+  NAME_TOO_SHORT: "Имя слишком короткое: минимум 2 символа.",
 };
 
 const RU_BY_STATUS: Record<number, string> = {
@@ -75,11 +83,7 @@ export function parseErrorBody(
     if (typeof d.reason === "string") reason = d.reason;
   }
 
-  const message =
-    (code && RU_BY_CODE[code]) ??
-    RU_BY_STATUS[status] ??
-    reason ??
-    RU_FALLBACK;
+  const message = (code && RU_BY_CODE[code]) ?? RU_BY_STATUS[status] ?? reason ?? RU_FALLBACK;
 
   return { code, message };
 }
