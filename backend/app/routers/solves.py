@@ -15,6 +15,7 @@ from app.db import get_session
 from app.models import Cube, Scramble, Solve, User
 from app.schemas.badge import BadgeRead
 from app.schemas.solve import SolveCreate, SolveRead
+from app.services import averages as averages_service
 from app.services import badges as badges_service
 from app.services.auth import current_active_user
 from app.services.scramble_token import ScrambleTokenError
@@ -104,6 +105,20 @@ async def create_solve(
         user.best_single_ms is None or payload.time_ms < user.best_single_ms
     ):
         user.best_single_ms = payload.time_ms
+        session.add(user)
+
+    # Rolling Ao5 over the five most recent attempts (WCA rules — see
+    # app.services.averages). `best_ao5_ms` shipped in Stage 2 and had no setter
+    # until now, so the profile card was permanently "—". Needs the new solve to
+    # be visible to the SELECT, hence the flush.
+    await session.flush()
+    try:
+        rolling_ao5 = await averages_service.current_ao5(session, user.id)
+    except Exception:
+        logger.exception("ao5 computation failed for solve (user_id=%s)", user.id)
+        rolling_ao5 = None
+    if rolling_ao5 is not None and (user.best_ao5_ms is None or rolling_ao5 < user.best_ao5_ms):
+        user.best_ao5_ms = rolling_ao5
         session.add(user)
 
     # Best-effort: a badge-engine fault must never abort the solve write.

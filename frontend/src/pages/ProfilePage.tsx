@@ -10,6 +10,7 @@ import Spinner from "../components/Spinner";
 import BadgeGrid from "../components/BadgeGrid";
 import SolveProgressChart from "../components/SolveProgressChart";
 import GoalCard from "../profile/GoalCard";
+import { currentAo5, AVERAGE_SIZE } from "../profile/average";
 import { useAuthStore } from "../store/authStore";
 import { useSettingsStore } from "../store/settingsStore";
 import { formatSolveMs, type TimeFormat } from "../lib/formatTime";
@@ -87,6 +88,22 @@ function Avatar({ url, name }: { url: string | null; name: string }) {
     >
       {letter}
     </div>
+  );
+}
+
+// Текущий Ao5 по последним пяти попыткам. Рекорд Ao5 живёт в карточках выше и
+// приходит с сервера; здесь — «как я иду прямо сейчас», считается из уже
+// загруженной истории (без второго запроса).
+function CurrentAverage({ solves }: { solves: SolveRead[] }) {
+  const timeFormat = useSettingsStore((s) => s.timeFormat);
+  const value = currentAo5(solves);
+  return (
+    <p className="font-sans text-small text-muted">
+      Текущий Ao5 (последние {AVERAGE_SIZE} попыток):{" "}
+      <span className="font-bold text-ink">
+        {value === null ? "пока нет" : formatSolveMs(value, timeFormat)}
+      </span>
+    </p>
   );
 }
 
@@ -267,6 +284,8 @@ function History() {
 
       {/* Цель — над графиком: она отвечает «куда я иду», график — «как шёл». */}
       {state.kind === "ok" ? <GoalCard solves={state.solves} /> : null}
+
+      {state.kind === "ok" ? <CurrentAverage solves={state.solves} /> : null}
 
       {state.kind === "ok" ? (
         <section className="flex flex-col gap-3">
