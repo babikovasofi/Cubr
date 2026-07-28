@@ -9,6 +9,7 @@ import Input from "../components/Input";
 import Spinner from "../components/Spinner";
 import BadgeGrid from "../components/BadgeGrid";
 import SolveProgressChart from "../components/SolveProgressChart";
+import GoalCard from "../profile/GoalCard";
 import { useAuthStore } from "../store/authStore";
 import { useSettingsStore } from "../store/settingsStore";
 import { formatSolveMs, type TimeFormat } from "../lib/formatTime";
@@ -46,11 +47,7 @@ export default function ProfilePage() {
         </div>
       </header>
 
-      <Records
-        best={user.best_single_ms}
-        ao5={user.best_ao5_ms}
-        cups={user.cups}
-      />
+      <Records best={user.best_single_ms} ao5={user.best_ao5_ms} cups={user.cups} />
 
       <SettingsSection />
 
@@ -93,15 +90,7 @@ function Avatar({ url, name }: { url: string | null; name: string }) {
   );
 }
 
-function Records({
-  best,
-  ao5,
-  cups,
-}: {
-  best: number | null;
-  ao5: number | null;
-  cups: number;
-}) {
+function Records({ best, ao5, cups }: { best: number | null; ao5: number | null; cups: number }) {
   const timeFormat = useSettingsStore((s) => s.timeFormat);
   const cards: { label: string; value: string }[] = [
     { label: "Лучшая сборка", value: fmtMs(best, timeFormat) },
@@ -111,7 +100,10 @@ function Records({
   return (
     <section className="grid gap-4 sm:grid-cols-3" aria-label="Рекорды">
       {cards.map((c) => (
-        <div key={c.label} className="flex flex-col gap-1 rounded-lg border-2 border-ink bg-surface p-4">
+        <div
+          key={c.label}
+          className="flex flex-col gap-1 rounded-lg border-2 border-ink bg-surface p-4"
+        >
           <span className="font-sans text-overline uppercase text-muted">{c.label}</span>
           <span className="font-sans text-h2 text-ink [font-variant-numeric:tabular-nums]">
             {c.value}
@@ -135,10 +127,7 @@ function SettingsSection() {
       <fieldset className="flex flex-col gap-2">
         <legend className="mb-1 font-sans text-small font-bold text-ink">Формат времени</legend>
         {options.map((o) => (
-          <label
-            key={o.value}
-            className="flex items-center gap-2 font-sans text-small text-ink"
-          >
+          <label key={o.value} className="flex items-center gap-2 font-sans text-small text-ink">
             <input
               type="radio"
               name="time-format"
@@ -239,9 +228,7 @@ function EditForm({
 }
 
 type HistoryState =
-  | { kind: "loading" }
-  | { kind: "error"; message: string }
-  | { kind: "ok"; solves: SolveRead[] };
+  { kind: "loading" } | { kind: "error"; message: string } | { kind: "ok"; solves: SolveRead[] };
 
 function History() {
   const timeFormat = useSettingsStore((s) => s.timeFormat);
@@ -277,6 +264,9 @@ function History() {
           <Button onClick={() => setReloadKey((k) => k + 1)}>Повторить</Button>
         </div>
       ) : null}
+
+      {/* Цель — над графиком: она отвечает «куда я иду», график — «как шёл». */}
+      {state.kind === "ok" ? <GoalCard solves={state.solves} /> : null}
 
       {state.kind === "ok" ? (
         <section className="flex flex-col gap-3">
