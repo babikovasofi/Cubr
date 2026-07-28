@@ -9,6 +9,7 @@ import { Link, useNavigate } from "react-router-dom";
 import Button from "../components/Button";
 import HeroStickers from "../components/HeroStickers";
 import MiniGrid from "../components/MiniGrid";
+import { useIsHandheld } from "../lib/useIsHandheld";
 import { useUiStore } from "../store/uiStore";
 import { useAuthStore } from "../store/authStore";
 import { createRoom, saveDuelSessionToken } from "../api/duel";
@@ -85,6 +86,9 @@ const STEPS: { title: string; text: string }[] = [
 ];
 
 function Landing() {
+  // Этап 6 (R8): с телефона предупреждаем ДО клика по CTA — иначе человек уйдёт
+  // в ритуал и упрётся в заглушку уже после решения попробовать.
+  const handheld = useIsHandheld();
   return (
     <div className="flex flex-col gap-12">
       {/* Герой: текст слева, живая грань кубика в пустоте справа. Декор —
@@ -95,8 +99,8 @@ function Landing() {
             Дуэли по сборке кубика. Судит камера.
           </h1>
           <p className="max-w-prose font-sans text-body text-muted">
-            Показываешь кубик в камеру — браузер сам проверяет скрамбл, ловит старт и стоп по рукам и
-            подтверждает сборку. Ни живого судьи, ни «поверь на слово».
+            Показываешь кубик в камеру — браузер сам проверяет скрамбл, ловит старт и стоп по рукам
+            и подтверждает сборку. Ни живого судьи, ни «поверь на слово».
           </p>
           <div className="flex flex-wrap items-center gap-4">
             <Link to="/register" className="no-underline">
@@ -106,9 +110,16 @@ function Landing() {
               <Button variant="secondary">Попробовать соло без аккаунта</Button>
             </Link>
           </div>
-          <p className="font-sans text-small text-faint">
-            Нужен компьютер с камерой и обычный комнатный свет. Видео не покидает браузер.
-          </p>
+          {handheld ? (
+            <p className="font-sans text-small font-bold text-ink">
+              Сборка идёт с компьютера: нужна камера, кубик и обе руки на столе. С телефона можно
+              почитать правила и завести аккаунт.
+            </p>
+          ) : (
+            <p className="font-sans text-small text-faint">
+              Нужен компьютер с камерой и обычный комнатный свет. Видео не покидает браузер.
+            </p>
+          )}
         </div>
         <HeroStickers className="hidden shrink-0 pr-6 lg:grid" />
       </section>

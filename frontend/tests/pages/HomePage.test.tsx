@@ -52,9 +52,9 @@ describe("HomePage", () => {
     const rules = screen.getAllByRole("link", { name: /Правила/ });
     expect(rules.length).toBeGreaterThan(0);
     expect(rules[0].getAttribute("href")).toBe("/rules");
-    expect(
-      screen.getByRole("link", { name: "Данные и приватность" }).getAttribute("href"),
-    ).toBe("/privacy");
+    expect(screen.getByRole("link", { name: "Данные и приватность" }).getAttribute("href")).toBe(
+      "/privacy",
+    );
   });
 
   it("аноним не видит дашборд режимов под аккаунт", () => {
@@ -92,6 +92,26 @@ describe("HomePage", () => {
 
     // Челлендж, скрамбл дня, дуэль.
     expect(screen.getAllByTestId("mini-grid")).toHaveLength(3);
+  });
+
+  it("с телефона лендинг честно предупреждает про компьютер (R8)", () => {
+    vi.stubGlobal(
+      "matchMedia",
+      vi.fn().mockImplementation((query: string) => ({
+        matches: query.includes("pointer: coarse"),
+        media: query,
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+        addListener: vi.fn(),
+        removeListener: vi.fn(),
+        dispatchEvent: vi.fn(),
+      })),
+    );
+    renderHome();
+
+    expect(screen.getByText(/Сборка идёт с компьютера/)).toBeTruthy();
+    expect(screen.queryByText(/Нужен компьютер с камерой/)).toBeNull();
+    vi.unstubAllGlobals();
   });
 
   it("dev-заглушек на главной больше нет", () => {

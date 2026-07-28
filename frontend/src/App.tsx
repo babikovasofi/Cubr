@@ -17,6 +17,7 @@ import ProfilePage from "./pages/ProfilePage";
 import RulesPage from "./pages/RulesPage";
 import PrivacyPage from "./pages/PrivacyPage";
 import { ProtectedRoute, GuestOnlyRoute } from "./auth/ProtectedRoute";
+import DesktopOnlyGate from "./components/DesktopOnlyGate";
 import TrophyIcon from "./components/TrophyIcon";
 import { ToastViewport, toast } from "./components/Toast";
 import { useAuthStore } from "./store/authStore";
@@ -181,7 +182,16 @@ export default function App() {
       <main className="mx-auto max-w-content px-4 py-7">
         <Routes>
           <Route path="/" element={<HomePage />} />
-          <Route path="/solo" element={<SoloPage />} />
+          {/* Этап 6 (R8): ритуальные роуты под десктопным гейтом — с телефона
+              вместо сломанной камеры показывается честная заглушка. */}
+          <Route
+            path="/solo"
+            element={
+              <DesktopOnlyGate>
+                <SoloPage />
+              </DesktopOnlyGate>
+            }
+          />
           {/* Этап 6: публичные текстовые страницы — читаются ДО регистрации. */}
           <Route path="/rules" element={<RulesPage />} />
           <Route path="/privacy" element={<PrivacyPage />} />
@@ -245,7 +255,9 @@ export default function App() {
             path="/tournament"
             element={
               <ProtectedRoute>
-                <TournamentPage />
+                <DesktopOnlyGate>
+                  <TournamentPage />
+                </DesktopOnlyGate>
               </ProtectedRoute>
             }
           />
@@ -253,7 +265,9 @@ export default function App() {
             path="/daily"
             element={
               <ProtectedRoute>
-                <DailyPage />
+                <DesktopOnlyGate>
+                  <DailyPage />
+                </DesktopOnlyGate>
               </ProtectedRoute>
             }
           />
@@ -261,7 +275,9 @@ export default function App() {
             path="/duel/join/:token"
             element={
               <ProtectedRoute>
-                <DuelJoinPage />
+                <DesktopOnlyGate>
+                  <DuelJoinPage />
+                </DesktopOnlyGate>
               </ProtectedRoute>
             }
           />
@@ -269,7 +285,9 @@ export default function App() {
             path="/duel/:roomId"
             element={
               <ProtectedRoute>
-                <DuelPage />
+                <DesktopOnlyGate>
+                  <DuelPage />
+                </DesktopOnlyGate>
               </ProtectedRoute>
             }
           />
