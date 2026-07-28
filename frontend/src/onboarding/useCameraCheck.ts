@@ -127,6 +127,13 @@ export function useCameraCheck(): CameraCheck {
       setStarted(true);
     } catch (e) {
       setStarting(false);
+      // Победила параллельная попытка: поток живой, значит ошибки нет — что бы
+      // ни вернул наш собственный вызов. Иначе на экране остаётся работающее
+      // видео с красной надписью «нет доступа к камере».
+      if (camera.isLive()) {
+        setError(null);
+        return;
+      }
       if (e instanceof HandsInitError) setError(modelFailedRu());
       else if (e instanceof CameraError) setError(cameraErrorRu(e.kind));
       else setError(cameraDeniedRu());

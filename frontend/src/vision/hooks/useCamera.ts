@@ -25,12 +25,7 @@ export interface FrameInfo {
 export type FrameCallback = (info: FrameInfo) => void;
 
 export type CameraErrorKind =
-  | "denied"
-  | "not-found"
-  | "in-use"
-  | "unsupported"
-  | "insecure"
-  | "unknown";
+  "denied" | "not-found" | "in-use" | "unsupported" | "insecure" | "unknown";
 
 export class CameraError extends Error {
   kind: CameraErrorKind;
@@ -46,13 +41,19 @@ type VideoWithRvfc = HTMLVideoElement & {
   cancelVideoFrameCallback?: (id: number) => void;
 };
 
-class Camera {
+export class Camera {
   private video: HTMLVideoElement;
   private stream: MediaStream | null = null;
   private rafHandle: number | null = null;
   private rvfcHandle: number | null = null;
   private running = false;
   private onLost?: () => void;
+  // Идущий запуск. Без него два параллельных вызова start() (StrictMode-двойной
+  // эффект, эффект + клик по кнопке) дерутся за устройство: второй сносит
+  // ЖИВОЙ поток первого (stop() ниже) и заново просит getUserMedia — в Safari
+  // такой повторный запрос отклоняется, и на экране остаётся работающее видео
+  // с красной надписью «нет доступа к камере». Реальный багрепорт.
+  private starting: Promise<void> | null = null;
 
   constructor(video: HTMLVideoElement, onLost?: () => void) {
     this.video = video;
@@ -66,6 +67,17 @@ class Camera {
   }
 
   async start(cb: FrameCallback): Promise<void> {
+    // Уже идёт запуск — ждём его, а не начинаем второй.
+    if (this.starting) return this.starting;
+    // Уже живём — ничего не трогаем: повторный getUserMedia только всё сломает.
+    if (this.isLive()) return;
+    this.starting = this.acquire(cb).finally(() => {
+      this.starting = null;
+    });
+    return this.starting;
+  }
+
+  private async acquire(cb: FrameCallback): Promise<void> {
     if (!window.isSecureContext) {
       throw new CameraError("insecure", "getUserMedia needs a secure (https) context");
     }

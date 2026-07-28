@@ -272,6 +272,14 @@ export function useSoloSession(opts?: UseSoloSessionOpts): SoloSession {
       await camera.start(onFrame);
       setCameraStarted(true);
     } catch (e) {
+      // Победила параллельная попытка: поток живой, значит ошибки нет — что бы
+      // ни вернул наш собственный вызов. Иначе на экране остаётся работающее
+      // видео с красной надписью «нет доступа к камере».
+      if (camera.isLive()) {
+        setCameraStarted(true);
+        setCameraError(null);
+        return;
+      }
       if (e instanceof HandsInitError) setCameraError(modelFailedRu());
       else if (e instanceof CameraError) setCameraError(cameraErrorRu(e.kind));
       else setCameraError(cameraDeniedRu());
