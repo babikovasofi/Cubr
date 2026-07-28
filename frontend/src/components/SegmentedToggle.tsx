@@ -32,7 +32,7 @@ export default function SegmentedToggle<T extends string>({
     <div
       role="radiogroup"
       aria-label={label}
-      className={`inline-flex items-center gap-0.5 rounded-full border-2 border-ink bg-surface p-0.5 ${className}`}
+      className={`inline-flex flex-wrap items-center gap-0.5 rounded-3xl border-2 border-ink bg-surface p-0.5 ${className}`}
     >
       {options.map((o) => {
         const active = o.value === value;

@@ -12,6 +12,7 @@ import SolveProgressChart from "../components/SolveProgressChart";
 import GoalCard from "../profile/GoalCard";
 import { currentAo5, AVERAGE_SIZE } from "../profile/average";
 import ShowcaseForm from "../profile/ShowcaseForm";
+import SegmentedToggle from "../components/SegmentedToggle";
 import { useAuthStore } from "../store/authStore";
 import { useSettingsStore } from "../store/settingsStore";
 import { formatSolveMs, type TimeFormat } from "../lib/formatTime";
@@ -147,34 +148,25 @@ function SettingsSection() {
   const t = useT();
   const timeFormat = useSettingsStore((s) => s.timeFormat);
   const setTimeFormat = useSettingsStore((s) => s.setTimeFormat);
+  // Пример времени прямо в подписи: «мм:сс» и «секунды» на словах различают
+  // хуже, чем 1:23.45 против 83.45.
   const options: { value: TimeFormat; label: string }[] = [
-    { value: "clock", label: t("Минуты : секунды") },
-    { value: "seconds", label: t("Секунды") },
+    { value: "clock", label: `${t("Минуты : секунды")} · ${formatSolveMs(83450, "clock")}` },
+    { value: "seconds", label: `${t("Секунды")} · ${formatSolveMs(83450, "seconds")}` },
   ];
   return (
     <section className="flex flex-col gap-4 rounded-lg border-2 border-ink bg-surface p-6">
       <h2 className="font-sans text-h3 text-ink">{t("Настройки")}</h2>
-      <fieldset className="flex flex-col gap-2">
-        <legend className="mb-1 font-sans text-small font-bold text-ink">
-          {t("Формат времени")}
-        </legend>
-        {options.map((o) => (
-          <label key={o.value} className="flex items-center gap-2 font-sans text-small text-ink">
-            <input
-              type="radio"
-              name="time-format"
-              value={o.value}
-              checked={timeFormat === o.value}
-              onChange={() => setTimeFormat(o.value)}
-              className="h-4 w-4 accent-primary"
-            />
-            {o.label}
-            <span className="text-muted [font-variant-numeric:tabular-nums]">
-              · {formatSolveMs(83450, o.value)}
-            </span>
-          </label>
-        ))}
-      </fieldset>
+      <div className="flex flex-col gap-2">
+        <span className="font-sans text-small font-bold text-ink">{t("Формат времени")}</span>
+        <SegmentedToggle<TimeFormat>
+          value={timeFormat}
+          onChange={setTimeFormat}
+          label={t("Формат времени")}
+          options={options}
+          className="self-start"
+        />
+      </div>
     </section>
   );
 }

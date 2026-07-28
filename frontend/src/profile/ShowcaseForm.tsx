@@ -8,6 +8,7 @@ import Input from "../components/Input";
 import { ApiError } from "../api/client";
 import type { SolvingMethod, UserUpdate } from "../api/auth";
 import { translate, useT } from "../i18n/t";
+import SegmentedToggle from "../components/SegmentedToggle";
 
 // Значения — ключи перевода (см. i18n): показываются через t() в форме.
 export const METHOD_LABELS: Record<SolvingMethod, string> = {
@@ -16,6 +17,17 @@ export const METHOD_LABELS: Record<SolvingMethod, string> = {
   zz: "ZZ",
   petrus: "Petrus",
   beginner: "Слоями (начинающий)",
+  other: "Другой",
+};
+
+// Короткие подписи для переключателя: в ряд «таблеток» длинные названия не
+// влезают, а «CFOP (Fridrich)» и «CFOP» — одно и то же для того, кто им собирает.
+export const METHOD_SHORT_LABELS: Record<SolvingMethod, string> = {
+  cfop: "CFOP",
+  roux: "Roux",
+  zz: "ZZ",
+  petrus: "Petrus",
+  beginner: "Слоями",
   other: "Другой",
 };
 
@@ -108,21 +120,22 @@ export default function ShowcaseForm({
       </div>
 
       <form className="flex flex-col gap-4" onSubmit={onSubmit} noValidate>
-        <label className="flex flex-col gap-1 font-sans text-small font-bold text-ink">
-          {t("Метод сборки")}
-          <select
+        <div className="flex flex-col gap-2">
+          <span className="font-sans text-small font-bold text-ink">{t("Метод сборки")}</span>
+          <SegmentedToggle<SolvingMethod | "">
             value={method}
-            onChange={(e) => setMethod(e.target.value as SolvingMethod | "")}
-            className="h-11 rounded-md border-2 border-ink bg-surface px-3 font-sans text-body font-normal text-ink"
-          >
-            <option value="">{t("Не указан")}</option>
-            {(Object.keys(METHOD_LABELS) as SolvingMethod[]).map((key) => (
-              <option key={key} value={key}>
-                {t(METHOD_LABELS[key])}
-              </option>
-            ))}
-          </select>
-        </label>
+            onChange={setMethod}
+            label={t("Метод сборки")}
+            className="self-start"
+            options={[
+              { value: "", label: t("Не указан") },
+              ...(Object.keys(METHOD_SHORT_LABELS) as SolvingMethod[]).map((key) => ({
+                value: key,
+                label: t(METHOD_SHORT_LABELS[key]),
+              })),
+            ]}
+          />
+        </div>
 
         <Input
           label={t("Собираю с года")}

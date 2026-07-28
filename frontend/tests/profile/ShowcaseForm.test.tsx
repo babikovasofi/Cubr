@@ -56,7 +56,7 @@ describe("ShowcaseForm", () => {
     onSave.mockResolvedValue(undefined);
     render(<ShowcaseForm initialMethod={null} initialYear={null} onSave={onSave} />);
 
-    fireEvent.change(screen.getByLabelText("Метод сборки"), { target: { value: "roux" } });
+    fireEvent.click(screen.getByRole("radio", { name: "Roux" }));
     fireEvent.change(screen.getByLabelText("Собираю с года"), { target: { value: "2019" } });
     await act(async () => {
       fireEvent.click(screen.getByRole("button", { name: "Сохранить витрину" }));
@@ -72,7 +72,7 @@ describe("ShowcaseForm", () => {
     onSave.mockResolvedValue(undefined);
     render(<ShowcaseForm initialMethod="cfop" initialYear={2020} onSave={onSave} />);
 
-    fireEvent.change(screen.getByLabelText("Метод сборки"), { target: { value: "" } });
+    fireEvent.click(screen.getByRole("radio", { name: "Не указан" }));
     fireEvent.change(screen.getByLabelText("Собираю с года"), { target: { value: "" } });
     await act(async () => {
       fireEvent.click(screen.getByRole("button", { name: "Сохранить витрину" }));

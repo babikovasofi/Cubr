@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, fireEvent, waitFor, act } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor, act, within } from "@testing-library/react";
 import { BrowserRouter } from "react-router-dom";
 import ProfilePage from "../../src/pages/ProfilePage";
 import { ApiError } from "../../src/api/client";
@@ -247,15 +247,17 @@ describe("ProfilePage — time-format setting", () => {
     );
   });
 
-  it("renders the «Формат времени» radios and switches the displayed record", () => {
+  it("переключает формат времени и меняет показанный рекорд", () => {
     render(
       <BrowserRouter>
         <ProfilePage />
       </BrowserRouter>,
     );
 
-    // Two radios (clock, seconds); clock is the default so the record shows M:SS.
-    const radios = screen.getAllByRole("radio");
+    // Переключатель формата — своя радиогруппа (на странице есть и другая, метод
+    // сборки), поэтому ищем внутри неё, а не по всей странице.
+    const group = screen.getByRole("radiogroup", { name: "Формат времени" });
+    const radios = within(group).getAllByRole("radio");
     expect(radios).toHaveLength(2);
     expect(screen.getByText("1:05.00")).toBeTruthy();
 

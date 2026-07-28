@@ -574,4 +574,5 @@ export const EN: Record<string, string> = {
   Пауза: "Pause",
   Скорость: "Speed",
   "{sec} с/ход": "{sec}s per move",
+  Слоями: "Layers",
 };
