@@ -20,6 +20,7 @@ import {
 } from "../colors";
 import { quickAdjust as colorsQuickAdjust } from "../quickAdjust";
 import { config, squareGuidePx, type Rect } from "../config";
+import { fitFaceRegion } from "../faceFit";
 import { assignFacesByCenter, resolveRotations, lenientVerify } from "../cubeGrid";
 import { diffFacelets, validateFacelets, type Face, type Facelet } from "../cubeState";
 
@@ -41,6 +42,12 @@ export function readFace(
   work: HTMLCanvasElement,
   guide: Rect = config.GUIDE_RECT,
   centerFrac: number = config.CELL_CENTER_FRAC,
+  /**
+   * Эталоны цветов. Если переданы — сетка 3×3 подгоняется под РЕАЛЬНОЕ положение
+   * грани внутри рамки (vision/faceFit), а не режется по рамке вслепую. Рамка —
+   * это не кубик: держишь ближе/дальше/наискось, и ячейки уезжают на щели и фон.
+   */
+  refs: Refs | null = null,
 ): FaceSample {
   // Sample a CENTERED SQUARE (side = min of the guide's px dimensions). The 3x3
   // grid below assumes a square cube face fills the region; if the sampled region
@@ -56,9 +63,26 @@ export function readFace(
   const ctx = work.getContext("2d", { willReadFrequently: true })!;
   ctx.drawImage(source, gx, gy, gw, gh, 0, 0, gw, gh);
 
-  // Distribute the pixel remainder so all gw x gh pixels are covered.
-  const xEdges = [0, Math.round(gw / 3), Math.round((2 * gw) / 3), gw];
-  const yEdges = [0, Math.round(gh / 3), Math.round((2 * gh) / 3), gh];
+  // Куда именно легла грань внутри снятого квадрата. Без эталонов подогнать
+  // нечем — режем по рамке, как раньше.
+  let ox = 0;
+  let oy = 0;
+  let side = gw;
+  if (refs) {
+    const patch = ctx.getImageData(0, 0, gw, gh);
+    const fit = fitFaceRegion({ data: patch.data, size: gw }, refs, centerFrac);
+    // Доверяем подгонке только при ощутимом выигрыше: иначе сетка дёргалась бы
+    // от кадра к кадру на шуме.
+    if (fit.baselineCost - fit.cost >= config.FACE_FIT_MIN_GAIN) {
+      ox = Math.round(fit.region.x);
+      oy = Math.round(fit.region.y);
+      side = Math.round(fit.region.side);
+    }
+  }
+
+  // Distribute the pixel remainder so the whole fitted square is covered.
+  const xEdges = [ox, ox + Math.round(side / 3), ox + Math.round((2 * side) / 3), ox + side];
+  const yEdges = [oy, oy + Math.round(side / 3), oy + Math.round((2 * side) / 3), oy + side];
 
   const rgb: RGB[] = [];
   const lab: Lab[] = [];
@@ -385,7 +409,18 @@ export function useCubeReader(workRef: React.RefObject<HTMLCanvasElement | null>
     const refs = refsRef.current;
     if (!work || !refs) return { kind: "unreadable" };
     if (!readable(video, work)) return { kind: "unreadable" };
-    const face = readFace(video, video.videoWidth, video.videoHeight, work);
+    // Эталоны передаются, значит сетка подгоняется под грань в кадре
+    // (см. faceFit): это геометрия чтения, а не подпорка поверх цвета,
+    // поэтому применяется и в гейте точности тоже.
+    const face = readFace(
+      video,
+      video.videoWidth,
+      video.videoHeight,
+      work,
+      config.GUIDE_RECT,
+      config.CELL_CENTER_FRAC,
+      refs,
+    );
     const decision = colorsQuickAdjust(refs, face.rgb);
     switch (decision.kind) {
       case "ok":
@@ -429,7 +464,18 @@ export function useCubeReader(workRef: React.RefObject<HTMLCanvasElement | null>
     if (!work || !refs || !collectorRef.current) return { kind: "unreadable" };
     if (!readable(video, work)) return { kind: "unreadable" };
 
-    const face = readFace(video, video.videoWidth, video.videoHeight, work);
+    // Эталоны передаются, значит сетка подгоняется под грань в кадре
+    // (см. faceFit): это геометрия чтения, а не подпорка поверх цвета,
+    // поэтому применяется и в гейте точности тоже.
+    const face = readFace(
+      video,
+      video.videoWidth,
+      video.videoHeight,
+      work,
+      config.GUIDE_RECT,
+      config.CELL_CENTER_FRAC,
+      refs,
+    );
 
     // Пер-грань нормировка света по своему центру + порог уверенности. Грань,
     // прочитанную наугад (мало отрыва до второго цвета, блик съел ячейку),
@@ -506,7 +552,18 @@ export function useCubeReader(workRef: React.RefObject<HTMLCanvasElement | null>
     // instead of measuring calibration drift as a vision error (skeptic MED).
     const faceIndex = accCollectorRef.current.length;
     const expectedColor = COLOR_NAMES[faceIndex];
-    const face = readFace(video, video.videoWidth, video.videoHeight, work);
+    // Эталоны передаются, значит сетка подгоняется под грань в кадре
+    // (см. faceFit): это геометрия чтения, а не подпорка поверх цвета,
+    // поэтому применяется и в гейте точности тоже.
+    const face = readFace(
+      video,
+      video.videoWidth,
+      video.videoHeight,
+      work,
+      config.GUIDE_RECT,
+      config.CELL_CENTER_FRAC,
+      refs,
+    );
     const de = deltaE(face.lab[4], refs[expectedColor]);
     // Drift is ADVISORY, not a block: on a real webcam the center can legitimately
     // drift > CENTER_DRIFT_DE (auto-WB/exposure) and refusing the capture just stops

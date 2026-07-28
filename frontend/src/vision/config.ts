@@ -70,6 +70,10 @@ export interface Config {
   STICKER_MARGIN_MIN: number; // минимальный отрыв ΔE второго кандидата от первого
   STICKER_MAX_DELTA_E: number; // дальше этого от эталона — чтение не считается уверенным
   FACE_MIN_CONFIDENT_CELLS: number; // сколько из 9 ячеек должны быть уверенными
+  // Подгонка сетки под грань (см. vision/faceFit): насколько подогнанная сетка
+  // должна быть лучше рамочной, чтобы ей поверили. Ноль означал бы дёрганье
+  // сетки от кадра к кадру на шуме.
+  FACE_FIT_MIN_GAIN: number;
 
   // ---- Color classification -------------------------------------------------
   QUOTA: number; // stickers per color on a 3x3x3 cube (always 9)
@@ -129,6 +133,7 @@ export const config: Config = {
   STICKER_MARGIN_MIN: 4,
   STICKER_MAX_DELTA_E: 34,
   FACE_MIN_CONFIDENT_CELLS: 8,
+  FACE_FIT_MIN_GAIN: 1.5,
 
   QUOTA: 9,
   DELTA_E_MODE: "ciede2000",
