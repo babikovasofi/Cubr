@@ -97,7 +97,9 @@ export default function AccuracyControls({ session }: AccuracyControlsProps) {
                 Скрамбл не загрузился: {session.scrambleError}
               </p>
             ) : (
-              <code className="break-words font-mono text-caption text-ink">{session.scramble}</code>
+              <code className="break-words font-mono text-caption text-ink">
+                {session.scramble}
+              </code>
             )}
             <button
               type="button"
@@ -200,7 +202,9 @@ export default function AccuracyControls({ session }: AccuracyControlsProps) {
         <span className="font-sans text-overline uppercase text-muted">Снять чтение</span>
         <p className="font-sans text-small text-muted">
           Фикс-порядок {CAPTURE_ORDER.join(" ")}.{" "}
-          {session.collectingAccuracy ? `Грань ${captureStep + 1}/6.` : "Нажми, чтобы начать чтение."}
+          {session.collectingAccuracy
+            ? `Грань ${captureStep + 1}/6.`
+            : "Нажми, чтобы начать чтение."}
         </p>
         {session.collectingAccuracy ? (
           <p className="font-sans text-small font-bold text-ink">{hint.ru}</p>
@@ -276,10 +280,9 @@ export default function AccuracyControls({ session }: AccuracyControlsProps) {
                         {c.nDropped} ({pct(c.dropRate)})
                       </td>
                       <td
-                        className={[
-                          "p-1 font-bold",
-                          c.pass ? "text-success" : "text-danger",
-                        ].join(" ")}
+                        className={["p-1 font-bold", c.pass ? "text-success" : "text-danger"].join(
+                          " ",
+                        )}
                       >
                         {c.pass ? "PASS" : "FAIL"}
                       </td>
@@ -300,7 +303,9 @@ export default function AccuracyControls({ session }: AccuracyControlsProps) {
 
         {/* Hotspots (run-wide) */}
         <div className="flex flex-col gap-1 rounded border border-line bg-surface-2 p-2">
-          <span className="font-sans text-caption font-bold text-muted">Hotspots (весь прогон)</span>
+          <span className="font-sans text-caption font-bold text-muted">
+            Hotspots (весь прогон)
+          </span>
           <p className="font-mono text-caption text-ink">
             {runHs.redOrange.label}: {runHs.redOrange.total} из N={runHs.redOrange.n} (R→L{" "}
             {runHs.redOrange.aToB}, L→R {runHs.redOrange.bToA})
@@ -343,8 +348,16 @@ function reportPreview(session: AccuracySession): string {
   const rep = session.lastReport;
   if (!rep) return "";
   const lines = [
-    `Точность чтения: ${rep.correct}/${rep.total} = ${pct(rep.fraction)} → ${rep.pass ? "PASS" : "FAIL"}`,
+    `Сырое зрение (гейт): ${rep.correct}/${rep.total} = ${pct(rep.fraction)} → ${rep.pass ? "PASS" : "FAIL"}`,
   ];
+  // Вторая строка — то же чтение продуктовым путём. Разрыв между строками и есть
+  // вклад нормировки света и квот: видно, чинит ли зрение или подпорки.
+  const prod = session.lastProductReport;
+  if (prod) {
+    lines.push(
+      `Как в продукте (свет+квоты): ${prod.correct}/${prod.total} = ${pct(prod.fraction)}`,
+    );
+  }
   const gate = gatePass(session.run);
   for (const c of gate.conditions) {
     const acc = session.run.get(`${c.key.light}|${c.key.cube}|${c.key.person}|${c.key.calib}`);

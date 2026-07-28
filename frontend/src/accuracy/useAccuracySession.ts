@@ -65,6 +65,7 @@ export interface AccuracySession {
   excludeLast: () => void;
   // Results.
   lastReport: AccuracyReport | null;
+  lastProductReport: AccuracyReport | null;
   run: AccuracyRun;
   runVersion: number;
   resetRun: () => void;
@@ -101,6 +102,9 @@ export function useAccuracySession(): AccuracySession {
   });
   const [captureError, setCaptureError] = useState<string | null>(null);
   const [lastReport, setLastReport] = useState<AccuracyReport | null>(null);
+  // Второй счёт того же чтения — продуктовым путём (нормировка света + квоты).
+  // Гейт по нему НЕ считается: его планка стоит на сыром зрении.
+  const [lastProductReport, setLastProductReport] = useState<AccuracyReport | null>(null);
   const lastReadKeyRef = useRef<ConditionKey | null>(null);
 
   // The accumulator lives in a ref (append* mutate in place); a version counter
@@ -204,11 +208,18 @@ export function useAccuracySession(): AccuracySession {
         bump();
         return;
       case "complete": {
+        // Гейт меряет СЫРОЕ зрение (argmin по несглаженным цветам): подпорки
+        // продуктового пути не должны прятать реальную ошибку классификации.
+        // Продуктовое чтение (нормировка света + квоты 9×6) считается рядом —
+        // это то, что видит человек в соло, и обе цифры нужны, чтобы понимать,
+        // сколько даёт зрение, а сколько ограничения поверх него.
         const raw = assembleRawRead(r.rawFaceGrids);
         const report = scoreRead(raw, truth);
+        const productReport = scoreRead(assembleRawRead(r.productFaceGrids), truth);
         appendRead(runRef.current, conditionRef.current, report);
         lastReadKeyRef.current = conditionRef.current;
         setLastReport(report);
+        setLastProductReport(productReport);
         setCaptureError(r.drifted ? `Чтение готово${driftNote(r.drifted)}` : null);
         bump();
         return;
@@ -217,6 +228,7 @@ export function useAccuracySession(): AccuracySession {
   };
 
   const cancelCapture = (): void => {
+    setLastProductReport(null);
     setCaptureError(null);
     reader.resetAccuracy();
   };
@@ -235,14 +247,26 @@ export function useAccuracySession(): AccuracySession {
     runRef.current = new Map();
     lastReadKeyRef.current = null;
     setLastReport(null);
+    setLastProductReport(null);
     bump();
   };
 
   const buildExport = (): string => {
     const parts: string[] = [];
     if (lastReport) {
-      parts.push("=== Последнее чтение ===");
+      parts.push("=== Последнее чтение (СЫРОЕ зрение — по нему гейт) ===");
       parts.push(formatReport(lastReport));
+      parts.push("");
+    }
+    if (lastProductReport) {
+      const raw = lastReport ? lastReport.correct : 0;
+      parts.push("=== То же чтение продуктовым путём (нормировка света + квоты 9×6) ===");
+      parts.push(
+        `Per-sticker: ${lastProductReport.correct}/${lastProductReport.total} = ` +
+          `${(lastProductReport.fraction * 100).toFixed(1)}%` +
+          (lastReport ? ` (сырое: ${raw}/${lastReport.total})` : ""),
+      );
+      parts.push("Гейт 0.3 считается по сырому чтению — эта строка справочная.");
       parts.push("");
     }
     parts.push("=== Сводка прогона ===");
@@ -261,9 +285,7 @@ export function useAccuracySession(): AccuracySession {
       for (const n of COLOR_NAMES) {
         const lab = refs[n];
         const [r, g, b] = lab2rgb(lab);
-        lines.push(
-          `  ${n}: RGB(${r},${g},${b})  Lab(${lab.map((x) => x.toFixed(0)).join(",")})`,
-        );
+        lines.push(`  ${n}: RGB(${r},${g},${b})  Lab(${lab.map((x) => x.toFixed(0)).join(",")})`);
       }
       lines.push(
         `  min попарный ΔE между 6 эталонами: ${minDE.toFixed(1)} ` +
@@ -303,6 +325,7 @@ export function useAccuracySession(): AccuracySession {
     cancelCapture,
     excludeLast,
     lastReport,
+    lastProductReport,
     run: runRef.current,
     runVersion,
     resetRun,

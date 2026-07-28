@@ -120,7 +120,17 @@ function argminRef(lab: Lab, refs: Refs): ColorName {
 // directly (it needs the pre-resolve read); verify consumes `resolved`.
 type ResolveReason = "assign" | "ambiguous" | "resolve" | "illegal";
 interface SixFaceResolve {
-  rawFaceGrids: Face[][]; // 6 × 9 argmin face-letters, in the order given
+  /**
+   * СЫРОЕ чтение: независимый argmin по несглаженным цветам, без нормировки и
+   * без квот. Это то, что меряет гейт 0.3 — планка по самому зрению, а не по
+   * подпоркам поверх него.
+   */
+  rawFaceGrids: Face[][];
+  /**
+   * ПРОДУКТОВОЕ чтение: пер-грань нормировка света + квоты 9×6. Именно оно
+   * идёт в сверку скрамбла и в сборку кубика.
+   */
+  productFaceGrids: Face[][];
   resolved: Facelet | null; // legality-resolved URFDLB string, or null on failure
   reason?: ResolveReason; // set iff resolve/validate did not produce a legal cube
 }
@@ -199,26 +209,39 @@ function classifyWithQuota(faces: Lab[][], refs: Refs, centers: Face[] | null): 
   return out;
 }
 
-function resolveSixFaces(faces: Lab[][], refs: Refs): SixFaceResolve {
-  const assignPre = assignFacesByCenter(faces, refs);
-  const rawFaceGrids: Face[][] = classifyWithQuota(
-    faces,
-    refs,
-    assignPre.ok ? assignPre.faces : null,
+/** Пер-грань нормировка света по собственному центру каждой снятой грани. */
+export function normalizeSamples(samples: FaceSample[], refs: Refs): Lab[][] {
+  return samples.map((sample) => {
+    const centerName = argminRef(sample.lab[4], refs);
+    return normalizeFaceByCenter(sample.rgb, refs[centerName]).map((rgb) => rgb2lab(rgb));
+  });
+}
+
+function resolveSixFaces(samples: FaceSample[], refs: Refs): SixFaceResolve {
+  const rawLabs = samples.map((s) => s.lab);
+  const rawFaceGrids: Face[][] = rawLabs.map((grid) =>
+    grid.map((lab) => argminRef(lab, refs) as string as Face),
   );
-  const assign = assignPre;
-  if (!assign.ok) return { rawFaceGrids, resolved: null, reason: "assign" };
-  const res = resolveRotations(rawFaceGrids, assign.faces);
+
+  const labs = normalizeSamples(samples, refs);
+  const assign = assignFacesByCenter(labs, refs);
+  const productFaceGrids = classifyWithQuota(labs, refs, assign.ok ? assign.faces : null);
+
+  if (!assign.ok) return { rawFaceGrids, productFaceGrids, resolved: null, reason: "assign" };
+  const res = resolveRotations(productFaceGrids, assign.faces);
   if (!res.ok) {
     return {
       rawFaceGrids,
+      productFaceGrids,
       resolved: null,
       reason: res.reason?.includes("ambiguous") ? "ambiguous" : "resolve",
     };
   }
   const read = res.facelets!;
-  if (!validateFacelets(read).ok) return { rawFaceGrids, resolved: read, reason: "illegal" };
-  return { rawFaceGrids, resolved: read };
+  if (!validateFacelets(read).ok) {
+    return { rawFaceGrids, productFaceGrids, resolved: read, reason: "illegal" };
+  }
+  return { rawFaceGrids, productFaceGrids, resolved: read };
 }
 
 // An accuracy capture outcome (fixed capture order, known ground truth). Drift is
@@ -230,7 +253,8 @@ export type AccuracyCapture =
   | { kind: "unreadable" } // luma/refs gate failed
   | {
       kind: "complete";
-      rawFaceGrids: Face[][]; // 6 × 9 in fixed capture order URFDLB
+      rawFaceGrids: Face[][]; // 6 × 9 сырое чтение в фиксированном порядке URFDLB
+      productFaceGrids: Face[][]; // то же, но продуктовым путём (нормировка + квоты)
       resolved: Facelet | null; // informational legality-resolve (NOT scored)
       resolveReason?: ResolveReason;
       drifted?: { face: Face; de: number }; // last face drifted > threshold (advisory, not a block)
@@ -296,8 +320,8 @@ export function useCubeReader(workRef: React.RefObject<HTMLCanvasElement | null>
   const [collectingAccuracy, setCollectingAccuracy] = useState(false);
   const refsRef = useRef<Refs | null>(null);
   const calibRgbRef = useRef<Partial<Record<ColorName, RGB>>>({});
-  const collectorRef = useRef<Lab[][] | null>(null);
-  const accCollectorRef = useRef<Lab[][] | null>(null);
+  const collectorRef = useRef<FaceSample[] | null>(null);
+  const accCollectorRef = useRef<FaceSample[] | null>(null);
 
   const readable = (video: HTMLVideoElement, work: HTMLCanvasElement): boolean => {
     if (!refsRef.current) return false;
@@ -418,7 +442,10 @@ export function useCubeReader(workRef: React.RefObject<HTMLCanvasElement | null>
       return { kind: "unreadable" };
     }
 
-    collectorRef.current.push(fixedLab);
+    // Кладём СЫРОЙ сэмпл: нормировка и квоты применяются одним местом ниже
+    // (resolveSixFaces), чтобы харнесс точности мог отдельно посмотреть сырое
+    // чтение и продуктовое.
+    collectorRef.current.push(face);
     const n = collectorRef.current.length;
     setVerifyFacesLength(n);
     if (n < 6) return { kind: "pending", facesLength: n };
@@ -429,7 +456,7 @@ export function useCubeReader(workRef: React.RefObject<HTMLCanvasElement | null>
     setCollecting(false);
     setVerifyFacesLength(0);
 
-    const { rawFaceGrids, resolved, reason } = resolveSixFaces(faces, refs);
+    const { productFaceGrids, resolved, reason } = resolveSixFaces(faces, refs);
 
     // Casual solo (tolerant): don't demand a globally-legal cube. Score the real
     // per-sticker read against `expected` face-by-face and accept within tolerance,
@@ -437,8 +464,8 @@ export function useCubeReader(workRef: React.RefObject<HTMLCanvasElement | null>
     // MISMATCH ever come back here — never unreadable/assign/ambiguous/resolve.
     // Ranked (Stage 4) uses the strict path below (tolerant=false).
     if (tolerant) {
-      const centers = assignFacesByCenter(faces, refs).faces;
-      const lm = lenientVerify(rawFaceGrids, centers, expected);
+      const centers = assignFacesByCenter(normalizeSamples(faces, refs), refs).faces;
+      const lm = lenientVerify(productFaceGrids, centers, expected);
       const correctFrac = (lm.totalStickers - lm.mismatches) / lm.totalStickers;
       if (correctFrac >= config.CASUAL_VERIFY_MIN_CORRECT_FRAC) return { kind: "ok" };
       return { kind: "mismatch", face: lm.worstFace, count: lm.mismatches };
@@ -489,7 +516,7 @@ export function useCubeReader(workRef: React.RefObject<HTMLCanvasElement | null>
     const drifted =
       de > config.CENTER_DRIFT_DE ? { face: expectedColor as string as Face, de } : undefined;
 
-    accCollectorRef.current.push(face.lab);
+    accCollectorRef.current.push(face);
     const n = accCollectorRef.current.length;
     setAccFacesLength(n);
     if (n < 6) return { kind: "pending", facesLength: n, drifted };
@@ -499,8 +526,15 @@ export function useCubeReader(workRef: React.RefObject<HTMLCanvasElement | null>
     setCollectingAccuracy(false);
     setAccFacesLength(0);
 
-    const { rawFaceGrids, resolved, reason } = resolveSixFaces(faces, refs);
-    return { kind: "complete", rawFaceGrids, resolved, resolveReason: reason, drifted };
+    const { rawFaceGrids, productFaceGrids, resolved, reason } = resolveSixFaces(faces, refs);
+    return {
+      kind: "complete",
+      rawFaceGrids,
+      productFaceGrids,
+      resolved,
+      resolveReason: reason,
+      drifted,
+    };
   };
 
   return {
