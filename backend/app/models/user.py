@@ -29,6 +29,11 @@ class User(SQLAlchemyBaseUserTableUUID, Base):
     # weekly tournament standings board). Never derived from email/nickname —
     # unset renders as "Аноним" (see app.services.tournament.display_name_for).
     public_handle: Mapped[str | None] = mapped_column(String(length=64), nullable=True)
+    # Витрина профиля (V3): чем человек собирает и с какого года. Видны только
+    # владельцу — публичных профилей в Cubr нет, на бордах живёт лишь
+    # `public_handle` (П10). Оба поля необязательные: пустая витрина — норма.
+    method: Mapped[str | None] = mapped_column(String(length=16), nullable=True)
+    cubing_since_year: Mapped[int | None] = mapped_column(Integer, nullable=True)
     cups: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
     best_single_ms: Mapped[int | None] = mapped_column(Integer, nullable=True)
     best_ao5_ms: Mapped[int | None] = mapped_column(Integer, nullable=True)

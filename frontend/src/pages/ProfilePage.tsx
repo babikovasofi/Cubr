@@ -11,6 +11,7 @@ import BadgeGrid from "../components/BadgeGrid";
 import SolveProgressChart from "../components/SolveProgressChart";
 import GoalCard from "../profile/GoalCard";
 import { currentAo5, AVERAGE_SIZE } from "../profile/average";
+import ShowcaseForm from "../profile/ShowcaseForm";
 import { useAuthStore } from "../store/authStore";
 import { useSettingsStore } from "../store/settingsStore";
 import { formatSolveMs, type TimeFormat } from "../lib/formatTime";
@@ -59,6 +60,12 @@ export default function ProfilePage() {
         onSave={(nickname, avatar_url, public_handle) =>
           updateMe({ nickname, avatar_url, public_handle })
         }
+      />
+
+      <ShowcaseForm
+        initialMethod={user.method}
+        initialYear={user.cubing_since_year}
+        onSave={(patch) => updateMe(patch)}
       />
 
       <CubeList />

@@ -22,6 +22,8 @@ const USER = {
   best_single_ms: null,
   best_ao5_ms: null,
   public_handle: null,
+  method: null,
+  cubing_since_year: null,
 };
 
 function renderApp() {

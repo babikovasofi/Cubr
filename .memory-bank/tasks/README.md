@@ -439,6 +439,17 @@
   - ✅ backend pytest **360** (+15), frontend vitest **577** (+11), всё зелёное, миграций нет.
     [swarm-report/ao5-averages-build.md].
 
+- **V3 — витрина профиля** ✅ код + тесты + живая миграция — `backend/` + `frontend/`.
+  - ✅ `user.method` (закрытый список CFOP/Roux/ZZ/Petrus/слоями/другой) + `user.cubing_since_year`
+    (1974..текущий), оба nullable, миграция **0010** — применена вживую (upgrade→downgrade→upgrade
+    против локального Postgres). Форма `ShowcaseForm` в профиле.
+  - ✅ **Витрина НЕ публичная:** публичных профилей в Cubr нет, борды несут только `public_handle`
+    (П10) — подпись честно говорит «для себя»; отдельный тест проверяет, что ни метод, ни год не
+    просачиваются в standings. Nullable без server_default: «не указано» — норма, бэкфил догадкой
+    вложил бы людям в рот слова.
+  - ✅ backend pytest **365** (+5), frontend vitest **592** (+13), всё зелёное.
+    [swarm-report/profile-showcase-build.md].
+
 ## Manual-QA bug sweep (2026-07-20, из живого теста пользователя)
 Багрепорт по живому прогону сайта; чиним блоками plan→build→тесты (инлайн, субагенты на лимите).
 - ✅ **A онбординг/камера** (`8532b3e`): honest hands-gate (дебаунс 8 кадров вместо латча), больше превью
