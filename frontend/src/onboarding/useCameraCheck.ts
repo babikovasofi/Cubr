@@ -14,9 +14,12 @@ import {
 } from "../vision/hooks/useCamera";
 import { useHands, HandsInitError } from "../vision/hooks/useHands";
 import { cameraDeniedRu, modelFailedRu } from "../vision/guide";
+import { useT } from "../i18n/t";
 
 const ZONES = defaultZones();
-const OVERLAY_LABELS: OverlayLabels = {
+// Ключи перевода: подписи рисуются на canvas в цикле кадров, поэтому язык
+// подставляется в момент отрисовки (см. labelsRef ниже), а не при импорте.
+const OVERLAY_LABEL_KEYS: OverlayLabels = {
   guide: "Держи кубик здесь",
   left: "Левая рука",
   right: "Правая рука",
@@ -67,6 +70,15 @@ export interface CameraCheck {
 }
 
 export function useCameraCheck(): CameraCheck {
+  const t = useT();
+  // Подписи оверлея рисуются в цикле кадров — держим их в ref, чтобы смена
+  // языка не требовала перезапуска камеры.
+  const labelsRef = useRef<OverlayLabels>(OVERLAY_LABEL_KEYS);
+  labelsRef.current = {
+    guide: t(OVERLAY_LABEL_KEYS.guide),
+    left: t(OVERLAY_LABEL_KEYS.left),
+    right: t(OVERLAY_LABEL_KEYS.right),
+  };
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const overlayRef = useRef<HTMLCanvasElement | null>(null);
   const workRef = useRef<HTMLCanvasElement | null>(null);
@@ -96,7 +108,7 @@ export function useCameraCheck(): CameraCheck {
       overlay.width = width;
       overlay.height = height;
       const octx = overlay.getContext("2d");
-      if (octx) drawOverlay(octx, width, height, obs, ZONES, config.GUIDE_RECT, OVERLAY_LABELS);
+      if (octx) drawOverlay(octx, width, height, obs, ZONES, config.GUIDE_RECT, labelsRef.current);
     }
     const gate = advanceHandsGate(handsRunRef.current, obs.handsDetected);
     handsRunRef.current = gate.run;

@@ -170,11 +170,13 @@ function CalibratePanel({ s }: { s: Session }) {
     <div className="flex flex-col gap-3 rounded-lg border-2 border-ink bg-surface p-4.5">
       <h3 className="font-sans text-h3 text-ink">{t("Калибровка цветов")}</h3>
       <p className="font-sans text-small text-muted">
-        Поднеси к жёлтой рамке грань собранного кубика и снимай по очереди — снято{" "}
-        {s.calibrationStep}/{total}.
+        {t(
+          "Поднеси к жёлтой рамке грань собранного кубика и снимай по очереди — снято {done}/{total}.",
+          { done: s.calibrationStep, total },
+        )}
       </p>
       <Button onClick={s.calibrateStep}>
-        Снять грань {Math.min(s.calibrationStep + 1, total)}/{total}
+        {t("Снять грань {n}/{total}", { n: Math.min(s.calibrationStep + 1, total), total })}
       </Button>
       {s.calibrateError ? (
         <p role="alert" className="font-sans text-small text-danger">
@@ -198,10 +200,13 @@ function SolveVerifyPanel({ s }: { s: Session }) {
       {collecting ? (
         <>
           <p className="font-sans text-small text-muted">
-            Держи собранную грань в жёлтой рамке и снимай — прочитано {s.verifyFacesLength}/{total}.
+            {t("Держи собранную грань в жёлтой рамке и снимай — прочитано {done}/{total}.", {
+              done: s.verifyFacesLength,
+              total,
+            })}
           </p>
           <Button onClick={s.solveVerifyStep}>
-            Снять грань {Math.min(s.verifyFacesLength + 1, total)}/{total}
+            {t("Снять грань {n}/{total}", { n: Math.min(s.verifyFacesLength + 1, total), total })}
           </Button>
         </>
       ) : (
@@ -239,10 +244,13 @@ function VerifyPanel({ s }: { s: Session }) {
       {s.collecting ? (
         <>
           <p className="font-sans text-small text-muted">
-            Держи грань в жёлтой рамке и снимай — прочитано {s.verifyFacesLength}/{total}.
+            {t("Держи грань в жёлтой рамке и снимай — прочитано {done}/{total}.", {
+              done: s.verifyFacesLength,
+              total,
+            })}
           </p>
           <Button onClick={s.verifyStep}>
-            Снять грань {Math.min(s.verifyFacesLength + 1, total)}/{total}
+            {t("Снять грань {n}/{total}", { n: Math.min(s.verifyFacesLength + 1, total), total })}
           </Button>
         </>
       ) : (

@@ -11,6 +11,23 @@ import { moveLabelRu } from "../scramble/moveCopy";
 import { useT } from "../i18n/t";
 
 const NOTATION_KEY = "cubr.scramble.showNotation";
+const SPEED_KEY = "cubr.scramble.autoplaySpeed";
+
+// Пауза между ходами в автопрокрутке. Медленно — темп «повторяю за экраном»,
+// быстро — для тех, кто читает нотацию с листа. Значения подобраны от реального
+// времени анимации twisty (~300 мс на ход): ниже 600 мс ход не успевает
+// дочитаться глазами.
+export const AUTOPLAY_SPEEDS = [
+  { id: "slow", label: "медленно", delayMs: 2200 },
+  { id: "normal", label: "обычно", delayMs: 1400 },
+  { id: "fast", label: "быстро", delayMs: 900 },
+] as const;
+
+export type AutoplaySpeedId = (typeof AUTOPLAY_SPEEDS)[number]["id"];
+
+export function speedById(id: string | null): (typeof AUTOPLAY_SPEEDS)[number] {
+  return AUTOPLAY_SPEEDS.find((s) => s.id === id) ?? AUTOPLAY_SPEEDS[1];
+}
 
 interface ScrambleWalkthroughProps {
   moves: string[];
@@ -31,6 +48,12 @@ export default function ScrambleWalkthrough({
     () => typeof localStorage !== "undefined" && localStorage.getItem(NOTATION_KEY) === "1",
   );
   const prevIndex = useRef(0);
+  const [playing, setPlaying] = useState(false);
+  const [speedId, setSpeedId] = useState<AutoplaySpeedId>(
+    () =>
+      speedById(typeof localStorage !== "undefined" ? localStorage.getItem(SPEED_KEY) : null).id,
+  );
+  const speed = speedById(speedId);
 
   const clamp = (n: number) => (n < 0 ? 0 : n > total ? total : n);
   const goNext = () => setIndex((i) => clamp(i + 1));
@@ -44,6 +67,29 @@ export default function ScrambleWalkthrough({
     else showState(moves, index);
     prevIndex.current = index;
   }, [index, ready, moves, animateMove, showState]);
+
+  // Автопрокрутка: сама делает следующий ход, пока не дойдёт до конца. Человеку
+  // не надо жать «дальше» 25 раз — он просто повторяет за экраном.
+  //
+  // Таймер живёт на паре (playing, index): каждый ход планирует ровно один
+  // следующий, поэтому смена скорости или ручной шаг перепланируют его, а не
+  // накапливают параллельные интервалы.
+  useEffect(() => {
+    if (!playing || !ready) return;
+    if (index >= total) {
+      setPlaying(false);
+      return;
+    }
+    const id = setTimeout(() => setIndex((i) => clamp(i + 1)), speed.delayMs);
+    return () => clearTimeout(id);
+  }, [playing, ready, index, total, speed.delayMs]);
+
+  // Ручной шаг назад/вперёд и прыжок по мини-карте останавливают автопрокрутку:
+  // человек перехватил управление.
+  const stopAndRun = (fn: () => void) => {
+    setPlaying(false);
+    fn();
+  };
 
   // Keyboard: arrows / space. Ignore while a control is focused (it would double-fire).
   useEffect(() => {
@@ -129,7 +175,7 @@ export default function ScrambleWalkthrough({
       <div className="flex flex-wrap items-center gap-3">
         <button
           type="button"
-          onClick={goPrev}
+          onClick={() => stopAndRun(goPrev)}
           disabled={index === 0}
           className="inline-flex h-10 items-center rounded-full border-2 border-ink bg-surface px-4 font-sans text-small font-extrabold text-ink disabled:cursor-not-allowed disabled:border-line disabled:text-faint"
         >
@@ -146,12 +192,41 @@ export default function ScrambleWalkthrough({
         ) : (
           <button
             type="button"
-            onClick={goNext}
+            onClick={() => stopAndRun(goNext)}
             className="inline-flex h-10 items-center rounded-full border-2 border-ink bg-primary px-4 font-sans text-small font-extrabold text-white"
           >
             {t("дальше →")}
           </button>
         )}
+
+        {!atEnd ? (
+          <button
+            type="button"
+            onClick={() => setPlaying((v) => !v)}
+            className="inline-flex h-10 items-center rounded-full border-2 border-ink bg-surface px-4 font-sans text-small font-extrabold text-ink"
+          >
+            {playing ? t("Пауза") : t("Показать самому")}
+          </button>
+        ) : null}
+
+        <label className="inline-flex items-center gap-2 font-sans text-small text-muted">
+          {t("Скорость")}
+          <select
+            value={speedId}
+            onChange={(e) => {
+              const next = e.target.value as AutoplaySpeedId;
+              setSpeedId(next);
+              if (typeof localStorage !== "undefined") localStorage.setItem(SPEED_KEY, next);
+            }}
+            className="rounded-md border border-line bg-surface px-2 py-1 font-sans text-small text-ink"
+          >
+            {AUTOPLAY_SPEEDS.map((s) => (
+              <option key={s.id} value={s.id}>
+                {t(s.label)}
+              </option>
+            ))}
+          </select>
+        </label>
 
         <label className="ml-auto inline-flex cursor-pointer items-center gap-2 font-sans text-small text-muted">
           <input
@@ -178,7 +253,7 @@ export default function ScrambleWalkthrough({
                 key={`${i}-${mv}`}
                 type="button"
                 title={moveLabelRu(mv, t)}
-                onClick={() => setIndex(i + 1)}
+                onClick={() => stopAndRun(() => setIndex(i + 1))}
                 className={[
                   "h-8 min-w-8 rounded-md border-2 px-1.5 font-mono text-small font-bold",
                   isCurrent

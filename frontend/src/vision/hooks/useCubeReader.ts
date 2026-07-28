@@ -8,6 +8,7 @@ import { useRef, useState } from "react";
 import {
   calibrateByColorIdentity,
   COLOR_NAMES,
+  assignQuota,
   deltaE,
   medianOfCentralRegion,
   rgb2lab,
@@ -119,11 +120,51 @@ interface SixFaceResolve {
   reason?: ResolveReason; // set iff resolve/validate did not produce a legal cube
 }
 
+/**
+ * Классификация 54 наклеек с КВОТАМИ 9×6 вместо независимого argmin.
+ *
+ * На полном чтении шести граней известно жёсткое ограничение: каждого цвета
+ * ровно девять, а центры вообще однозначны (центр не двигается). Независимый
+ * argmin этим не пользуется — одна пересвеченная белая наклейка спокойно
+ * читается как красная, и красных становится десять. Квоты вытесняют наименее
+ * уверенное чтение туда, где ещё есть место, и ровно такие одиночные промахи
+ * (белая→красная в багрепорте) уходят.
+ *
+ * Возврат к argmin — только если центры не разложились по шести цветам: тогда
+ * пиновать нечего и квоты применять не к чему.
+ */
+function classifyWithQuota(faces: Lab[][], refs: Refs, centers: Face[] | null): Face[][] {
+  const argminGrids = (): Face[][] =>
+    faces.map((grid) => grid.map((lab) => argminRef(lab, refs) as string as Face));
+  if (!centers || faces.length !== 6) return argminGrids();
+
+  const labs: Lab[] = [];
+  for (const grid of faces) labs.push(...grid);
+
+  // centerIdx в порядке COLOR_NAMES: индекс центра каждой грани в плоском массиве.
+  const centerIdx: number[] = [];
+  for (const name of COLOR_NAMES) {
+    const cap = centers.indexOf(name as string as Face);
+    if (cap < 0) return argminGrids();
+    centerIdx.push(cap * 9 + 4);
+  }
+
+  const { assignment } = assignQuota(labs, refs, centerIdx);
+  const out: Face[][] = [];
+  for (let cap = 0; cap < faces.length; cap++) {
+    out.push(assignment.slice(cap * 9, cap * 9 + 9) as string[] as Face[]);
+  }
+  return out;
+}
+
 function resolveSixFaces(faces: Lab[][], refs: Refs): SixFaceResolve {
-  const rawFaceGrids: Face[][] = faces.map((grid) =>
-    grid.map((lab) => argminRef(lab, refs) as string as Face),
+  const assignPre = assignFacesByCenter(faces, refs);
+  const rawFaceGrids: Face[][] = classifyWithQuota(
+    faces,
+    refs,
+    assignPre.ok ? assignPre.faces : null,
   );
-  const assign = assignFacesByCenter(faces, refs);
+  const assign = assignPre;
   if (!assign.ok) return { rawFaceGrids, resolved: null, reason: "assign" };
   const res = resolveRotations(rawFaceGrids, assign.faces);
   if (!res.ok) {

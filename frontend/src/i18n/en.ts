@@ -559,4 +559,21 @@ export const EN: Record<string, string> = {
   "поверни по часовой": "turn it clockwise",
   "поверни против часовой": "turn it counter-clockwise",
   "поверни на пол-оборота (×2), сторона неважна": "turn it half a revolution (×2), either way",
+
+  // --- добито по багрепорту: панели ритуала ---
+  "Поднеси к жёлтой рамке грань собранного кубика и снимай по очереди — снято {done}/{total}.":
+    "Hold a face of the solved cube up to the yellow frame and capture them one by one — {done}/{total} captured.",
+  "Снять грань {n}/{total}": "Capture face {n}/{total}",
+  "Держи грань в жёлтой рамке и снимай — прочитано {done}/{total}.":
+    "Hold the face inside the yellow frame and capture — {done}/{total} read.",
+  "Держи собранную грань в жёлтой рамке и снимай — прочитано {done}/{total}.":
+    "Hold the solved face inside the yellow frame and capture — {done}/{total} read.",
+
+  // --- автопрокрутка скрамбла ---
+  "Показать самому": "Play it for me",
+  Пауза: "Pause",
+  Скорость: "Speed",
+  медленно: "slow",
+  обычно: "normal",
+  быстро: "fast",
 };

@@ -11,6 +11,7 @@
 //       a LEGAL cube. Ambiguous / none legal -> FAIL LOUD (re-capture).
 
 import { deltaE, COLOR_NAMES, type Lab, type ColorName, type Refs } from "./colors";
+import { orientationVariants } from "./faceletRotations";
 import { validateFacelets, FACE_ORDER, type Face, type Facelet } from "./cubeState";
 
 // ---- Grid rotation helpers -------------------------------------------------
@@ -141,11 +142,7 @@ export interface LenientMatch {
   worstCount: number; // its mismatch count (0..9)
 }
 
-export function lenientVerify(
-  faceGrids: Face[][],
-  faceOf: Face[],
-  expected: Facelet,
-): LenientMatch {
+function matchAgainst(faceGrids: Face[][], faceOf: Face[], expected: Facelet): LenientMatch {
   const slotOf: Record<Face, number> = { U: 0, R: 1, F: 2, D: 3, L: 4, B: 5 };
   const expSlots: Face[][] = [];
   for (let i = 0; i < 6; i++) {
@@ -174,10 +171,30 @@ export function lenientVerify(
   return { totalStickers: total, mismatches, worstFace, worstCount };
 }
 
-export function resolveRotations(
+export function lenientVerify(
   faceGrids: Face[][],
   faceOf: Face[],
-): RotationResolution {
+  expected: Facelet,
+): LenientMatch {
+  // Сверяем С ТОЧНОСТЬЮ ДО ПОВОРОТА ВСЕГО КУБИКА (24 ориентации эталона).
+  //
+  // Без этого честно собранный скрамбл давал «расходится 36 наклеек»: человек
+  // держит кубик как удобно и крутит его в руках, а эталон записан в одной
+  // фиксированной ориентации (белый верх, зелёный к себе). Пофейсовый поворот
+  // 0/90/180/270 такую разницу не покрывает — там переезжают и сами грани.
+  //
+  // Цена: 24 варианта × 6 граней × 4 поворота × 9 наклеек ≈ 5к сравнений, то
+  // есть доли миллисекунды один раз на чтение.
+  let best: LenientMatch | null = null;
+  for (const variant of orientationVariants(expected)) {
+    const m = matchAgainst(faceGrids, faceOf, variant as Facelet);
+    if (best === null || m.mismatches < best.mismatches) best = m;
+    if (best.mismatches === 0) break;
+  }
+  return best!;
+}
+
+export function resolveRotations(faceGrids: Face[][], faceOf: Face[]): RotationResolution {
   if (faceGrids.length !== 6 || faceOf.length !== 6) {
     return { ok: false, reason: `need 6 faces, got ${faceGrids.length}` };
   }
