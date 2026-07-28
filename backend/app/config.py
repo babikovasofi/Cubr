@@ -86,6 +86,9 @@ class Settings(BaseSettings):
     DAILY_BOARD_LIMIT_DEFAULT: int = 50
     DAILY_BOARD_LIMIT_MAX: int = 200
     DAILY_RATE_LIMIT: str = "60/minute"
+    # Запись сборок: authed-роут, но без лимита бот мог бы накачивать историю,
+    # `best_single_ms` и бейджи. Порог заведомо выше человеческого темпа.
+    SOLVE_RATE_LIMIT: str = "30/minute"
 
     # --- Link-invite duels (Этап 4) ---
     DUEL_RATE_LIMIT: str = "30/minute"

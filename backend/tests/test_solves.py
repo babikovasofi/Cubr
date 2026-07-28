@@ -359,3 +359,22 @@ async def test_post_solve_with_unknown_extra_field_alongside_token_is_422(
         },
     )
     assert resp.status_code == 422, resp.text
+
+
+# --- rate limiting (userflow §10 checklist) ----------------------------------
+
+
+async def test_create_solve_ip_rate_limit_429(client: AsyncClient, email_spy: EmailSpy) -> None:
+    """SOLVE_RATE_LIMIT=30/minute. Без лимита бот качал бы историю, PB и бейджи."""
+    await _register_and_login(client, email_spy, "flood-solves@example.com")
+
+    statuses = []
+    for i in range(35):
+        resp = await client.post(
+            "/solves",
+            json={"scramble": "R U R' U'", "time_ms": 12000 + i, "status": "valid"},
+        )
+        statuses.append(resp.status_code)
+
+    assert statuses[0] != 429, statuses[:3]
+    assert 429 in statuses, statuses

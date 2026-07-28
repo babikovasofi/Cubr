@@ -19,15 +19,23 @@ from app.services import badges as badges_service
 from app.services.auth import current_active_user
 from app.services.scramble_token import ScrambleTokenError
 from app.services.scramble_token import verify as verify_scramble_token
+from app.services.ratelimit import ip_rate_limit
 
 logger = logging.getLogger("cubr.solves")
 
 settings = get_settings()
 
+_ip_limit = Depends(ip_rate_limit(settings.SOLVE_RATE_LIMIT))
+
 router = APIRouter(prefix="/solves", tags=["solves"])
 
 
-@router.post("", response_model=SolveRead, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "",
+    response_model=SolveRead,
+    status_code=status.HTTP_201_CREATED,
+    dependencies=[_ip_limit],
+)
 async def create_solve(
     payload: SolveCreate,
     user: User = Depends(current_active_user),

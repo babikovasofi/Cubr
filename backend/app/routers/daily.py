@@ -126,7 +126,7 @@ async def get_current(
     return _to_current_read(daily, attempt)
 
 
-@router.get("/streak", response_model=DailyStreakRead)
+@router.get("/streak", response_model=DailyStreakRead, dependencies=[_ip_limit])
 async def get_streak(
     user: User = Depends(current_active_user),
     session: AsyncSession = Depends(get_session),

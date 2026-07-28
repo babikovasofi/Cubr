@@ -347,3 +347,27 @@ describe("ProfilePage — Progress Chart + History", () => {
     expect(tableRows.length).toBeGreaterThanOrEqual(4); // header + 3 data rows
   });
 });
+
+// Чеклист состояний userflow §10: «история сборок пуста». Пустой экран должен
+// звать в соло, а не показывать голую таблицу.
+describe("ProfilePage — пустая история (userflow §10)", () => {
+  it("пустая история зовёт в соло-режим", async () => {
+    listSolvesMock.mockResolvedValue([]);
+    useAuthStoreMock.mockImplementation((selector) =>
+      selector({ user: MOCK_USER, updateMe: updateMeMock }),
+    );
+
+    render(
+      <BrowserRouter>
+        <ProfilePage />
+      </BrowserRouter>,
+    );
+
+    await waitFor(() => expect(screen.getByText(/Пока нет сохранённых сборок/)).toBeTruthy());
+    // Ссылок «в соло» на пустом профиле две (пустая история + пустой график) —
+    // обе ведут туда же, важно что путь ведёт в ритуал.
+    const links = screen.getAllByRole("link", { name: /К соло-тренировке/ });
+    expect(links.length).toBeGreaterThan(0);
+    expect(links.every((a) => a.getAttribute("href") === "/solo")).toBe(true);
+  });
+});
