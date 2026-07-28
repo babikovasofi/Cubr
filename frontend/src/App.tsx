@@ -22,6 +22,7 @@ import TrophyIcon from "./components/TrophyIcon";
 import { ToastViewport, toast } from "./components/Toast";
 import { useAuthStore } from "./store/authStore";
 import { useLangStore, type Lang } from "./store/langStore";
+import SegmentedToggle from "./components/SegmentedToggle";
 import { useT } from "./i18n/t";
 
 // DEV-only Stage-0.3 accuracy gate. React.lazy + import.meta.env.DEV so the whole
@@ -166,26 +167,23 @@ function LanguageSwitcher() {
   const t = useT();
   const lang = useLangStore((s) => s.lang);
   const setLang = useLangStore((s) => s.setLang);
-  const options: { value: Lang; label: string }[] = [
-    { value: "ru", label: "Русский" },
-    { value: "en", label: "English" },
-  ];
 
+  // Двухсегментная «таблетка» вместо системного <select>: тот рисует движок
+  // браузера, и в макете он торчал чужим элементом. Подписи — «RU»/«EN», а не
+  // названия языков: короткие, читаются на любом языке, не ломают строку футера.
   return (
-    <label className="flex items-center gap-2 font-sans text-small text-muted">
-      {t("Язык интерфейса")}
-      <select
+    <div className="flex items-center gap-2 font-sans text-small text-muted">
+      <span aria-hidden>{t("Язык интерфейса")}</span>
+      <SegmentedToggle<Lang>
         value={lang}
-        onChange={(e) => setLang(e.target.value as Lang)}
-        className="rounded-md border border-line bg-surface px-2 py-1 font-sans text-small text-ink"
-      >
-        {options.map((o) => (
-          <option key={o.value} value={o.value}>
-            {o.label}
-          </option>
-        ))}
-      </select>
-    </label>
+        onChange={setLang}
+        label={t("Язык интерфейса")}
+        options={[
+          { value: "ru", label: "RU" },
+          { value: "en", label: "EN" },
+        ]}
+      />
+    </div>
   );
 }
 

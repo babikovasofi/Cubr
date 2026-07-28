@@ -8,25 +8,34 @@
 import { useEffect, useRef, useState } from "react";
 import { useTwisty } from "../scramble/hooks/useTwisty";
 import { moveLabelRu } from "../scramble/moveCopy";
-import { useT } from "../i18n/t";
+import { translate, useT } from "../i18n/t";
 
 const NOTATION_KEY = "cubr.scramble.showNotation";
 const SPEED_KEY = "cubr.scramble.autoplaySpeed";
 
-// Пауза между ходами в автопрокрутке. Медленно — темп «повторяю за экраном»,
-// быстро — для тех, кто читает нотацию с листа. Значения подобраны от реального
-// времени анимации twisty (~300 мс на ход): ниже 600 мс ход не успевает
-// дочитаться глазами.
-export const AUTOPLAY_SPEEDS = [
-  { id: "slow", label: "медленно", delayMs: 2200 },
-  { id: "normal", label: "обычно", delayMs: 1400 },
-  { id: "fast", label: "быстро", delayMs: 900 },
-] as const;
+// Пауза между ходами в автопоказе, ползунком. Шкала дискретная: непрерывный
+// ползунок обещает точность, которой нет — глазами разница в 50 мс не читается.
+// Нижняя ступень упирается в саму анимацию twisty (~300 мс на ход): быстрее ход
+// не успевает дочитаться.
+export const AUTOPLAY_DELAYS_MS = [2600, 2200, 1800, 1400, 1100, 900, 700] as const;
+export const DEFAULT_SPEED_STEP = 3; // 1400 мс
 
-export type AutoplaySpeedId = (typeof AUTOPLAY_SPEEDS)[number]["id"];
+export function clampSpeedStep(step: number): number {
+  if (!Number.isFinite(step)) return DEFAULT_SPEED_STEP;
+  return Math.min(AUTOPLAY_DELAYS_MS.length - 1, Math.max(0, Math.round(step)));
+}
 
-export function speedById(id: string | null): (typeof AUTOPLAY_SPEEDS)[number] {
-  return AUTOPLAY_SPEEDS.find((s) => s.id === id) ?? AUTOPLAY_SPEEDS[1];
+export function speedStepFromStorage(raw: string | null): number {
+  return raw === null ? DEFAULT_SPEED_STEP : clampSpeedStep(Number(raw));
+}
+
+/** «1.4 с/ход» — человеку понятнее числа шага ползунка. */
+export function speedLabel(
+  step: number,
+  t: (key: string, params?: Record<string, string | number>) => string = (k, p) =>
+    translate("ru", k, p),
+): string {
+  return t("{sec} с/ход", { sec: (AUTOPLAY_DELAYS_MS[clampSpeedStep(step)] / 1000).toFixed(1) });
 }
 
 interface ScrambleWalkthroughProps {
@@ -49,11 +58,12 @@ export default function ScrambleWalkthrough({
   );
   const prevIndex = useRef(0);
   const [playing, setPlaying] = useState(false);
-  const [speedId, setSpeedId] = useState<AutoplaySpeedId>(
-    () =>
-      speedById(typeof localStorage !== "undefined" ? localStorage.getItem(SPEED_KEY) : null).id,
+  const [speedStep, setSpeedStep] = useState(() =>
+    speedStepFromStorage(
+      typeof localStorage !== "undefined" ? localStorage.getItem(SPEED_KEY) : null,
+    ),
   );
-  const speed = speedById(speedId);
+  const delayMs = AUTOPLAY_DELAYS_MS[clampSpeedStep(speedStep)];
 
   const clamp = (n: number) => (n < 0 ? 0 : n > total ? total : n);
   const goNext = () => setIndex((i) => clamp(i + 1));
@@ -80,9 +90,9 @@ export default function ScrambleWalkthrough({
       setPlaying(false);
       return;
     }
-    const id = setTimeout(() => setIndex((i) => clamp(i + 1)), speed.delayMs);
+    const id = setTimeout(() => setIndex((i) => clamp(i + 1)), delayMs);
     return () => clearTimeout(id);
-  }, [playing, ready, index, total, speed.delayMs]);
+  }, [playing, ready, index, total, delayMs]);
 
   // Ручной шаг назад/вперёд и прыжок по мини-карте останавливают автопрокрутку:
   // человек перехватил управление.
@@ -205,27 +215,33 @@ export default function ScrambleWalkthrough({
             onClick={() => setPlaying((v) => !v)}
             className="inline-flex h-10 items-center rounded-full border-2 border-ink bg-surface px-4 font-sans text-small font-extrabold text-ink"
           >
-            {playing ? t("Пауза") : t("Показать самому")}
+            {playing ? t("Пауза") : t("Крутить за меня")}
           </button>
         ) : null}
 
         <label className="inline-flex items-center gap-2 font-sans text-small text-muted">
           {t("Скорость")}
-          <select
-            value={speedId}
+          <input
+            type="range"
+            className="cubr-range w-28"
+            aria-label={t("Скорость")}
+            min={0}
+            max={AUTOPLAY_DELAYS_MS.length - 1}
+            step={1}
+            // Слева направо — «медленнее → быстрее»: задержки в массиве убывают,
+            // поэтому индекс шкалы и есть позиция ползунка, без инверсии.
+            value={speedStep}
             onChange={(e) => {
-              const next = e.target.value as AutoplaySpeedId;
-              setSpeedId(next);
-              if (typeof localStorage !== "undefined") localStorage.setItem(SPEED_KEY, next);
+              const next = clampSpeedStep(Number(e.target.value));
+              setSpeedStep(next);
+              if (typeof localStorage !== "undefined")
+                localStorage.setItem(SPEED_KEY, String(next));
             }}
-            className="rounded-md border border-line bg-surface px-2 py-1 font-sans text-small text-ink"
-          >
-            {AUTOPLAY_SPEEDS.map((s) => (
-              <option key={s.id} value={s.id}>
-                {t(s.label)}
-              </option>
-            ))}
-          </select>
+            aria-valuetext={speedLabel(speedStep, t)}
+          />
+          <span className="min-w-[4.5rem] font-mono text-small text-ink [font-variant-numeric:tabular-nums]">
+            {speedLabel(speedStep, t)}
+          </span>
         </label>
 
         <label className="ml-auto inline-flex cursor-pointer items-center gap-2 font-sans text-small text-muted">

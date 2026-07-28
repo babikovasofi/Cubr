@@ -570,10 +570,8 @@ export const EN: Record<string, string> = {
     "Hold the solved face inside the yellow frame and capture — {done}/{total} read.",
 
   // --- автопрокрутка скрамбла ---
-  "Показать самому": "Play it for me",
+  "Крутить за меня": "Play it for me",
   Пауза: "Pause",
   Скорость: "Speed",
-  медленно: "slow",
-  обычно: "normal",
-  быстро: "fast",
+  "{sec} с/ход": "{sec}s per move",
 };
