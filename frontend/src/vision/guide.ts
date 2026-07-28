@@ -68,13 +68,23 @@ export const COLOR_LABELS_RU: Record<string, string> = {
 // Calibration face order matches COLOR_NAMES in colors.ts: U R F D L B.
 const CALIB_ORDER = ["U", "R", "F", "D", "L", "B"];
 
-export function remainingCalibFacesRu(calibrationStep: number): string {
+export function remainingCalibFacesRu(calibrationStep: number, t: T = ruT): string {
   return CALIB_ORDER.slice(calibrationStep)
-    .map((f) => FACE_LABELS_RU[f])
+    .map((f) => t(FACE_LABELS_RU[f]))
     .join(", ");
 }
 
-// ---- Error copy (each returns a ready-to-show Russian sentence) -------------
+import { translate } from "../i18n/t";
+
+// ---- Error copy --------------------------------------------------------------
+//
+// Функции возвращают ГОТОВУЮ фразу. Статические — это сами ключи перевода
+// (см. i18n/t.ts): их переводят в месте показа. Динамическим нужен переводчик
+// параметром: фразу с числами нельзя склеить из русских кусков и потом перевести.
+
+/** Переводчик по умолчанию — русский, то есть «вернуть ключ как есть». */
+type T = (key: string, params?: Record<string, string | number>) => string;
+const ruT: T = (key, params) => translate("ru", key, params);
 
 export function cameraDeniedRu(): string {
   return "Нет доступа к камере. Разреши камеру в браузере и нажми «Включить камеру» ещё раз.";
@@ -82,16 +92,27 @@ export function cameraDeniedRu(): string {
 export function modelFailedRu(): string {
   return "Не удалось скачать модель рук. Проверь интернет и обнови страницу.";
 }
-export function lightBadRu(de: number, minDe: number): string {
-  return `Свет плохой: красный и оранжевый почти одинаковы (ΔE ${de.toFixed(1)} < ${minDe}). Поменяй свет и откалибруй заново.`;
+export function lightBadRu(de: number, minDe: number, t: T = ruT): string {
+  return t(
+    "Свет плохой: красный и оранжевый почти одинаковы (ΔE {de} < {min}). Поменяй свет и откалибруй заново.",
+    { de: de.toFixed(1), min: minDe },
+  );
 }
-export function lumaBadRu(luma: number, min: number, max: number): string {
-  const dir = luma < min ? "слишком темно" : "слишком светло";
-  return `${dir} (яркость ${luma.toFixed(0)}, нужно ${min}–${max}). Поменяй свет и попробуй снова.`;
+export function lumaBadRu(luma: number, min: number, max: number, t: T = ruT): string {
+  const dir = t(luma < min ? "слишком темно" : "слишком светло");
+  return t("{dir} (яркость {luma}, нужно {min}–{max}). Поменяй свет и попробуй снова.", {
+    dir,
+    luma: luma.toFixed(0),
+    min,
+    max,
+  });
 }
-export function verifyMismatchRu(face: string, count: number): string {
-  const label = FACE_LABELS_RU[face] ?? face;
-  return `Грани не совпали: расходится ${count} наклеек, первая — на грани ${label}. Собери разброс как надо или сделай новый и проверь заново.`;
+export function verifyMismatchRu(face: string, count: number, t: T = ruT): string {
+  const label = t(FACE_LABELS_RU[face] ?? face);
+  return t(
+    "Грани не совпали: расходится {count} наклеек, первая — на грани {face}. Собери разброс как надо или сделай новый и проверь заново.",
+    { count, face: label },
+  );
 }
 export function rotationAmbiguousRu(): string {
   return "Не смог однозначно собрать кубик из граней. Покажи 6 граней заново, не спеша.";
@@ -117,8 +138,11 @@ export function quickAdjustWrongFaceRu(): string {
 export function quickAdjustDivergedRu(): string {
   return "Не получилось уверенно снять белую грань (блики или наклейки читаются вразнобой). Откалибруй по 6 граням.";
 }
-export function solveVerifyMismatchRu(count: number): string {
-  return `Кубик ещё не собран: расходится ${count} наклеек. Дособерись и покажи 6 граней собранного кубика.`;
+export function solveVerifyMismatchRu(count: number, t: T = ruT): string {
+  return t(
+    "Кубик ещё не собран: расходится {count} наклеек. Дособерись и покажи 6 граней собранного кубика.",
+    { count },
+  );
 }
 
 // ---- The step machine -------------------------------------------------------
@@ -197,7 +221,8 @@ export function guideStateFor(s: GuideSnapshot): GuideState {
     return {
       step: "verifyScramble",
       titleRu: "Проверь разброс перед таймером",
-      nowRu: "Собери показанный разброс на кубике, потом нажми «Проверить грани» и покажи 6 граней.",
+      nowRu:
+        "Собери показанный разброс на кубике, потом нажми «Проверить грани» и покажи 6 граней.",
       nextRu: "После совпадения поставишь руки в зоны — пойдёт таймер.",
       activeButtonId: "btn-verify",
     };
@@ -238,7 +263,8 @@ export function guideStateFor(s: GuideSnapshot): GuideState {
     return {
       step: "scrambleReady",
       titleRu: "Шаг 3 — перемешай руками и проверь зрение",
-      nowRu: "Покрути кубик руками как угодно (без формул), потом нажми «Проверка точности» и покажи 6 граней.",
+      nowRu:
+        "Покрути кубик руками как угодно (без формул), потом нажми «Проверка точности» и покажи 6 граней.",
       nextRu: "Приложение само соберёт эталон и посчитает, насколько точно видит цвета.",
       activeButtonId: "btn-accuracy",
     };

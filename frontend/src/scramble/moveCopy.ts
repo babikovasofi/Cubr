@@ -34,6 +34,12 @@ const CCW_RU: Record<string, string> = {
   B: "поверни по часовой",
 };
 
+import { translate } from "../i18n/t";
+
+/** Переводчик; по умолчанию русский — то есть «вернуть ключ как есть». */
+type T = (key: string, params?: Record<string, string | number>) => string;
+const ruT: T = (key, params) => translate("ru", key, params);
+
 export interface MoveInfo {
   face: string; // single letter U/D/R/L/F/B
   suffix: "" | "'" | "2";
@@ -42,24 +48,24 @@ export interface MoveInfo {
 }
 
 /** Parse a single scramble token like "R", "U'", "F2" into its parts. */
-export function parseMove(token: string): MoveInfo {
+export function parseMove(token: string, t: T = ruT): MoveInfo {
   const face = token[0];
   const suffix = (token.slice(1) as "" | "'" | "2") || "";
-  const faceRu = FACE_RU[face] ?? face;
+  const faceRu = t(FACE_RU[face] ?? face);
   let directionRu: string;
   if (suffix === "2") {
-    directionRu = "поверни на пол-оборота (×2), сторона неважна";
+    directionRu = t("поверни на пол-оборота (×2), сторона неважна");
   } else if (suffix === "'") {
-    directionRu = CCW_RU[face] ?? "поверни против часовой";
+    directionRu = t(CCW_RU[face] ?? "поверни против часовой");
   } else {
-    directionRu = CW_RU[face] ?? "поверни по часовой";
+    directionRu = t(CW_RU[face] ?? "поверни по часовой");
   }
   return { face, suffix, faceRu, directionRu };
 }
 
 /** One-line Russian instruction, e.g. "Правый слой: поверни от себя вверх." */
-export function moveLabelRu(token: string): string {
-  const m = parseMove(token);
+export function moveLabelRu(token: string, t: T = ruT): string {
+  const m = parseMove(token, t);
   const faceCap = m.faceRu.charAt(0).toUpperCase() + m.faceRu.slice(1);
   return `${faceCap}: ${m.directionRu}.`;
 }

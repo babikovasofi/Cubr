@@ -94,9 +94,7 @@ export function soloReducer(s: SoloState, a: SoloAction): SoloState {
       return s.phase === "calibrate" ? { ...s, phase: "walkthrough" } : s;
 
     case "goto_verify":
-      return s.phase === "walkthrough"
-        ? { ...s, phase: "verify", mismatch: null }
-        : s;
+      return s.phase === "walkthrough" ? { ...s, phase: "verify", mismatch: null } : s;
 
     case "back_to_walkthrough":
       return s.phase === "verify"
@@ -141,9 +139,7 @@ export function soloReducer(s: SoloState, a: SoloAction): SoloState {
         : s;
 
     case "goto_solve_verify":
-      return s.phase === "stopped"
-        ? { ...s, phase: "solve_verify", mismatch: null }
-        : s;
+      return s.phase === "stopped" ? { ...s, phase: "solve_verify", mismatch: null } : s;
 
     case "solve_verify_ok":
       // Ground truth = SOLVED facelets (checked by the caller). Accept from either

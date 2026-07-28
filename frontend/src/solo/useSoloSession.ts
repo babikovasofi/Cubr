@@ -37,11 +37,7 @@ import {
   rotationAmbiguousRu,
   solveVerifyMismatchRu,
 } from "../vision/guide";
-import {
-  soloReducer,
-  initialSoloState,
-  type SoloState,
-} from "./soloPhase";
+import { soloReducer, initialSoloState, type SoloState } from "./soloPhase";
 import { useCalibrate, type CalibrateMode } from "./useCalibrate";
 import { buildSolvePayload, saveSoloResult, type SaveState } from "./solveSave";
 import { isAuthed } from "../store/authStore";
@@ -51,6 +47,7 @@ import { formatSolveMs } from "../lib/formatTime";
 import { SOLVED } from "../vision/cubeState";
 import { createSolve } from "../api/solves";
 import { toast } from "../components/Toast";
+import { useT } from "../i18n/t";
 
 export type { CalibrateMode };
 
@@ -123,6 +120,7 @@ export interface UseSoloSessionOpts {
 }
 
 export function useSoloSession(opts?: UseSoloSessionOpts): SoloSession {
+  const t = useT();
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const overlayRef = useRef<HTMLCanvasElement | null>(null);
   const workRef = useRef<HTMLCanvasElement | null>(null);
@@ -385,7 +383,7 @@ export function useSoloSession(opts?: UseSoloSessionOpts): SoloSession {
       case "mismatch":
         setSolveVerifyFailCount((n) => n + 1);
         dispatch({ type: "solve_verify_mismatch", face: r.face, count: r.count });
-        setSolveVerifyError(solveVerifyMismatchRu(r.count));
+        setSolveVerifyError(solveVerifyMismatchRu(r.count, t));
         reader.resetVerify();
         return;
       case "unreadable":

@@ -83,7 +83,7 @@ export default function ScrambleWalkthrough({
   const atEnd = index >= total;
   const lastToken = index > 0 ? moves[index - 1] : null;
   const directionText = lastToken
-    ? `${lastToken} — ${moveLabelRu(lastToken)}`
+    ? `${lastToken} — ${moveLabelRu(lastToken, t)}`
     : "Поставь кубик как на баннере, потом жми «дальше».";
   const progressText = atEnd
     ? `Готово: все ${total} ходов сделаны`
@@ -177,7 +177,7 @@ export default function ScrambleWalkthrough({
               <button
                 key={`${i}-${mv}`}
                 type="button"
-                title={moveLabelRu(mv)}
+                title={moveLabelRu(mv, t)}
                 onClick={() => setIndex(i + 1)}
                 className={[
                   "h-8 min-w-8 rounded-md border-2 px-1.5 font-mono text-small font-bold",

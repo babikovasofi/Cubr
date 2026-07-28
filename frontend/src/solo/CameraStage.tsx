@@ -41,7 +41,7 @@ export default function CameraStage({
             role="alert"
             className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-bg/90 p-6 text-center"
           >
-            <p className="max-w-prose font-sans text-body text-danger">{error}</p>
+            <p className="max-w-prose font-sans text-body text-danger">{t(error)}</p>
             {onRetry ? (
               <button
                 type="button"

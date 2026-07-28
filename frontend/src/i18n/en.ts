@@ -475,4 +475,88 @@ export const EN: Record<string, string> = {
   "Пропустить (камера не проверена)": "Skip (camera unchecked)",
   "Пропустить регистрацию": "Skip the registration",
   "Пропустить онбординг": "Skip onboarding",
+
+  // --- проход 3: подсказки камеры и калибровки (vision/guide.ts) ---
+  "Нет доступа к камере. Разреши камеру в браузере и нажми «Включить камеру» ещё раз.":
+    "No camera access. Allow the camera in your browser and press «Turn the camera on» again.",
+  "Не удалось скачать модель рук. Проверь интернет и обнови страницу.":
+    "Could not download the hand model. Check your connection and reload the page.",
+  "Камера не найдена. Подключи камеру и попробуй снова.":
+    "No camera found. Connect one and try again.",
+  "Камера занята другим приложением. Закрой его и попробуй снова.":
+    "The camera is busy in another application. Close it and try again.",
+  "Камера работает только по https (или на localhost). Открой страницу по защищённому адресу.":
+    "The camera only works over https (or on localhost). Open the page on a secure address.",
+  "Камера работает только по https (или на localhost).":
+    "The camera only works over https (or on localhost).",
+  "Этот браузер не умеет работать с камерой. Открой в свежем Chrome или Firefox.":
+    "This browser cannot use the camera. Open it in a recent Chrome or Firefox.",
+  "Свет плохой: красный и оранжевый почти одинаковы (ΔE {de} < {min}). Поменяй свет и откалибруй заново.":
+    "Bad light: red and orange are nearly identical (ΔE {de} < {min}). Change the light and calibrate again.",
+  "слишком темно": "too dark",
+  "слишком светло": "too bright",
+  "{dir} (яркость {luma}, нужно {min}–{max}). Поменяй свет и попробуй снова.":
+    "{dir} (brightness {luma}, needs {min}–{max}). Change the light and try again.",
+  "Грани не совпали: расходится {count} наклеек, первая — на грани {face}. Собери разброс как надо или сделай новый и проверь заново.":
+    "The faces do not match: {count} stickers differ, the first on the {face} face. Redo the scramble properly or get a new one and check again.",
+  "Кубик ещё не собран: расходится {count} наклеек. Дособерись и покажи 6 граней собранного кубика.":
+    "The cube is not solved yet: {count} stickers differ. Finish solving and show all 6 faces.",
+  "Не смог однозначно собрать кубик из граней. Покажи 6 граней заново, не спеша.":
+    "Could not assemble the cube unambiguously from the faces. Show all 6 faces again, slowly.",
+  "Грани не складываются в целый кубик. Покажи каждую грань чётко в рамке и повтори.":
+    "The faces do not add up to a whole cube. Show each face clearly inside the frame and repeat.",
+  "Грань не прочиталась — повтори. Держи её ровно в жёлтой рамке.":
+    "The face could not be read — try again. Hold it squarely inside the yellow frame.",
+  "Таймер не пошёл: сначала проверь грани (кнопка проверки), потом ставь руки в зоны.":
+    "The timer did not start: check the faces first (the check button), then put your hands in the zones.",
+  "Сбор потерян: руки/кубик пропали из кадра. Начни цикл заново.":
+    "The solve was lost: hands or cube left the frame. Start the cycle over.",
+  "Это не похоже на белую грань этого кубика — возможно, другой кубик или не та грань. Выбери профиль этого кубика или откалибруй заново по 6 граням.":
+    "This does not look like the white face of this cube — it may be a different cube or the wrong face. Pick this cube's profile or recalibrate from all 6 faces.",
+  "Не получилось уверенно снять белую грань (блики или наклейки читаются вразнобой). Откалибруй по 6 граням.":
+    "Could not read the white face confidently (glare, or the stickers read inconsistently). Calibrate from all 6 faces.",
+  "Не удалось подготовить эталон скрамбла. Обнови скрамбл.":
+    "Could not prepare the expected scramble state. Refresh the scramble.",
+  "Держи кубик здесь": "Hold the cube here",
+  "Левая рука": "Left hand",
+  "Правая рука": "Right hand",
+
+  // грани и цвета
+  "белая (верх)": "white (up)",
+  "красная (право)": "red (right)",
+  "зелёная (перед)": "green (front)",
+  "жёлтая (низ)": "yellow (down)",
+  "оранжевая (лево)": "orange (left)",
+  "синяя (зад)": "blue (back)",
+  белый: "white",
+  красный: "red",
+  зелёный: "green",
+  жёлтый: "yellow",
+  оранжевый: "orange",
+  синий: "blue",
+  Верх: "Up",
+  Право: "Right",
+  Фронт: "Front",
+  Низ: "Down",
+  Лево: "Left",
+  Тыл: "Back",
+
+  // --- проход 3: описания ходов (scramble/moveCopy.ts) ---
+  "верхний слой": "upper layer",
+  "нижний слой": "bottom layer",
+  "правый слой": "right layer",
+  "левый слой": "left layer",
+  "передний слой": "front layer",
+  "задний слой": "back layer",
+  "поверни налево (если смотреть сверху)": "turn it left (looking from above)",
+  "поверни направо (если смотреть сверху)": "turn it right (looking from above)",
+  "поверни направо (если смотреть снизу)": "turn it right (looking from below)",
+  "поверни налево (если смотреть снизу)": "turn it left (looking from below)",
+  "поверни от себя вверх": "turn it away from you, upwards",
+  "поверни на себя вверх": "turn it towards you, upwards",
+  "поверни на себя вниз": "turn it towards you, downwards",
+  "поверни от себя вниз": "turn it away from you, downwards",
+  "поверни по часовой": "turn it clockwise",
+  "поверни против часовой": "turn it counter-clockwise",
+  "поверни на пол-оборота (×2), сторона неважна": "turn it half a revolution (×2), either way",
 };

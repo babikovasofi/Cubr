@@ -44,7 +44,9 @@ export function useCalibrate(opts: {
 
   const selectedCubeId = useCubesStore((st) => st.selectedCubeId);
   const cubeList = useCubesStore((st) => st.list);
-  const selectedCube = selectedCubeId ? cubeList.find((c) => c.id === selectedCubeId) ?? null : null;
+  const selectedCube = selectedCubeId
+    ? (cubeList.find((c) => c.id === selectedCubeId) ?? null)
+    : null;
   const profile = selectedCube?.color_profile ?? null;
   const hasProfile = profile !== null;
 

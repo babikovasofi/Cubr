@@ -4,12 +4,13 @@
 // стережёт не вёрстку, а ключевые честностные утверждения (кадры не уходят на
 // сервер, мест/рейтинга нет, почта/ник не публикуются) и перелинковку страниц.
 
-import { describe, it, expect } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { describe, it, expect, afterEach } from "vitest";
+import { render, screen, act, cleanup } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 
 import RulesPage from "../../src/pages/RulesPage";
 import PrivacyPage from "../../src/pages/PrivacyPage";
+import { useLangStore } from "../../src/store/langStore";
 
 function renderPage(el: React.ReactElement) {
   return render(<MemoryRouter>{el}</MemoryRouter>);
@@ -66,5 +67,39 @@ describe("PrivacyPage", () => {
     renderPage(<PrivacyPage />);
 
     expect(screen.getByRole("link", { name: /Правила/ }).getAttribute("href")).toBe("/rules");
+  });
+});
+
+// Локализация, проход 3: длинная проза разведена по языковым файлам. Проверяем,
+// что переключение языка меняет страницу целиком и что английская версия НЕ
+// обещает больше русской (главные честностные утверждения совпадают).
+describe("правила и приватность по-английски", () => {
+  afterEach(() => {
+    cleanup();
+    act(() => useLangStore.setState({ lang: "ru" }));
+  });
+
+  it("правила переключаются целиком", () => {
+    act(() => useLangStore.setState({ lang: "en" }));
+    render(
+      <MemoryRouter>
+        <RulesPage />
+      </MemoryRouter>,
+    );
+    expect(screen.getByText("Rules")).toBeTruthy();
+    expect(screen.getByText(/no server-side re-check of the video/i)).toBeTruthy();
+    expect(screen.queryByText("Правила")).toBeNull();
+  });
+
+  it("приватность по-английски так же прямо говорит, что кадры не уходят", () => {
+    act(() => useLangStore.setState({ lang: "en" }));
+    render(
+      <MemoryRouter>
+        <PrivacyPage />
+      </MemoryRouter>,
+    );
+    expect(screen.getByText(/never leaves your computer/i)).toBeTruthy();
+    expect(screen.getByText(/no third-party analytics/i)).toBeTruthy();
+    expect(screen.getByText(/updated before it is switched on/i)).toBeTruthy();
   });
 });

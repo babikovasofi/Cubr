@@ -265,7 +265,7 @@ function VerifyPanel({ s }: { s: Session }) {
 
       {s.state.mismatch ? (
         <p role="alert" className="font-sans text-small text-danger">
-          {verifyMismatchRu(s.state.mismatch.face, s.state.mismatch.count)}
+          {verifyMismatchRu(s.state.mismatch.face, s.state.mismatch.count, t)}
         </p>
       ) : null}
       {s.verifyError ? (
