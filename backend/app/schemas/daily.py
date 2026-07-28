@@ -96,3 +96,18 @@ class DailyCurrentRead(BaseModel):
     started_at: datetime | None
     submitted_at: datetime | None
     deadline_at: datetime | None
+
+
+class DailyStreakRead(BaseModel):
+    """Derived daily-challenge streak (V3 "Цели и стрики").
+
+    Nothing here is stored: see `app.services.streak` for what counts as a day
+    and why the current streak survives until the end of the following day.
+    No scramble, no honesty, no other user's data.
+    """
+
+    current_streak: int
+    best_streak: int
+    completed_today: bool
+    last_day: date | None
+    today: date

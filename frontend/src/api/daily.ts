@@ -64,6 +64,16 @@ export interface DailyBoardRead {
   dnf_count: number;
 }
 
+// GET /daily/streak — derived, storage-free streak over the caller's own
+// finished daily attempts (see backend app/services/streak.py). No scramble.
+export interface DailyStreakRead {
+  current_streak: number;
+  best_streak: number;
+  completed_today: boolean;
+  last_day: string | null;
+  today: string;
+}
+
 export function getCurrentDaily(signal?: AbortSignal): Promise<DailyCurrentRead> {
   return request<DailyCurrentRead>("/daily/current", { signal });
 }
@@ -90,4 +100,8 @@ export function submitDailyAttempt(
     json: body,
     signal,
   });
+}
+
+export function getDailyStreak(signal?: AbortSignal): Promise<DailyStreakRead> {
+  return request<DailyStreakRead>("/daily/streak", { signal });
 }

@@ -14,12 +14,9 @@ import SolveRitual from "../solo/SolveRitual";
 import { useSoloSession } from "../solo/useSoloSession";
 import DailyResult from "../daily/DailyResult";
 import DailyBoard from "../daily/DailyBoard";
+import StreakBadge from "../daily/StreakBadge";
 import { useDailyBoard } from "../daily/useDailyBoard";
-import {
-  useDailyAttempt,
-  type RitualResult,
-  type DailyState,
-} from "../daily/useDailyAttempt";
+import { useDailyAttempt, type RitualResult, type DailyState } from "../daily/useDailyAttempt";
 
 function useCountdown(deadlineIso: string | null): { label: string; expired: boolean } {
   const [now, setNow] = useState(() => Date.now());
@@ -65,7 +62,13 @@ function Overline({ children }: { children: ReactNode }) {
   return <span className="font-sans text-overline uppercase text-muted">{children}</span>;
 }
 
-function PrecommitCard({ current, commit }: { current: DailyState["current"]; commit: () => void }) {
+function PrecommitCard({
+  current,
+  commit,
+}: {
+  current: DailyState["current"];
+  commit: () => void;
+}) {
   const [confirming, setConfirming] = useState(false);
 
   return (
@@ -175,6 +178,9 @@ export default function DailyPage() {
           ← На главную
         </Link>
       </div>
+
+      {/* Серия — над состоянием дня: это причина зайти, а не результат попытки. */}
+      <StreakBadge />
 
       {phase === "loading" ? <Spinner label="Загружаю состояние дня…" /> : null}
 

@@ -40,8 +40,10 @@ from app.schemas.daily import (
     DailyAttemptSubmit,
     DailyBoardRead,
     DailyCurrentRead,
+    DailyStreakRead,
 )
 from app.services import daily as daily_service
+from app.services import streak as streak_service
 from app.services.auth import current_active_user
 from app.services.ratelimit import ip_rate_limit
 
@@ -122,6 +124,20 @@ async def get_current(
     """
     daily, attempt = await daily_service.get_current_daily_attempt(session, user.id)
     return _to_current_read(daily, attempt)
+
+
+@router.get("/streak", response_model=DailyStreakRead)
+async def get_streak(
+    user: User = Depends(current_active_user),
+    session: AsyncSession = Depends(get_session),
+) -> DailyStreakRead:
+    """Derived daily streak for the caller (V3 "Цели и стрики").
+
+    Read-only and storage-free: the numbers are computed from the caller's own
+    finished attempts (see ``app.services.streak``). No scramble (П8), no other
+    user's data, nothing created.
+    """
+    return DailyStreakRead(**await streak_service.get_streak(session, user.id))
 
 
 @router.get(
