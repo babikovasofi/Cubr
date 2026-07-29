@@ -57,11 +57,11 @@ describe("useCubeReader.seedProfile", () => {
 });
 
 describe("useCubeReader.quickAdjust guard", () => {
-  it("returns unreadable when there is no work canvas (readable gate)", () => {
+  it("returns unreadable when there is no work canvas (readable gate)", async () => {
     const { result } = renderHook(() => useCubeReader(nullCanvasRef));
     act(() => result.current.seedProfile(PROFILE));
     const fakeVideo = { videoWidth: 640, videoHeight: 480 } as HTMLVideoElement;
-    const r = result.current.quickAdjust(fakeVideo);
+    const r = await result.current.quickAdjust(fakeVideo);
     expect(r.kind).toBe("unreadable");
   });
 });

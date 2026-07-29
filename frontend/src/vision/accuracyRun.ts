@@ -248,7 +248,10 @@ export function conditionVerdict(
  * EVERY condition passes. A pooled mean would let a strong condition mask a
  * failing one — forbidden.
  */
-export function gatePass(run: AccuracyRun, passFrac: number = config.ACCURACY_PASS_FRAC): GateResult {
+export function gatePass(
+  run: AccuracyRun,
+  passFrac: number = config.ACCURACY_PASS_FRAC,
+): GateResult {
   const conditions = [...run.values()].map((acc) => conditionVerdict(acc, passFrac));
   let min: ConditionVerdict | null = null;
   for (const c of conditions) {
@@ -269,7 +272,10 @@ function hotspot(acc: ConditionAcc, label: string, a: Face, b: Face): HotspotCou
 }
 
 /** The two adjacency-risk confusion pairs with their exposure N. */
-export function hotspots(acc: ConditionAcc): { redOrange: HotspotCount; whiteYellow: HotspotCount } {
+export function hotspots(acc: ConditionAcc): {
+  redOrange: HotspotCount;
+  whiteYellow: HotspotCount;
+} {
   const [ro0, ro1] = HOTSPOT_PAIRS.redOrange;
   const [wy0, wy1] = HOTSPOT_PAIRS.whiteYellow;
   return {
@@ -279,7 +285,10 @@ export function hotspots(acc: ConditionAcc): { redOrange: HotspotCount; whiteYel
 }
 
 /** Sum a run's hotspots across all conditions (for the top-line summary). */
-export function runHotspots(run: AccuracyRun): { redOrange: HotspotCount; whiteYellow: HotspotCount } {
+export function runHotspots(run: AccuracyRun): {
+  redOrange: HotspotCount;
+  whiteYellow: HotspotCount;
+} {
   const [ro0, ro1] = HOTSPOT_PAIRS.redOrange;
   const [wy0, wy1] = HOTSPOT_PAIRS.whiteYellow;
   const merged: ConditionAcc = {

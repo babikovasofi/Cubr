@@ -88,7 +88,13 @@ export type QuickAdjustDecision =
   | { kind: "wrong-face"; nearestColor: ColorName; nearestDE: number }
   // Face IS white but the observed read did not converge (loose cluster or a weak
   // nearest-vs-second-best margin): refs are left untouched; caller recalibrates.
-  | { kind: "diverged"; reason: "cluster" | "margin"; clusterSpread: number; nearestDE: number; secondBestDE: number };
+  | {
+      kind: "diverged";
+      reason: "cluster" | "margin";
+      clusterSpread: number;
+      nearestDE: number;
+      secondBestDE: number;
+    };
 
 /**
  * Decide + compute the one-white-face quick adjustment. Pure: no DOM. The reader
@@ -100,11 +106,7 @@ export type QuickAdjustDecision =
  *                   (2nd-best − nearest) margin < QUICK_ADJUST_MARGIN_DE.
  *  3. ok          — von-Kries gain from the observed white median, applied to all 6 refs.
  */
-export function quickAdjust(
-  refs: Refs,
-  observedGrid9: RGB[],
-  cfg = config,
-): QuickAdjustDecision {
+export function quickAdjust(refs: Refs, observedGrid9: RGB[], cfg = config): QuickAdjustDecision {
   const labs = observedGrid9.map(rgb2lab);
   const stats = observedFaceStats(labs, refs, cfg.DELTA_E_MODE);
 

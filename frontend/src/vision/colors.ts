@@ -271,6 +271,27 @@ export function medianOfCentralRegion(
   return [median(rs), median(gs), median(bs)];
 }
 
+/** Поячеечная медиана нескольких снимков одной грани (9 ячеек × N кадров). */
+export function medianAcrossFrames(frames: RGB[][]): RGB[] {
+  if (frames.length === 0) return [];
+  const cells = frames[0].length;
+  const out: RGB[] = [];
+  for (let c = 0; c < cells; c++) {
+    const rs: number[] = [];
+    const gs: number[] = [];
+    const bs: number[] = [];
+    for (const frame of frames) {
+      const px = frame[c];
+      if (!px) continue;
+      rs.push(px[0]);
+      gs.push(px[1]);
+      bs.push(px[2]);
+    }
+    out.push([median(rs), median(gs), median(bs)]);
+  }
+  return out;
+}
+
 export function median(arr: number[]): number {
   if (arr.length === 0) return 0;
   const s = [...arr].sort((a, b) => a - b);

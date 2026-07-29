@@ -11,6 +11,8 @@ import {
   assignQuota,
   deltaE,
   robustCellColor,
+  medianAcrossFrames,
+  median,
   normalizeFaceByCenter,
   rgb2lab,
   type ColorName,
@@ -196,6 +198,28 @@ export function stickerConfidence(
   return { best, margin: d2 - d1, d: d1 };
 }
 
+/**
+ * Разбор чтения грани для человека: что именно помешало. Без этого «грань не
+ * прочиталась» — тупик: непонятно, блик это, тень, съехавшая рамка или два
+ * похожих цвета.
+ */
+export function explainFace(labs: Lab[], refs: Refs, kept: number[]): string {
+  const glare: number[] = [];
+  const far: number[] = [];
+  const ambiguous: string[] = [];
+  for (let i = 0; i < labs.length; i++) {
+    const { best, margin, d } = stickerConfidence(labs[i], refs);
+    if ((kept[i] ?? 1) < config.CELL_MIN_KEPT_FRAC) glare.push(i + 1);
+    else if (d > config.STICKER_MAX_DELTA_E) far.push(i + 1);
+    else if (margin < config.STICKER_MARGIN_MIN) ambiguous.push(`${i + 1}:${best}?`);
+  }
+  const parts: string[] = [];
+  if (glare.length) parts.push(`блик/тень в ячейках ${glare.join(",")}`);
+  if (far.length) parts.push(`ячейки ${far.join(",")} далеко от всех цветов (рамка мимо кубика?)`);
+  if (ambiguous.length) parts.push(`спорный цвет: ${ambiguous.join(" ")}`);
+  return parts.length ? parts.join("; ") : "цвета читаются, но неустойчиво";
+}
+
 /** Сколько ячеек грани прочитаны уверенно (см. config.STICKER_*). */
 export function confidentCells(labs: Lab[], refs: Refs, kept: number[]): number {
   let n = 0;
@@ -274,7 +298,7 @@ function resolveSixFaces(samples: FaceSample[], refs: Refs): SixFaceResolve {
 // harness to assemble + score against an INDEPENDENT ground truth.
 export type AccuracyCapture =
   | { kind: "pending"; facesLength: number; drifted?: { face: Face; de: number } }
-  | { kind: "unreadable" } // luma/refs gate failed
+  | { kind: "unreadable"; diag?: string } // luma/refs gate failed или чтение неуверенное
   | {
       kind: "complete";
       rawFaceGrids: Face[][]; // 6 × 9 сырое чтение в фиксированном порядке URFDLB
@@ -299,7 +323,7 @@ export type VerifyResult =
   | { kind: "ok" }
   | { kind: "mismatch"; face: string; count: number }
   | { kind: "illegal" } // read is not a legal cube
-  | { kind: "unreadable" } // light/luma/refs gate failed
+  | { kind: "unreadable"; diag?: string } // свет/резкость/уверенность — diag объясняет что именно
   | { kind: "assign" } // two faces classified to the same center
   | { kind: "ambiguous" } // multiple legal rotations
   | { kind: "resolve" }; // no legal rotation combo
@@ -317,20 +341,61 @@ export interface CubeReader {
   /** Seed refs from a stored cube profile (session-local clone). validated=false. */
   seedProfile: (profile: Refs) => void;
   /** One-white-face session white-balance over seeded refs. In-memory only. */
-  quickAdjust: (video: HTMLVideoElement) => QuickAdjustResult;
+  quickAdjust: (video: HTMLVideoElement) => Promise<QuickAdjustResult>;
   /** The current calibration output (6 Lab face refs, keys U/R/F/D/L/B), or null. */
   getProfile: () => Refs | null;
   recalibrate: () => void;
   beginVerify: () => void;
-  pushVerifyFace: (video: HTMLVideoElement, expected: Facelet, tolerant?: boolean) => VerifyResult;
+  pushVerifyFace: (
+    video: HTMLVideoElement,
+    expected: Facelet,
+    tolerant?: boolean,
+  ) => Promise<VerifyResult>;
   resetVerify: () => void;
   // Accuracy-harness collector (Stage 0.3): fixed capture order, per-face drift
   // gate, raw grids exposed pre-resolve. Independent of the verify collector.
   accFacesLength: number; // 0..6, of the in-flight accuracy collector
   collectingAccuracy: boolean;
   beginAccuracy: () => void;
-  pushAccuracyFace: (video: HTMLVideoElement) => AccuracyCapture;
+  pushAccuracyFace: (video: HTMLVideoElement) => Promise<AccuracyCapture>;
   resetAccuracy: () => void;
+}
+
+/**
+ * Снять грань по НЕСКОЛЬКИМ кадрам и взять поячеечную медиану.
+ *
+ * Один кадр — это лотерея: смаз от движения руки, случайный блик, полукадр от
+ * rolling shutter. Медиана по пяти кадрам с зазором ~22 мс снимает всё это и
+ * стоит около сотни миллисекунд, которых человек не замечает (съёмка идёт по
+ * нажатию кнопки, не в цикле).
+ */
+async function readFaceBurst(
+  video: HTMLVideoElement,
+  work: HTMLCanvasElement,
+  refs: Refs | null,
+  frames: number = config.CAPTURE_FRAMES,
+  gapMs: number = config.CAPTURE_FRAME_GAP_MS,
+): Promise<FaceSample> {
+  const shots: FaceSample[] = [];
+  for (let i = 0; i < Math.max(1, frames); i++) {
+    shots.push(
+      readFace(
+        video,
+        video.videoWidth,
+        video.videoHeight,
+        work,
+        config.GUIDE_RECT,
+        config.CELL_CENTER_FRAC,
+        refs,
+      ),
+    );
+    if (i < frames - 1) await new Promise((r) => setTimeout(r, gapMs));
+  }
+  const rgb = medianAcrossFrames(shots.map((s) => s.rgb));
+  // Надёжность ячейки — медиана по кадрам: разовый блик не должен ни завалить
+  // ячейку, ни притвориться, что всё хорошо.
+  const kept = rgb.map((_, i) => median(shots.map((s) => s.kept[i] ?? 0)));
+  return { rgb, lab: rgb.map((c) => rgb2lab(c)), kept };
 }
 
 /** Stateful reader bound to a work-canvas ref. */
@@ -346,6 +411,8 @@ export function useCubeReader(workRef: React.RefObject<HTMLCanvasElement | null>
   const calibRgbRef = useRef<Partial<Record<ColorName, RGB>>>({});
   const collectorRef = useRef<FaceSample[] | null>(null);
   const accCollectorRef = useRef<FaceSample[] | null>(null);
+  // Сколько раз подряд грань отклонена по неуверенности (см. пороги в config).
+  const lowConfidenceRef = useRef(0);
 
   const readable = (video: HTMLVideoElement, work: HTMLCanvasElement): boolean => {
     if (!refsRef.current) return false;
@@ -404,23 +471,12 @@ export function useCubeReader(workRef: React.RefObject<HTMLCanvasElement | null>
 
   // One white face → von-Kries session white-balance. STRICTLY in-memory: never
   // calls the cubes API / PATCH color_profile (skeptic constraint #4).
-  const quickAdjust = (video: HTMLVideoElement): QuickAdjustResult => {
+  const quickAdjust = async (video: HTMLVideoElement): Promise<QuickAdjustResult> => {
     const work = workRef.current;
     const refs = refsRef.current;
     if (!work || !refs) return { kind: "unreadable" };
     if (!readable(video, work)) return { kind: "unreadable" };
-    // Эталоны передаются, значит сетка подгоняется под грань в кадре
-    // (см. faceFit): это геометрия чтения, а не подпорка поверх цвета,
-    // поэтому применяется и в гейте точности тоже.
-    const face = readFace(
-      video,
-      video.videoWidth,
-      video.videoHeight,
-      work,
-      config.GUIDE_RECT,
-      config.CELL_CENTER_FRAC,
-      refs,
-    );
+    const face = await readFaceBurst(video, work, refs);
     const decision = colorsQuickAdjust(refs, face.rgb);
     switch (decision.kind) {
       case "ok":
@@ -454,11 +510,11 @@ export function useCubeReader(workRef: React.RefObject<HTMLCanvasElement | null>
     setCollecting(false);
   };
 
-  const pushVerifyFace = (
+  const pushVerifyFace = async (
     video: HTMLVideoElement,
     expected: Facelet,
     tolerant = false,
-  ): VerifyResult => {
+  ): Promise<VerifyResult> => {
     const work = workRef.current;
     const refs = refsRef.current;
     if (!work || !refs || !collectorRef.current) return { kind: "unreadable" };
@@ -467,26 +523,27 @@ export function useCubeReader(workRef: React.RefObject<HTMLCanvasElement | null>
     // Эталоны передаются, значит сетка подгоняется под грань в кадре
     // (см. faceFit): это геометрия чтения, а не подпорка поверх цвета,
     // поэтому применяется и в гейте точности тоже.
-    const face = readFace(
-      video,
-      video.videoWidth,
-      video.videoHeight,
-      work,
-      config.GUIDE_RECT,
-      config.CELL_CENTER_FRAC,
-      refs,
-    );
+    const face = await readFaceBurst(video, work, refs);
 
     // Пер-грань нормировка света по своему центру + порог уверенности. Грань,
     // прочитанную наугад (мало отрыва до второго цвета, блик съел ячейку),
-    // честнее переспросить сразу, чем тащить её в сборку кубика: там она
-    // превратится в «расходится N наклеек» без объяснения причины.
+    // честнее переспросить — но не бесконечно: после
+    // FACE_CONFIDENCE_RETRIES отказов подряд принимаем как есть, иначе человек
+    // запирается на экране, где камера говорит «не уверена», а сделать нечего.
     const centerName = argminRef(face.lab[4], refs);
     const fixedRGB = normalizeFaceByCenter(face.rgb, refs[centerName]);
     const fixedLab = fixedRGB.map((rgb) => rgb2lab(rgb));
-    if (confidentCells(fixedLab, refs, face.kept) < config.FACE_MIN_CONFIDENT_CELLS) {
-      return { kind: "unreadable" };
+    const confident = confidentCells(fixedLab, refs, face.kept);
+    if (confident < config.FACE_MIN_CONFIDENT_CELLS) {
+      lowConfidenceRef.current += 1;
+      if (lowConfidenceRef.current <= config.FACE_CONFIDENCE_RETRIES) {
+        return {
+          kind: "unreadable",
+          diag: `уверенных ячеек ${confident}/9 — ${explainFace(fixedLab, refs, face.kept)}`,
+        };
+      }
     }
+    lowConfidenceRef.current = 0;
 
     // Кладём СЫРОЙ сэмпл: нормировка и квоты применяются одним местом ниже
     // (resolveSixFaces), чтобы харнесс точности мог отдельно посмотреть сырое
@@ -541,7 +598,7 @@ export function useCubeReader(workRef: React.RefObject<HTMLCanvasElement | null>
     setCollectingAccuracy(false);
   };
 
-  const pushAccuracyFace = (video: HTMLVideoElement): AccuracyCapture => {
+  const pushAccuracyFace = async (video: HTMLVideoElement): Promise<AccuracyCapture> => {
     const work = workRef.current;
     const refs = refsRef.current;
     if (!work || !refs || !accCollectorRef.current) return { kind: "unreadable" };
@@ -552,18 +609,7 @@ export function useCubeReader(workRef: React.RefObject<HTMLCanvasElement | null>
     // instead of measuring calibration drift as a vision error (skeptic MED).
     const faceIndex = accCollectorRef.current.length;
     const expectedColor = COLOR_NAMES[faceIndex];
-    // Эталоны передаются, значит сетка подгоняется под грань в кадре
-    // (см. faceFit): это геометрия чтения, а не подпорка поверх цвета,
-    // поэтому применяется и в гейте точности тоже.
-    const face = readFace(
-      video,
-      video.videoWidth,
-      video.videoHeight,
-      work,
-      config.GUIDE_RECT,
-      config.CELL_CENTER_FRAC,
-      refs,
-    );
+    const face = await readFaceBurst(video, work, refs);
     const de = deltaE(face.lab[4], refs[expectedColor]);
     // Drift is ADVISORY, not a block: on a real webcam the center can legitimately
     // drift > CENTER_DRIFT_DE (auto-WB/exposure) and refusing the capture just stops

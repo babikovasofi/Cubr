@@ -92,14 +92,14 @@ export interface SoloSession {
   collecting: boolean;
   verifyFacesLength: number;
   verifyError: string | null;
-  verifyStep: () => void;
+  verifyStep: () => Promise<void>;
   // Demo escape hatch: appears after repeated camera-read failures (skeptic-honest —
   // marks the result cameraVerified:false rather than pretending it verified).
   verifyFailCount: number;
   skipVerify: () => void;
   // Honest finish (solved-cube confirmation).
   solveVerifyError: string | null;
-  solveVerifyStep: () => void;
+  solveVerifyStep: () => Promise<void>;
   solveVerifyFailCount: number;
   skipSolveVerify: () => void;
   // Navigation.
@@ -307,7 +307,7 @@ export function useSoloSession(opts?: UseSoloSessionOpts): SoloSession {
     onCalibrated: () => dispatch({ type: "calibrate_ok" }),
   });
 
-  const verifyStep = (): void => {
+  const verifyStep = async (): Promise<void> => {
     setVerifyError(null);
     if (!reader.calibrated) return;
     const expected = scramble.expectedFacelets;
@@ -324,7 +324,7 @@ export function useSoloSession(opts?: UseSoloSessionOpts): SoloSession {
     // Solo is casual (validated:false) — tolerant verify so a single colour misread
     // (R1) doesn't reject an honestly-scrambled cube. Ranked (Stage 4) will pass
     // tolerant=false. See config.CASUAL_VERIFY_MIN_CORRECT_FRAC.
-    const r = reader.pushVerifyFace(v, expected, true);
+    const r = await reader.pushVerifyFace(v, expected, true);
     switch (r.kind) {
       case "pending":
         return;
@@ -339,7 +339,9 @@ export function useSoloSession(opts?: UseSoloSessionOpts): SoloSession {
         return;
       case "unreadable":
         setVerifyFailCount((n) => n + 1);
-        setVerifyError(faceUnreadableRu());
+        // Причина отказа — часть сообщения: «повтори» без объяснения не даёт
+        // человеку ничего сделать (блик? рамка мимо? два похожих цвета?).
+        setVerifyError(r.diag ? `${faceUnreadableRu()} (${r.diag})` : faceUnreadableRu());
         reader.resetVerify();
         return;
       case "assign":
@@ -375,7 +377,7 @@ export function useSoloSession(opts?: UseSoloSessionOpts): SoloSession {
   // Honest finish: after the timer freezes (phase "stopped"), collect 6 faces and
   // check the cube is actually SOLVED (ground truth = SOLVED facelets, NOT the
   // scramble target — skeptic constraint #7). First tap begins the collector.
-  const solveVerifyStep = (): void => {
+  const solveVerifyStep = async (): Promise<void> => {
     setSolveVerifyError(null);
     if (!reader.calibrated) return;
     if (!reader.collecting) {
@@ -389,7 +391,7 @@ export function useSoloSession(opts?: UseSoloSessionOpts): SoloSession {
     if (!v) return;
     // Casual solo honest-finish: tolerant match against SOLVED so a couple of
     // colour misreads don't reject a genuinely solved cube. Ranked → tolerant=false.
-    const r = reader.pushVerifyFace(v, SOLVED, true);
+    const r = await reader.pushVerifyFace(v, SOLVED, true);
     switch (r.kind) {
       case "pending":
         return;
@@ -407,7 +409,9 @@ export function useSoloSession(opts?: UseSoloSessionOpts): SoloSession {
       case "unreadable":
       case "assign":
         setSolveVerifyFailCount((n) => n + 1);
-        setSolveVerifyError(faceUnreadableRu());
+        setSolveVerifyError(
+          "diag" in r && r.diag ? `${faceUnreadableRu()} (${r.diag})` : faceUnreadableRu(),
+        );
         reader.resetVerify();
         return;
       case "ambiguous":

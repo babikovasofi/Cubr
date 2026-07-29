@@ -173,7 +173,7 @@ export function useAccuracySession(): AccuracySession {
     setCondition({ calib: "fresh" });
   };
 
-  const captureFace = (): void => {
+  const captureFace = async (): Promise<void> => {
     setCaptureError(null);
     if (!reader.calibrated) {
       setCaptureError("Сначала откалибруй камеру: покажи 6 граней собранного кубика.");
@@ -190,7 +190,7 @@ export function useAccuracySession(): AccuracySession {
     }
     const v = videoRef.current;
     if (!v) return;
-    const r = reader.pushAccuracyFace(v);
+    const r = await reader.pushAccuracyFace(v);
     // Drift is advisory now (auto-WB drift shouldn't block data collection) — the
     // face was captured; just surface how far it drifted so the tester knows.
     const driftNote = (d?: { face: string; de: number }): string =>
@@ -202,7 +202,7 @@ export function useAccuracySession(): AccuracySession {
         setCaptureError(r.drifted ? `Снято${driftNote(r.drifted)}` : null);
         return;
       case "unreadable":
-        setCaptureError(faceUnreadableRu());
+        setCaptureError(r.diag ? `${faceUnreadableRu()} (${r.diag})` : faceUnreadableRu());
         appendDrop(runRef.current, conditionRef.current, "unreadable");
         reader.resetAccuracy();
         bump();

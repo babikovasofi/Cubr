@@ -131,7 +131,8 @@ export function validateFacelets(s: Facelet): Validation {
   if (c.asString() !== s) return { ok: false, reason: "cubejs round-trip mismatch", counts };
   const twist = c.co.reduce((a, b) => a + b, 0) % 3;
   const flip = c.eo.reduce((a, b) => a + b, 0) % 2;
-  if (twist !== 0) return { ok: false, reason: "illegal corner-orientation (twist) parity", counts };
+  if (twist !== 0)
+    return { ok: false, reason: "illegal corner-orientation (twist) parity", counts };
   if (flip !== 0) return { ok: false, reason: "illegal edge-orientation (flip) parity", counts };
   if (c.cornerParity() !== c.edgeParity()) {
     return { ok: false, reason: "corner/edge permutation parity mismatch", counts };

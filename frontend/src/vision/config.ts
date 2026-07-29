@@ -74,6 +74,15 @@ export interface Config {
   // должна быть лучше рамочной, чтобы ей поверили. Ноль означал бы дёрганье
   // сетки от кадра к кадру на шуме.
   FACE_FIT_MIN_GAIN: number;
+  // Съёмка грани: сколько кадров подряд усредняем медианой. Один кадр ловит
+  // смаз, случайный блик и полукадр от rolling shutter; медиана по нескольким
+  // это снимает и стоит ~100 мс, которых человек не замечает.
+  CAPTURE_FRAMES: number;
+  CAPTURE_FRAME_GAP_MS: number;
+  // Сколько раз подряд можно отклонить грань по неуверенности, прежде чем
+  // принять её с предупреждением. Без этого человек запирается: камера честно
+  // говорит «не уверена», а сделать с этим ему нечего.
+  FACE_CONFIDENCE_RETRIES: number;
 
   // ---- Color classification -------------------------------------------------
   QUOTA: number; // stickers per color on a 3x3x3 cube (always 9)
@@ -134,6 +143,9 @@ export const config: Config = {
   STICKER_MAX_DELTA_E: 34,
   FACE_MIN_CONFIDENT_CELLS: 8,
   FACE_FIT_MIN_GAIN: 1.5,
+  CAPTURE_FRAMES: 5,
+  CAPTURE_FRAME_GAP_MS: 22,
+  FACE_CONFIDENCE_RETRIES: 2,
 
   QUOTA: 9,
   DELTA_E_MODE: "ciede2000",

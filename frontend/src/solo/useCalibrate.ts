@@ -79,7 +79,7 @@ export function useCalibrate(opts: {
     if (!v) return;
 
     if (calibrateMode === "quick") {
-      const r = reader.quickAdjust(v);
+      const r = await reader.quickAdjust(v);
       switch (r.kind) {
         case "ok":
           onCalibrated();

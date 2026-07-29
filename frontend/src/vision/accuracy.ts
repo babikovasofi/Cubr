@@ -109,7 +109,9 @@ export function formatReport(rep: AccuracyReport): string {
     lines.push("");
     lines.push("Mismatches:");
     for (const s of wrong) {
-      lines.push(`  ${s.face}[${s.cellInFace}] (idx ${s.index}): read ${s.read}, expected ${s.expected}`);
+      lines.push(
+        `  ${s.face}[${s.cellInFace}] (idx ${s.index}): read ${s.read}, expected ${s.expected}`,
+      );
     }
   }
   return lines.join("\n");

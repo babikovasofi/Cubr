@@ -12,12 +12,14 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, waitFor, fireEvent, act } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 
-const { getCurrentMock, startAttemptMock, submitAttemptMock, getStandingsMock } = vi.hoisted(() => ({
-  getCurrentMock: vi.fn(),
-  startAttemptMock: vi.fn(),
-  submitAttemptMock: vi.fn(),
-  getStandingsMock: vi.fn(),
-}));
+const { getCurrentMock, startAttemptMock, submitAttemptMock, getStandingsMock } = vi.hoisted(
+  () => ({
+    getCurrentMock: vi.fn(),
+    startAttemptMock: vi.fn(),
+    submitAttemptMock: vi.fn(),
+    getStandingsMock: vi.fn(),
+  }),
+);
 
 vi.mock("../../src/api/tournament", () => ({
   getCurrent: getCurrentMock,
@@ -65,11 +67,11 @@ function stubSession(): SoloSession {
     collecting: false,
     verifyFacesLength: 0,
     verifyError: null,
-    verifyStep: () => {},
+    verifyStep: async () => {},
     verifyFailCount: 0,
     skipVerify: () => {},
     solveVerifyError: null,
-    solveVerifyStep: () => {},
+    solveVerifyStep: async () => {},
     solveVerifyFailCount: 0,
     skipSolveVerify: () => {},
     gotoVerify: async () => {},
@@ -219,7 +221,11 @@ describe("TournamentPage — resume", () => {
     const resumeButton = screen.getByRole("button", { name: "Продолжить" });
 
     startAttemptMock.mockResolvedValueOnce(ATTEMPT);
-    getCurrentMock.mockResolvedValueOnce({ ...NONE_CURRENT, attempt_status: "started", deadline_at: deadline });
+    getCurrentMock.mockResolvedValueOnce({
+      ...NONE_CURRENT,
+      attempt_status: "started",
+      deadline_at: deadline,
+    });
     fireEvent.click(resumeButton);
 
     await waitFor(() => expect(startAttemptMock).toHaveBeenCalledTimes(1));
