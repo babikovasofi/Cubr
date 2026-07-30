@@ -33,7 +33,13 @@ function corrupt(truth: Facelet, indices: number[]): Facelet {
   return a.join("");
 }
 
-const COND: ConditionKey = { light: "день", cube: "стикерный", person: "A", calib: "fresh" };
+const COND: ConditionKey = {
+  mode: "scramble",
+  light: "день",
+  cube: "стикерный",
+  person: "A",
+  calib: "fresh",
+};
 
 describe("undoRead", () => {
   it("un-merges the exact report and books a mis-scramble drop, keeping other reads", () => {
@@ -134,6 +140,27 @@ describe("appendRead / appendDrop accumulation", () => {
     appendRead(run, other, scoreRead(SOLVED, SOLVED));
     expect(run.size).toBe(2);
     expect(run.get(condKeyString(other))!.nScored).toBe(1);
+  });
+
+  // Санити (собранный кубик) и известный скрамбл меряют разное: на однотонной
+  // грани нет соседства красного с оранжевым, и промах сетки на наклейку того же
+  // цвета не виден. Пока режим не входил в ключ, идеальные санити-чтения
+  // подмешивались к скрамблу и вытягивали среднее — гейт закрывался бы на
+  // задаче, которой в продукте нет.
+  it("держит санити и скрамбл разными условиями", () => {
+    const run: AccuracyRun = new Map();
+    const solved: ConditionKey = { ...COND, mode: "solved" };
+    const scrambleCond: ConditionKey = { ...COND, mode: "scramble" };
+
+    appendRead(run, solved, scoreRead(SOLVED, SOLVED)); // 54/54
+    appendRead(run, scrambleCond, scoreRead(corrupt(SOLVED, [0, 1, 2]), SOLVED)); // 51/54
+
+    expect(run.size).toBe(2);
+    expect(run.get(condKeyString(solved))!.correct).toBe(54);
+    expect(run.get(condKeyString(scrambleCond))!.correct).toBe(51);
+    // Худшее условие — скрамбл; min-по-условиям обязан смотреть на него.
+    const gate = gatePass(run, 0.9);
+    expect(gate.min?.key.mode).toBe("scramble");
   });
 
   it("counts drops in the denominator with a reason histogram", () => {

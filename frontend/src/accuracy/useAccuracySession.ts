@@ -11,12 +11,7 @@ import { useCamera, CameraError, type FrameInfo } from "../vision/hooks/useCamer
 import { cameraErrorRu } from "../vision/cameraErrors";
 import { useCubeReader } from "../vision/hooks/useCubeReader";
 import { useScramble } from "../scramble/hooks/useScramble";
-import {
-  scoreRead,
-  formatReport,
-  type AccuracyReport,
-  type CellDiag,
-} from "../vision/accuracy";
+import { scoreRead, formatReport, type AccuracyReport, type CellDiag } from "../vision/accuracy";
 import {
   appendDrop,
   appendRead,
@@ -104,8 +99,9 @@ export function useAccuracySession(): AccuracySession {
   void reader.seedProfile; // referenced only to make the barrier explicit; never invoked
 
   const [cameraError, setCameraError] = useState<string | null>(null);
-  const [mode, setMode] = useState<AccuracyMode>("scramble");
+  const [mode, setModeState] = useState<AccuracyMode>("scramble");
   const [condition, setConditionState] = useState<ConditionKey>({
+    mode: "scramble",
     light: "",
     cube: "",
     person: "",
@@ -134,6 +130,13 @@ export function useAccuracySession(): AccuracySession {
 
   const setCondition = (patch: Partial<ConditionKey>): void =>
     setConditionState((c) => ({ ...c, ...patch }));
+
+  // Режим — часть ключа условия, поэтому переключатель эталона обязан двигать и
+  // тег. Иначе чтения санити попадут в условие, помеченное как скрамбл.
+  const setMode = (m: AccuracyMode): void => {
+    setModeState(m);
+    setCondition({ mode: m });
+  };
 
   // Guide-only overlay: draw the yellow capture frame + its U-edge marker. No
   // hands, no zones — this screen only needs the cube-face guide.

@@ -3,7 +3,7 @@
 // accuracy.ts scores ONE read (54 stickers) and builds a per-color confusion
 // matrix. This module is the honest-measurement layer on top: it assembles a raw
 // per-sticker read from fixed-order captured face grids, accumulates many reads
-// PER CONDITION (light × cube × person × calibration), and decides the Stage-0.3
+// PER CONDITION (mode × light × cube × person × calibration), and decides the Stage-0.3
 // gate as MIN-over-conditions of a Wilson lower bound — NOT a pooled mean, which
 // would let a good condition mask a failing one.
 //
@@ -62,6 +62,18 @@ export const DROP_REASONS: readonly DropReason[] = [
 ];
 
 export interface ConditionKey {
+  /**
+   * Эталон, против которого считалась точность: "solved" (собранный) или
+   * "scramble" (известный скрамбл).
+   *
+   * Это ОСЬ УСЛОВИЯ, а не пометка. На собранном кубике грань однотонная: рядом
+   * нет ни красного с оранжевым, ни белого с жёлтым, и промах сетки на соседнюю
+   * наклейку того же цвета вообще не виден. Двадцать чистых санити-чтений не
+   * говорят ничего о перемешанном кубике — а гейт 0.3 нужен именно для него.
+   * Пока режим не входил в ключ, такие чтения сливались в одно число, и санити
+   * молча вытягивал средний результат.
+   */
+  mode: string;
   light: string; // e.g. "день", "тёплый ЛН", "холодный LED"
   cube: string; // e.g. "стикерный", "stickerless"
   person: string; // tester id/name
@@ -134,7 +146,7 @@ export function assembleRawRead(rawFaceGrids: Face[][]): Facelet {
 // --- Accumulator -------------------------------------------------------------
 
 export function condKeyString(k: ConditionKey): string {
-  return `${k.light}|${k.cube}|${k.person}|${k.calib}`;
+  return `${k.mode}|${k.light}|${k.cube}|${k.person}|${k.calib}`;
 }
 
 function emptyConfusion(): Record<Face, Record<Face, number>> {
@@ -292,7 +304,7 @@ export function runHotspots(run: AccuracyRun): {
   const [ro0, ro1] = HOTSPOT_PAIRS.redOrange;
   const [wy0, wy1] = HOTSPOT_PAIRS.whiteYellow;
   const merged: ConditionAcc = {
-    key: { light: "", cube: "", person: "", calib: "" },
+    key: { mode: "", light: "", cube: "", person: "", calib: "" },
     confusion: emptyConfusion(),
     correct: 0,
     total: 0,
@@ -332,14 +344,14 @@ export function formatRunSummary(
     return lines.join("\n");
   }
   lines.push("");
-  lines.push("Условия (свет | кубик | человек | калибровка):");
+  lines.push("Условия (эталон | свет | кубик | человек | калибровка):");
   for (const c of gate.conditions) {
     const k = c.key;
     const flags: string[] = [];
     if (!c.enoughReads) flags.push(`нужно ≥${MIN_READS} чтений`);
     if (c.dropRate > MAX_DROP_RATE) flags.push(`drop ${pct(c.dropRate)} > ${pct(MAX_DROP_RATE)}`);
     lines.push(
-      `  [${c.pass ? "PASS" : "FAIL"}] ${k.light} | ${k.cube} | ${k.person} | ${k.calib}: ` +
+      `  [${c.pass ? "PASS" : "FAIL"}] ${k.mode} | ${k.light} | ${k.cube} | ${k.person} | ${k.calib}: ` +
         `${pct(c.fraction)} (Wilson-LB ${pct(c.wilsonLower)}), ` +
         `n=${c.nScored}, drop=${c.nDropped} (${pct(c.dropRate)})` +
         (flags.length ? ` — ${flags.join("; ")}` : ""),
@@ -349,7 +361,8 @@ export function formatRunSummary(
     const m = gate.min;
     lines.push("");
     lines.push(
-      `Худшее условие: ${m.key.light} | ${m.key.cube} | ${m.key.person} — Wilson-LB ${pct(m.wilsonLower)}`,
+      `Худшее условие: ${m.key.mode} | ${m.key.light} | ${m.key.cube} | ${m.key.person} — ` +
+        `Wilson-LB ${pct(m.wilsonLower)}`,
     );
   }
   const hs = runHotspots(run);

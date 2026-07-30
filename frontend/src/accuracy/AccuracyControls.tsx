@@ -11,6 +11,7 @@ import {
   CAPTURE_ORDER,
   MIN_READS,
   conditionVerdict,
+  condKeyString,
   gatePass,
   hotspots,
   runHotspots,
@@ -264,11 +265,12 @@ export default function AccuracyControls({ session }: AccuracyControlsProps) {
               </thead>
               <tbody>
                 {gate.conditions.map((c) => {
-                  const id = `${c.key.light}|${c.key.cube}|${c.key.person}|${c.key.calib}`;
+                  const id = condKeyString(c.key);
                   return (
                     <tr key={id} className="border-t border-line">
                       <td className="p-1 text-ink">
-                        {c.key.light || "?"}/{c.key.cube || "?"}/{c.key.person || "?"}
+                        {c.key.mode || "?"}/{c.key.light || "?"}/{c.key.cube || "?"}/
+                        {c.key.person || "?"}
                       </td>
                       <td className="p-1 text-ink">{pct(c.fraction)}</td>
                       <td className="p-1 text-ink">{pct(c.wilsonLower)}</td>
@@ -296,8 +298,9 @@ export default function AccuracyControls({ session }: AccuracyControlsProps) {
 
         {gate.min ? (
           <p className="font-sans text-small text-muted">
-            Худшее условие: {gate.min.key.light || "?"}/{gate.min.key.cube || "?"} — Wilson-LB{" "}
-            {pct(gate.min.wilsonLower)}. Всего дропов: {totalDrops}.
+            Худшее условие: {gate.min.key.mode || "?"}/{gate.min.key.light || "?"}/
+            {gate.min.key.cube || "?"} — Wilson-LB {pct(gate.min.wilsonLower)}. Всего дропов:{" "}
+            {totalDrops}.
           </p>
         ) : null}
 
@@ -360,12 +363,12 @@ function reportPreview(session: AccuracySession): string {
   }
   const gate = gatePass(session.run);
   for (const c of gate.conditions) {
-    const acc = session.run.get(`${c.key.light}|${c.key.cube}|${c.key.person}|${c.key.calib}`);
+    const acc = session.run.get(condKeyString(c.key));
     if (!acc) continue;
     const v = conditionVerdict(acc);
     const hs = hotspots(acc);
     lines.push(
-      `  ${c.key.light}/${c.key.cube}: Wilson-LB ${pct(v.wilsonLower)} · ` +
+      `  ${c.key.mode}/${c.key.light}/${c.key.cube}: Wilson-LB ${pct(v.wilsonLower)} · ` +
         `R↔L ${hs.redOrange.total}/N${hs.redOrange.n} · U↔D ${hs.whiteYellow.total}/N${hs.whiteYellow.n}`,
     );
   }
