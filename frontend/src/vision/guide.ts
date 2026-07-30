@@ -6,6 +6,8 @@
 //
 // All copy is Russian, plain spoken, no CV jargon. UTF-8 without BOM.
 
+import { type CalibrationProblem } from "./colors";
+
 export type GuideStep =
   | "start" // camera not running yet
   | "calibrate" // capturing the 6 solved faces
@@ -123,6 +125,18 @@ export function rotationFailedRu(): string {
 export function faceUnreadableRu(): string {
   return "Грань не прочиталась — повтори. Держи её ровно в жёлтой рамке.";
 }
+/**
+ * Почему шесть снятых граней не приняты. Человеку важно не «ошибка калибровки», а
+ * что именно переснять: в кадр попала рука/стол вместо грани — или камера в этом
+ * свете вообще не различает цвета кубика, и свет надо менять.
+ */
+export function calibrationRejectedRu(problem: CalibrationProblem): string {
+  if (problem.kind === "white-not-lightest") {
+    return "Калибровка не принята: снятый белый темнее других цветов — похоже, в рамку попала рука, стол или стена вместо грани. Сними все 6 граней заново, следи, чтобы в рамке была только грань кубика.";
+  }
+  return `Калибровка не принята: камера почти не различает ${problem.a} и ${problem.b} (ΔE ${problem.de.toFixed(1)}). Смени свет — уйди от цветных лампочек и прямого солнца — и сними 6 граней заново.`;
+}
+
 export function timerBlockedRu(): string {
   return "Таймер не пошёл: сначала проверь грани (кнопка проверки), потом ставь руки в зоны.";
 }

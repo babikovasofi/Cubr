@@ -81,6 +81,15 @@ export interface Config {
   FACE_FIT_GAP_TARGET: number; // насколько щели должны быть темнее наклеек (яркость 0..255)
   FACE_FIT_GAP_WEIGHT: number; // вес недобора контраста в стоимости кандидата
   FACE_FIT_GAP_BAND_FRAC: number; // толщина полосы вокруг границы ячеек, в долях ячейки
+  // Замки на негодную калибровку (см. colors.checkCalibration). Белая наклейка —
+  // самая светлая из шести при любом свете; если снятый «белый» темнее, в кадре
+  // была не грань (рука, стол). Slack — запас на шум: на живом прогоне белый
+  // опережал жёлтую всего на единицу.
+  CALIB_WHITE_LIGHTNESS_SLACK: number;
+  // Порог полного слипания эталонов. Низкий намеренно: на живой вебкамере
+  // красный с оранжевым расходятся на 16–17, блок по 20 запретил бы калибровку,
+  // на которой сырое чтение давало 65%.
+  CALIB_MIN_SEPARATION_DE: number;
   // Съёмка грани: сколько кадров подряд усредняем медианой. Один кадр ловит
   // смаз, случайный блик и полукадр от rolling shutter; медиана по нескольким
   // это снимает и стоит ~100 мс, которых человек не замечает.
@@ -153,6 +162,8 @@ export const config: Config = {
   FACE_FIT_GAP_TARGET: 12,
   FACE_FIT_GAP_WEIGHT: 1.0,
   FACE_FIT_GAP_BAND_FRAC: 0.12,
+  CALIB_WHITE_LIGHTNESS_SLACK: 3,
+  CALIB_MIN_SEPARATION_DE: 10,
   CAPTURE_FRAMES: 5,
   CAPTURE_FRAME_GAP_MS: 22,
   FACE_CONFIDENCE_RETRIES: 2,

@@ -379,6 +379,79 @@ export function calibrateByColorIdentity(capturedRGB: RGB[]): Refs {
   return refs;
 }
 
+/** ΔE от каждого снятого эталона до канонного анкора своего цвета. */
+export function anchorDistances(
+  refs: Refs,
+  mode: DeltaEMode = config.DELTA_E_MODE,
+): Record<ColorName, number> {
+  const out = {} as Record<ColorName, number>;
+  for (const name of COLOR_NAMES) out[name] = deltaE(refs[name], COLOR_ANCHORS[name], mode);
+  return out;
+}
+
+/** Минимальное попарное ΔE между шестью эталонами и сама пара. */
+export function minSeparation(
+  refs: Refs,
+  mode: DeltaEMode = config.DELTA_E_MODE,
+): { de: number; a: ColorName; b: ColorName } {
+  let best = { de: Infinity, a: COLOR_NAMES[0], b: COLOR_NAMES[1] };
+  for (let i = 0; i < COLOR_NAMES.length; i++) {
+    for (let j = i + 1; j < COLOR_NAMES.length; j++) {
+      const de = deltaE(refs[COLOR_NAMES[i]], refs[COLOR_NAMES[j]], mode);
+      if (de < best.de) best = { de, a: COLOR_NAMES[i], b: COLOR_NAMES[j] };
+    }
+  }
+  return best;
+}
+
+export type CalibrationProblem =
+  | { kind: "white-not-lightest"; whiteL: number; lightest: ColorName; lightestL: number }
+  | { kind: "collapsed"; a: ColorName; b: ColorName; de: number };
+
+/**
+ * Годен ли набор из шести эталонов, чтобы по нему вообще читать цвета.
+ *
+ * Замок нужен потому, что раскладка по цветам (calibrateByColorIdentity) НИКОГДА
+ * не отказывает: она берёт шесть снятых цветов и раздаёт им шесть слотов по
+ * ближайшему анкору. Снял руку вместо белой грани — телесный цвет всё равно
+ * ближе к белому, чем к остальным пяти, и молча занимает слот U. Ровно это и
+ * случилось на живом прогоне: U снялся как RGB(215,174,161), после чего белые
+ * наклейки читались красными, а точность падала до 39% на пустом месте.
+ *
+ * Проверка НЕ по расстоянию до анкора. На живых замерах у рабочих калибровок
+ * синий стоял в 22 единицах от своего анкора, а испорченный белый — в 18: порог,
+ * который поймал бы белый, зарубил бы рабочие прогоны. Работает структурный
+ * инвариант: белая наклейка — самая светлая из шести при любом освещении. У
+ * испорченного набора она оказалась на 12 единиц темнее жёлтой, у рабочих —
+ * светлее всех. `slack` оставляет запас на шум, потому что у рабочего прогона
+ * отрыв белого от жёлтой был всего одна единица.
+ *
+ * Второй замок — на полностью слипшихся эталонах, когда камера не различает
+ * цвета вообще. Порог намеренно низкий: на живой вебкамере красный с оранжевым
+ * расходятся всего на 16–17, и блок по «различимости ≥20» сделал бы продукт
+ * неработающим там, где сырое чтение доходило до 65%.
+ */
+export function checkCalibration(
+  refs: Refs,
+  slack: number = config.CALIB_WHITE_LIGHTNESS_SLACK,
+  minSepDE: number = config.CALIB_MIN_SEPARATION_DE,
+  mode: DeltaEMode = config.DELTA_E_MODE,
+): CalibrationProblem | null {
+  const whiteL = refs.U[0];
+  let lightest: ColorName = "R";
+  for (const name of COLOR_NAMES) {
+    if (name === "U") continue;
+    if (refs[name][0] > refs[lightest][0]) lightest = name;
+  }
+  if (whiteL < refs[lightest][0] - slack) {
+    return { kind: "white-not-lightest", whiteL, lightest, lightestL: refs[lightest][0] };
+  }
+
+  const sep = minSeparation(refs, mode);
+  if (sep.de < minSepDE) return { kind: "collapsed", a: sep.a, b: sep.b, de: sep.de };
+  return null;
+}
+
 /** Independent per-sticker classification (argmin deltaE). No quota. */
 export function classifyFace(
   cellLabs: Lab[],

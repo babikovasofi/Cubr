@@ -7,6 +7,7 @@
 import { useRef, useState } from "react";
 import {
   calibrateByColorIdentity,
+  checkCalibration,
   COLOR_NAMES,
   assignQuota,
   deltaE,
@@ -15,6 +16,7 @@ import {
   median,
   normalizeFaceByCenter,
   rgb2lab,
+  type CalibrationProblem,
   type ColorName,
   type Lab,
   type Refs,
@@ -340,6 +342,12 @@ export interface CubeReader {
   verifyFacesLength: number; // 0..6, of the in-flight collector
   collecting: boolean;
   captureCalibration: (video: HTMLVideoElement) => boolean;
+  /**
+   * Почему шесть снятых граней отвергнуты целиком. Заполняется вместо `true` на
+   * шестом кадре, если по набору читать нельзя (снята не грань, эталоны слиплись);
+   * счётчик при этом сбрасывается на 0/6 — набор придётся снять заново.
+   */
+  calibrationProblem: CalibrationProblem | null;
   /** Seed refs from a stored cube profile (session-local clone). validated=false. */
   seedProfile: (profile: Refs) => void;
   /** One-white-face session white-balance over seeded refs. In-memory only. */
@@ -436,6 +444,8 @@ export function useCubeReader(workRef: React.RefObject<HTMLCanvasElement | null>
   const [collecting, setCollecting] = useState(false);
   const [accFacesLength, setAccFacesLength] = useState(0);
   const [collectingAccuracy, setCollectingAccuracy] = useState(false);
+  // Почему последний набор из шести граней отвергнут (null — претензий нет).
+  const [calibrationProblem, setCalibrationProblem] = useState<CalibrationProblem | null>(null);
   const refsRef = useRef<Refs | null>(null);
   const calibRgbRef = useRef<Partial<Record<ColorName, RGB>>>({});
   const collectorRef = useRef<FaceSample[] | null>(null);
@@ -476,7 +486,22 @@ export function useCubeReader(workRef: React.RefObject<HTMLCanvasElement | null>
       // actual colour (min-cost bijection to the canonical anchors), so the user
       // may show the 6 solved faces in any order without mislabelling the refs.
       const captured = COLOR_NAMES.map((n) => calibRgbRef.current[n]!);
-      refsRef.current = calibrateByColorIdentity(captured);
+      const refs = calibrateByColorIdentity(captured);
+      // Раскладка по цветам не умеет отказывать — она раздаёт слоты ближайшим,
+      // даже если один «цвет» снят с руки или со стола. Проверяем набор целиком и
+      // выбрасываем его весь: половина набора негодна так же, как весь.
+      const problem = checkCalibration(refs);
+      if (problem) {
+        calibRgbRef.current = {};
+        refsRef.current = null;
+        setCalibrationProblem(problem);
+        setSeeded(false);
+        setValidated(false);
+        setCalibrationStep(0);
+        return false;
+      }
+      refsRef.current = refs;
+      setCalibrationProblem(null);
       setSeeded(false);
       setValidated(true);
     }
@@ -524,6 +549,7 @@ export function useCubeReader(workRef: React.RefObject<HTMLCanvasElement | null>
     setSeeded(false);
     setValidated(false);
     setCalibrationStep(0);
+    setCalibrationProblem(null);
     resetVerify();
   };
 
@@ -680,6 +706,7 @@ export function useCubeReader(workRef: React.RefObject<HTMLCanvasElement | null>
     verifyFacesLength,
     collecting,
     captureCalibration,
+    calibrationProblem,
     seedProfile,
     quickAdjust,
     getProfile: () => refsRef.current,

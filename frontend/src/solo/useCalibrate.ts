@@ -13,7 +13,12 @@ import { profileToRefs } from "../api/cubes";
 import { useCubesStore } from "../store/cubesStore";
 import type { CubeReader } from "../vision/hooks/useCubeReader";
 import type { SoloPhase } from "./soloPhase";
-import { faceUnreadableRu, quickAdjustWrongFaceRu, quickAdjustDivergedRu } from "../vision/guide";
+import {
+  calibrationRejectedRu,
+  faceUnreadableRu,
+  quickAdjustWrongFaceRu,
+  quickAdjustDivergedRu,
+} from "../vision/guide";
 
 export type CalibrateMode = "quick" | "full";
 
@@ -104,8 +109,14 @@ export function useCalibrate(opts: {
     const captured = reader.captureCalibration(v);
     if (!captured) {
       // Empty/too-dark frame — DON'T advance the 1/6..6/6 counter on nothing
-      // (the "снял без кубика в кадре → готово" bug).
-      setCalibrateError(faceUnreadableRu());
+      // (the "снял без кубика в кадре → готово" bug). Отдельный случай — набор из
+      // шести отвергнут по существу (снята не грань, цвета слиплись): там есть что
+      // сказать конкретнее, чем "грань не прочиталась".
+      setCalibrateError(
+        reader.calibrationProblem
+          ? calibrationRejectedRu(reader.calibrationProblem)
+          : faceUnreadableRu(),
+      );
       return;
     }
     if (reader.getProfile() !== null) onCalibrated();

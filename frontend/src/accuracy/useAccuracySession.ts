@@ -27,8 +27,14 @@ import {
   type ConditionKey,
 } from "../vision/accuracyRun";
 import { SOLVED, type Facelet } from "../vision/cubeState";
-import { cameraDeniedRu, faceUnreadableRu } from "../vision/guide";
-import { COLOR_NAMES, lab2rgb, deltaE } from "../vision/colors";
+import { calibrationRejectedRu, cameraDeniedRu, faceUnreadableRu } from "../vision/guide";
+import {
+  COLOR_NAMES,
+  lab2rgb,
+  anchorDistances,
+  minSeparation,
+  checkCalibration,
+} from "../vision/colors";
 
 export type AccuracyMode = "scramble" | "solved";
 
@@ -171,7 +177,13 @@ export function useAccuracySession(): AccuracySession {
 
   const captureCalibration = (): void => {
     const v = videoRef.current;
-    if (v) reader.captureCalibration(v);
+    if (!v) return;
+    setCaptureError(null);
+    if (!reader.captureCalibration(v) && reader.calibrationProblem) {
+      // Набор отвергнут целиком, счётчик уже сброшен на 0/6 — молчать нельзя,
+      // иначе человек видит только исчезнувший прогресс.
+      setCaptureError(calibrationRejectedRu(reader.calibrationProblem));
+    }
   };
 
   const recalibrate = (): void => {
@@ -285,22 +297,29 @@ export function useAccuracySession(): AccuracySession {
 
     const refs = reader.getProfile();
     if (refs) {
-      const labs = COLOR_NAMES.map((n) => refs[n]);
-      let minDE = Infinity;
-      for (let i = 0; i < labs.length; i++) {
-        for (let j = i + 1; j < labs.length; j++) {
-          minDE = Math.min(minDE, deltaE(labs[i], labs[j]));
-        }
-      }
+      const sep = minSeparation(refs);
+      const anchors = anchorDistances(refs);
       const lines = ["", "=== Эталоны калибровки (что камера сняла как цвета) ==="];
       for (const n of COLOR_NAMES) {
         const lab = refs[n];
         const [r, g, b] = lab2rgb(lab);
-        lines.push(`  ${n}: RGB(${r},${g},${b})  Lab(${lab.map((x) => x.toFixed(0)).join(",")})`);
+        lines.push(
+          `  ${n}: RGB(${r},${g},${b})  Lab(${lab.map((x) => x.toFixed(0)).join(",")})` +
+            `  ΔE до анкора ${anchors[n].toFixed(1)}`,
+        );
       }
       lines.push(
-        `  min попарный ΔE между 6 эталонами: ${minDE.toFixed(1)} ` +
+        `  min попарный ΔE: ${sep.de.toFixed(1)} (${sep.a}–${sep.b}) ` +
           `(если мало ~<20 — эталоны слиплись, камера не различает цвета)`,
+      );
+      // Расстояние до анкора само по себе НЕ повод отказать: на живой камере
+      // рабочие синий/зелёный уходили от анкора дальше, чем испорченный белый.
+      // Отказ даёт структурная проверка — её вердикт и печатаем.
+      const problem = checkCalibration(refs);
+      lines.push(
+        problem
+          ? `  ВЕРДИКТ: набор негоден — ${calibrationRejectedRu(problem)}`
+          : `  ВЕРДИКТ: набор годен (белый самый светлый, цвета не слиплись)`,
       );
       parts.push(lines.join("\n"));
     }

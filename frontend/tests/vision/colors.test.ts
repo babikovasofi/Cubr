@@ -8,6 +8,9 @@ import {
   medianOfCentralRegion,
   calibrate,
   calibrateByColorIdentity,
+  checkCalibration,
+  anchorDistances,
+  minSeparation,
   classifyFace,
   assignQuota,
   applyLightGain,
@@ -164,6 +167,92 @@ describe("calibrateByColorIdentity", () => {
 
   it("throws when not given exactly 6 colours", () => {
     expect(() => calibrateByColorIdentity([rgbByFace.U])).toThrow();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// checkCalibration: замок на негодный набор эталонов.
+// ---------------------------------------------------------------------------
+
+describe("checkCalibration", () => {
+  // Живые наборы с /accuracy: два рабочих (по ним читали 39% и 65%) и один
+  // испорченный — в кадр вместо белой грани попало телесное/тёплое, и раскладка
+  // молча положила это в слот U.
+  const REAL_RUNS: Record<string, Record<string, RGB>> = {
+    broken: {
+      U: [215, 174, 161],
+      R: [255, 70, 81],
+      F: [0, 207, 111],
+      D: [214, 224, 77],
+      L: [255, 125, 66],
+      B: [0, 142, 251],
+    },
+    working65: {
+      U: [195, 229, 242],
+      R: [255, 63, 71],
+      F: [0, 210, 113],
+      D: [220, 230, 91],
+      L: [255, 121, 62],
+      B: [0, 129, 232],
+    },
+    workingFirst: {
+      U: [205, 231, 242],
+      R: [255, 51, 66],
+      F: [0, 201, 109],
+      D: [224, 225, 83],
+      L: [255, 125, 70],
+      B: [0, 127, 233],
+    },
+  };
+  const refsOf = (m: Record<string, RGB>): Refs =>
+    calibrate(m as Record<(typeof COLOR_NAMES)[number], RGB>);
+
+  it("отвергает живой испорченный набор: белый оказался темнее жёлтого", () => {
+    const problem = checkCalibration(refsOf(REAL_RUNS.broken));
+    expect(problem?.kind).toBe("white-not-lightest");
+    if (problem?.kind === "white-not-lightest") expect(problem.lightest).toBe("D");
+  });
+
+  it("пропускает оба живых рабочих набора", () => {
+    expect(checkCalibration(refsOf(REAL_RUNS.working65))).toBeNull();
+    expect(checkCalibration(refsOf(REAL_RUNS.workingFirst))).toBeNull();
+  });
+
+  // Порог по расстоянию до анкора был бы неверным замком, и это не догадка:
+  // у рабочих наборов синий уходит от своего анкора ДАЛЬШЕ, чем испорченный
+  // белый от своего. Тест держит это знание, чтобы замок не переделали обратно.
+  it("расстояние до анкора не разделяет годное и негодное", () => {
+    const broken = anchorDistances(refsOf(REAL_RUNS.broken));
+    const working = anchorDistances(refsOf(REAL_RUNS.working65));
+    expect(working.B).toBeGreaterThan(broken.U);
+  });
+
+  it("отвергает полностью слипшиеся эталоны", () => {
+    const grey: Record<string, RGB> = {
+      U: [200, 200, 200],
+      R: [202, 199, 201],
+      F: [198, 201, 199],
+      D: [201, 200, 202],
+      L: [199, 198, 200],
+      B: [200, 202, 198],
+    };
+    const problem = checkCalibration(refsOf(grey));
+    expect(problem?.kind).toBe("collapsed");
+  });
+
+  // Красный с оранжевым расходятся на живой вебкамере всего на 16–17. Блок по
+  // «различимости ≥20» отрезал бы ровно те калибровки, на которых сырое чтение
+  // дошло до 65% — порог намеренно ниже.
+  it("не блокирует настоящую разделимость красного и оранжевого 16–17", () => {
+    const refs = refsOf(REAL_RUNS.working65);
+    expect(minSeparation(refs).de).toBeLessThan(20);
+    expect(checkCalibration(refs)).toBeNull();
+  });
+
+  it("терпит белый чуть темнее жёлтого — на живом прогоне отрыв был 1 единица", () => {
+    const refs = refsOf(REAL_RUNS.working65);
+    const nudged: Refs = { ...refs, U: [refs.D[0] - 2, refs.U[1], refs.U[2]] };
+    expect(checkCalibration(nudged)).toBeNull();
   });
 });
 

@@ -18,7 +18,12 @@ import {
 } from "../vision/hooks/useCamera";
 import { useHands, HandsInitError } from "../vision/hooks/useHands";
 import { useCubeReader } from "../vision/hooks/useCubeReader";
-import { cameraDeniedRu, modelFailedRu, faceUnreadableRu } from "../vision/guide";
+import {
+  calibrationRejectedRu,
+  cameraDeniedRu,
+  modelFailedRu,
+  faceUnreadableRu,
+} from "../vision/guide";
 import type { ColorProfile } from "../api/cubes";
 
 const ZONES = defaultZones();
@@ -113,7 +118,11 @@ export function useCubeRegister(): CubeRegister {
     // Reject an empty/too-dark frame instead of registering a garbage face — the
     // "снял грань без кубика в кадре → готово" bug at cube registration.
     if (!reader.captureCalibration(v)) {
-      setError(faceUnreadableRu());
+      setError(
+        reader.calibrationProblem
+          ? calibrationRejectedRu(reader.calibrationProblem)
+          : faceUnreadableRu(),
+      );
       return;
     }
     setError(null);
