@@ -9,10 +9,21 @@
 // (масштаб × сдвиг) и берём тот, чья сетка ЛУЧШЕ ВСЕГО ложится на наклейки.
 // Оценка кандидата — не «похоже на квадрат», а прямо то, что нам нужно:
 //   • каждая ячейка близка к одному из шести эталонов (фон и щели далеки);
-//   • внутри ячейки цвет однороден (щель между наклейками даёт разброс).
+//   • внутри ячейки цвет однороден (щель между наклейками даёт разброс);
+//   • на границах ячеек есть тёмные щели — грань устроена как решётка.
 // Поиск идёт по ОДНОМУ снятому патчу в памяти, без повторных draw — это десятки
 // тысяч арифметических операций, доли миллисекунды.
+//
+// Про третий признак. Первых двух не хватает: «похожа на какой-нибудь эталон» —
+// это ровно то, чем светлый фон (стол, стена, засвеченное окно) неотличим от
+// белой наклейки. На живом кадре в кафе сетка спокойно съезжала вниз с кубика,
+// нижний ряд читался как U, а стоимость кандидата оставалась низкой — подгонка
+// считала такое положение отличным. Щели штрафовались, но только когда сетка
+// села НА них; за то, что щели пришлись НА границы ячеек, никто не награждал.
+// Решётка — признак самого кубика: у однотонной поверхности её нет ни при каком
+// масштабе, поэтому фон дороже грани независимо от того, какого он цвета.
 
+import { config } from "./config";
 import { deltaE, median, rgb2lab, COLOR_NAMES, type Refs, type RGB } from "./colors";
 
 export interface FitRegion {
@@ -73,8 +84,97 @@ function cellStats(
   return { rgb: [median(rs), median(gs), median(bs)], spread: dev / lumas.length };
 }
 
+const luma = ([r, g, b]: RGB): number => 0.2126 * r + 0.7152 * g + 0.0722 * b;
+
+/**
+ * Насколько ОДНА ячейка окантована тёмным, в единицах яркости 0..255.
+ *
+ * Признак поячеечный, а не на всю область, и это принципиально. Область целиком
+ * ловит только грубые промахи: сетку на ровной поверхности и сдвиг на половину
+ * ячейки. А живой отказ выглядел иначе — сетка съехала на ЦЕЛУЮ ячейку вниз, два
+ * ряда остались на кубике, нижний ушёл на стол. Решётка при таком сдвиге не
+ * ломается (щели совпали со следующими щелями), и признак на всю область такое
+ * пропускает. Поячеечный — нет: ячейке на столе окантовки взять негде.
+ *
+ * Считается так: медиана яркости по каждой из четырёх полос, затем ВТОРАЯ С КОНЦА
+ * из четырёх (не среднее и не худшая). Среднее не годится — ячейка на столе
+ * вплотную к кубику получает одну тёмную полосу от его ребра, среднее уезжает
+ * вниз, и ячейка выглядит окантованной. Худшая не годится в другую сторону: один
+ * блик в щели зарубил бы правильную ячейку. Вторая с конца требует, чтобы тёмными
+ * были минимум три стороны из четырёх.
+ */
+function cellGapContrast(
+  patch: Patch,
+  x0: number,
+  y0: number,
+  w: number,
+  h: number,
+  cellLuma: number,
+  bandFrac: number,
+): number {
+  const halfW = Math.max(1, Math.round((w * bandFrac) / 2));
+  const halfH = Math.max(1, Math.round((h * bandFrac) / 2));
+
+  const bandMedian = (bx: number, by: number, bw: number, bh: number): number | null => {
+    const lumas: number[] = [];
+    for (let y = by; y < by + bh; y++) {
+      if (y < 0 || y >= patch.size) continue;
+      for (let x = bx; x < bx + bw; x++) {
+        if (x < 0 || x >= patch.size) continue;
+        const i = (y * patch.size + x) * 4;
+        lumas.push(luma([patch.data[i], patch.data[i + 1], patch.data[i + 2]]));
+      }
+    }
+    return lumas.length === 0 ? null : median(lumas);
+  };
+
+  const bands = [
+    bandMedian(x0, y0 - halfH, w, 2 * halfH), // сверху
+    bandMedian(x0, y0 + h - halfH, w, 2 * halfH), // снизу
+    bandMedian(x0 - halfW, y0, 2 * halfW, h), // слева
+    bandMedian(x0 + w - halfW, y0, 2 * halfW, h), // справа
+  ].filter((v): v is number => v !== null);
+  if (bands.length === 0) return 0;
+
+  bands.sort((a, b) => a - b);
+  return cellLuma - bands[Math.min(2, bands.length - 1)];
+}
+
+/**
+ * Средний по 9 ячейкам контраст окантовки — диагностическая свёртка того же
+ * признака, которым штрафуется кандидат в regionCost.
+ */
+export function gapContrast(
+  patch: Patch,
+  region: FitRegion,
+  centerFrac = 0.5,
+  bandFrac: number = config.FACE_FIT_GAP_BAND_FRAC,
+): number {
+  const cw = region.side / 3;
+  let total = 0;
+  for (let row = 0; row < 3; row++) {
+    for (let col = 0; col < 3; col++) {
+      const x0 = Math.round(region.x + col * cw);
+      const y0 = Math.round(region.y + row * cw);
+      const w = Math.round(region.x + (col + 1) * cw) - x0;
+      const h = Math.round(region.y + (row + 1) * cw) - y0;
+      const cl = luma(cellStats(patch, x0, y0, w, h, centerFrac).rgb);
+      total += cellGapContrast(patch, x0, y0, w, h, cl, bandFrac);
+    }
+  }
+  return total / 9;
+}
+
 /** Стоимость кандидата: чем меньше, тем лучше сетка легла на наклейки. */
-export function regionCost(patch: Patch, region: FitRegion, refs: Refs, centerFrac = 0.5): number {
+export function regionCost(
+  patch: Patch,
+  region: FitRegion,
+  refs: Refs,
+  centerFrac = 0.5,
+  gapTarget: number = config.FACE_FIT_GAP_TARGET,
+  gapWeight: number = config.FACE_FIT_GAP_WEIGHT,
+  bandFrac: number = config.FACE_FIT_GAP_BAND_FRAC,
+): number {
   const cw = region.side / 3;
   let total = 0;
   for (let row = 0; row < 3; row++) {
@@ -87,9 +187,15 @@ export function regionCost(patch: Patch, region: FitRegion, refs: Refs, centerFr
       const lab = rgb2lab(rgb);
       let best = Infinity;
       for (const name of COLOR_NAMES) best = Math.min(best, deltaE(lab, refs[name]));
+      // Недобор окантовки. Насыщается на gapTarget: у белой наклейки щели темнее
+      // её на сотню единиц, у синей — на десятки, и штрафовать синюю нельзя.
+      const deficit = Math.max(
+        0,
+        gapTarget - cellGapContrast(patch, x0, y0, w, h, luma(rgb), bandFrac),
+      );
       // ΔE до ближайшего эталона — основная часть; разброс внутри ячейки —
       // добавка, которая штрафует сетку, севшую на щели.
-      total += best + spread * 0.35;
+      total += best + spread * 0.35 + deficit * gapWeight;
     }
   }
   return total / 9;

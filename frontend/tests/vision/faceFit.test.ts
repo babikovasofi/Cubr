@@ -3,8 +3,15 @@
 // раньше ячейки съезжали на фон и белая наклейка читалась как красная.
 
 import { describe, it, expect } from "vitest";
-import { fitFaceRegion, regionCost, candidateRegions, type Patch } from "../../src/vision/faceFit";
+import {
+  fitFaceRegion,
+  regionCost,
+  candidateRegions,
+  gapContrast,
+  type Patch,
+} from "../../src/vision/faceFit";
 import { rgb2lab, type Refs, type RGB } from "../../src/vision/colors";
+import { config } from "../../src/vision/config";
 
 const REF_RGB: Record<string, RGB> = {
   U: [235, 238, 236],
@@ -17,12 +24,27 @@ const REF_RGB: Record<string, RGB> = {
 const REFS = Object.fromEntries(Object.entries(REF_RGB).map(([k, v]) => [k, rgb2lab(v)])) as Refs;
 
 const WALL: RGB = [150, 130, 160]; // сиреневая стена, как на живом кадре
+// Светлый фон кафе: стол/засвеченное окно. Похож на белый эталон, поэтому по
+// одному «ячейка близка к какому-нибудь эталону» неотличим от белой наклейки.
+const BRIGHT_WALL: RGB = [228, 232, 236];
+const PLASTIC: RGB = [24, 24, 26]; // корпус кубика: щели между наклейками
 
 /**
  * Патч со «сценой»: фон-стена, на ней грань кубика (9 наклеек с тёмными щелями)
  * в заданном месте и заданного размера.
+ *
+ * Щели — это тёмный корпус кубика, а не просвет фона: у настоящего кубика между
+ * наклейками чёрный пластик, и именно на нём держится структурный признак
+ * решётки в regionCost.
  */
-function scene(size: number, faceX: number, faceY: number, faceSide: number, colors: RGB[]): Patch {
+function scene(
+  size: number,
+  faceX: number,
+  faceY: number,
+  faceSide: number,
+  colors: RGB[],
+  bg: RGB = WALL,
+): Patch {
   const data = new Uint8ClampedArray(size * size * 4);
   const put = (x: number, y: number, c: RGB) => {
     const i = (y * size + x) * 4;
@@ -31,10 +53,15 @@ function scene(size: number, faceX: number, faceY: number, faceSide: number, col
     data[i + 2] = c[2];
     data[i + 3] = 255;
   };
-  for (let y = 0; y < size; y++) for (let x = 0; x < size; x++) put(x, y, WALL);
+  for (let y = 0; y < size; y++) for (let x = 0; x < size; x++) put(x, y, bg);
 
   const cell = faceSide / 3;
   const gap = Math.max(1, Math.round(cell * 0.08)); // щель между наклейками
+  for (let y = Math.round(faceY); y < Math.round(faceY + faceSide); y++) {
+    for (let x = Math.round(faceX); x < Math.round(faceX + faceSide); x++) {
+      if (x >= 0 && y >= 0 && x < size && y < size) put(x, y, PLASTIC);
+    }
+  }
   for (let row = 0; row < 3; row++) {
     for (let col = 0; col < 3; col++) {
       const c = colors[row * 3 + col];
@@ -48,6 +75,18 @@ function scene(size: number, faceX: number, faceY: number, faceSide: number, col
         }
       }
     }
+  }
+  return { data, size };
+}
+
+/** Патч без кубика вообще: ровная поверхность одного цвета. */
+function flat(size: number, c: RGB): Patch {
+  const data = new Uint8ClampedArray(size * size * 4);
+  for (let i = 0; i < size * size; i++) {
+    data[i * 4] = c[0];
+    data[i * 4 + 1] = c[1];
+    data[i * 4 + 2] = c[2];
+    data[i * 4 + 3] = 255;
   }
   return { data, size };
 }
@@ -105,5 +144,62 @@ describe("fitFaceRegion", () => {
     const onCube = regionCost(patch, { x: 8, y: 10, side: 72 }, REFS);
     const onWall = regionCost(patch, { x: 0, y: 0, side: 40 }, REFS);
     expect(onCube).toBeLessThan(onWall);
+  });
+
+  // Живой отказ из /accuracy: кубик в верхней части рамки, под ним светлый стол.
+  // Нижний ряд ячеек садился на стол, читался как U — и стоимость оставалась
+  // низкой, потому что светлый фон похож на белый эталон.
+  it("не съезжает с кубика на светлый фон", () => {
+    const size = 120;
+    const patch = scene(size, 22, 0, 74, MIXED_FACE, BRIGHT_WALL);
+    const fit = fitFaceRegion(patch, REFS);
+
+    const cy = fit.region.y + fit.region.side / 2;
+    expect(Math.abs(cy - 37)).toBeLessThan(15);
+    // Нижняя граница сетки не уходит на стол дальше десятой доли стороны.
+    expect(fit.region.y + fit.region.side).toBeLessThan(74 + 7.4);
+  });
+
+  it("на светлом фоне сползшая вниз сетка дороже сетки на грани", () => {
+    const size = 120;
+    const patch = scene(size, 22, 0, 74, MIXED_FACE, BRIGHT_WALL);
+    const onFace = { x: 22, y: 0, side: 74 };
+    const slippedDown = { x: 22, y: 25, side: 74 }; // нижний ряд на столе
+
+    expect(regionCost(patch, onFace, REFS)).toBeLessThan(regionCost(patch, slippedDown, REFS));
+
+    // Причина живого отказа — не знак разницы, а её РАЗМЕР. Без структурного
+    // признака (вес 0) отрыв меньше FACE_FIT_MIN_GAIN, то есть подгонка такой
+    // разнице не верит и остаётся на рамке; на живом кадре шум съедает её
+    // целиком. Признак решётки поднимает отрыв на порядок.
+    const marginWithout =
+      regionCost(patch, slippedDown, REFS, 0.5, 12, 0) -
+      regionCost(patch, onFace, REFS, 0.5, 12, 0);
+    const marginWith = regionCost(patch, slippedDown, REFS) - regionCost(patch, onFace, REFS);
+    expect(marginWithout).toBeLessThan(config.FACE_FIT_MIN_GAIN);
+    expect(marginWith).toBeGreaterThan(config.FACE_FIT_MIN_GAIN * 2);
+  });
+});
+
+describe("gapContrast", () => {
+  it("у правильно севшей сетки щели заметно темнее наклеек", () => {
+    const patch = scene(120, 22, 0, 74, MIXED_FACE, BRIGHT_WALL);
+    expect(gapContrast(patch, { x: 22, y: 0, side: 74 })).toBeGreaterThan(12);
+  });
+
+  it("на ровной поверхности решётки нет ни при каком масштабе", () => {
+    for (const bg of [BRIGHT_WALL, WALL]) {
+      const patch = flat(120, bg);
+      for (const side of [120, 96, 74]) {
+        expect(gapContrast(patch, { x: 0, y: 0, side })).toBeLessThan(3);
+      }
+    }
+  });
+
+  it("сетка, съехавшая на половину ячейки, решётку теряет", () => {
+    const patch = scene(120, 22, 0, 74, MIXED_FACE, BRIGHT_WALL);
+    const aligned = gapContrast(patch, { x: 22, y: 0, side: 74 });
+    const shifted = gapContrast(patch, { x: 22 + 74 / 6, y: 74 / 6, side: 74 });
+    expect(shifted).toBeLessThan(aligned);
   });
 });
