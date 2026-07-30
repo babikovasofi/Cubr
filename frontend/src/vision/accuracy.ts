@@ -91,8 +91,36 @@ function emptyConfusion(): Record<Face, Record<Face, number>> {
   return m;
 }
 
+/**
+ * Почему ячейка прочиталась именно так — по одной записи на все 54, в том же
+ * фиксированном порядке URFDLB.
+ *
+ * Одного «прочиталось U вместо F» мало: так выглядят сразу три разные болезни, и
+ * лечатся они по-разному. Пересвет — ячейка выбита в белое, `kept` мал. Плохая
+ * геометрия — ячейка села мимо, `kept` при этом большой (фон ровный), а ΔE до
+ * победителя мал. Слипшиеся эталоны — `kept` большой, но `margin` крошечный,
+ * второй кандидат дышит в затылок. Без этих трёх чисел отчёт заставляет гадать.
+ */
+export interface CellDiag {
+  /** Доля пикселей ячейки, выживших отбраковку блика/тени (0..1). */
+  kept: number;
+  /**
+   * Сам цвет ячейки. Нужен, когда до ближайшего эталона далеко: цифра ΔE говорит
+   * «это не цвет кубика», но не говорит, ЧТО это. Тёмно-оливковый — жёлтая грань
+   * в тени, лечится нормировкой света. Бежево-коричневый — столешница или рука,
+   * лечится геометрией. Разные болезни, одинаковое ΔE.
+   */
+  rgb: [number, number, number];
+  /** Ближайший эталон (он и есть сырое чтение) и ΔE до него. */
+  best: string;
+  bestDE: number;
+  /** Второй по близости эталон и ΔE до него. */
+  second: string;
+  secondDE: number;
+}
+
 /** Human-readable multi-line report string for printing to the page. */
-export function formatReport(rep: AccuracyReport): string {
+export function formatReport(rep: AccuracyReport, diags?: readonly CellDiag[]): string {
   const lines: string[] = [];
   lines.push(
     `Per-sticker accuracy: ${rep.correct}/${rep.total} = ${(rep.fraction * 100).toFixed(1)}% -> ${rep.pass ? "PASS" : "FAIL"} (gate >=${(config.ACCURACY_PASS_FRAC * 100).toFixed(0)}%)`,
@@ -109,10 +137,40 @@ export function formatReport(rep: AccuracyReport): string {
     lines.push("");
     lines.push("Mismatches:");
     for (const s of wrong) {
+      const d = diags?.[s.index];
+      const why = d
+        ? ` | RGB(${d.rgb.join(",")})` +
+          `, kept ${(d.kept * 100).toFixed(0)}%` +
+          `${d.kept < config.CELL_MIN_KEPT_FRAC ? " (ВЫБИТА)" : ""}` +
+          `, ΔE ${d.best} ${d.bestDE.toFixed(1)} / ${d.second} ${d.secondDE.toFixed(1)}` +
+          `, отрыв ${(d.secondDE - d.bestDE).toFixed(1)}` +
+          `${d.bestDE > config.STICKER_MAX_DELTA_E ? " (НЕ ЦВЕТ КУБИКА)" : ""}`
+        : "";
       lines.push(
-        `  ${s.face}[${s.cellInFace}] (idx ${s.index}): read ${s.read}, expected ${s.expected}`,
+        `  ${s.face}[${s.cellInFace}] (idx ${s.index}): read ${s.read}, expected ${s.expected}${why}`,
       );
     }
+  }
+  if (diags) {
+    const blown = diags.filter((d) => d.kept < config.CELL_MIN_KEPT_FRAC).length;
+    const tight = diags.filter((d) => d.secondDE - d.bestDE < config.STICKER_MARGIN_MIN).length;
+    const far = diags.filter((d) => d.bestDE > config.STICKER_MAX_DELTA_E).length;
+    // Медиана ΔE до ближайшего эталона по всем 54 — одно число про то, «попадает
+    // ли зрение вообще». У здорового чтения единицы, у больного — десятки.
+    const sorted = diags.map((d) => d.bestDE).sort((a, b) => a - b);
+    const medianDE = sorted.length
+      ? sorted.length % 2
+        ? sorted[(sorted.length - 1) / 2]
+        : (sorted[sorted.length / 2 - 1] + sorted[sorted.length / 2]) / 2
+      : 0;
+    lines.push("");
+    lines.push("Почему ошиблись (по всем 54 ячейкам):");
+    lines.push(
+      `  выбитых пересветом (kept < ${(config.CELL_MIN_KEPT_FRAC * 100).toFixed(0)}%): ${blown}`,
+    );
+    lines.push(`  без отрыва от второго кандидата (< ${config.STICKER_MARGIN_MIN}): ${tight}`);
+    lines.push(`  не похожих ни на один цвет кубика (ΔE > ${config.STICKER_MAX_DELTA_E}): ${far}`);
+    lines.push(`  медианный ΔE до ближайшего эталона: ${medianDE.toFixed(1)}`);
   }
   return lines.join("\n");
 }

@@ -11,7 +11,12 @@ import { useCamera, CameraError, type FrameInfo } from "../vision/hooks/useCamer
 import { cameraErrorRu } from "../vision/cameraErrors";
 import { useCubeReader } from "../vision/hooks/useCubeReader";
 import { useScramble } from "../scramble/hooks/useScramble";
-import { scoreRead, formatReport, type AccuracyReport } from "../vision/accuracy";
+import {
+  scoreRead,
+  formatReport,
+  type AccuracyReport,
+  type CellDiag,
+} from "../vision/accuracy";
 import {
   appendDrop,
   appendRead,
@@ -105,6 +110,9 @@ export function useAccuracySession(): AccuracySession {
   // Второй счёт того же чтения — продуктовым путём (нормировка света + квоты).
   // Гейт по нему НЕ считается: его планка стоит на сыром зрении.
   const [lastProductReport, setLastProductReport] = useState<AccuracyReport | null>(null);
+  // «Почему так прочиталось» по 54 ячейкам последнего чтения — идёт в отчёт рядом
+  // с промахами, чтобы пересвет, промах сетки и слипшиеся эталоны различались.
+  const [lastDiags, setLastDiags] = useState<CellDiag[] | null>(null);
   const lastReadKeyRef = useRef<ConditionKey | null>(null);
 
   // The accumulator lives in a ref (append* mutate in place); a version counter
@@ -220,6 +228,7 @@ export function useAccuracySession(): AccuracySession {
         lastReadKeyRef.current = conditionRef.current;
         setLastReport(report);
         setLastProductReport(productReport);
+        setLastDiags(r.cellDiags);
         setCaptureError(r.drifted ? `Чтение готово${driftNote(r.drifted)}` : null);
         bump();
         return;
@@ -240,6 +249,7 @@ export function useAccuracySession(): AccuracySession {
     undoRead(runRef.current, lastReadKeyRef.current, lastReport, "mis-scramble");
     lastReadKeyRef.current = null;
     setLastReport(null);
+    setLastDiags(null);
     bump();
   };
 
@@ -248,6 +258,7 @@ export function useAccuracySession(): AccuracySession {
     lastReadKeyRef.current = null;
     setLastReport(null);
     setLastProductReport(null);
+    setLastDiags(null);
     bump();
   };
 
@@ -255,7 +266,7 @@ export function useAccuracySession(): AccuracySession {
     const parts: string[] = [];
     if (lastReport) {
       parts.push("=== Последнее чтение (СЫРОЕ зрение — по нему гейт) ===");
-      parts.push(formatReport(lastReport));
+      parts.push(formatReport(lastReport, lastDiags ?? undefined));
       parts.push("");
     }
     if (lastProductReport) {

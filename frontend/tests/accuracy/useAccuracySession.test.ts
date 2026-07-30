@@ -7,7 +7,7 @@
 // invoked.
 
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { renderHook } from "@testing-library/react";
+import { renderHook, act } from "@testing-library/react";
 
 const { readerStub } = vi.hoisted(() => ({
   readerStub: {
@@ -70,5 +70,47 @@ describe("useAccuracySession — honesty barrier", () => {
     expect(readerStub.quickAdjust).not.toHaveBeenCalled();
     // Sanity: the session mounted and exposes its calibration surface.
     expect(result.current.calibrated).toBe(false);
+  });
+
+  // Диагностика ячеек нужна именно в отчёте: по нему разбирают, пересвет виноват,
+  // геометрия или слипшиеся эталоны. Если она не доезжает до буфера обмена, её
+  // как будто нет.
+  it("доносит поячеечную диагностику из съёмки в отчёт", async () => {
+    const grid = (c: string): string[] => Array.from({ length: 9 }, () => c);
+    const grids = (): string[][] => ["U", "R", "F", "D", "L", "B"].map(grid);
+    // Сырое чтение промахнулось в первой ячейке — иначе промахов нет и приписывать
+    // диагностику некуда.
+    const raw = grids();
+    raw[0][0] = "L";
+
+    readerStub.calibrated = true;
+    readerStub.collectingAccuracy = true;
+    readerStub.pushAccuracyFace.mockResolvedValue({
+      kind: "complete",
+      rawFaceGrids: raw,
+      productFaceGrids: grids(),
+      // Первая ячейка прочиталась мимо и выбита пересветом — ровно то, что
+      // отчёт должен показать словами, а не оставить на догадки.
+      cellDiags: Array.from({ length: 54 }, (_, i) =>
+        i === 0
+          ? { rgb: [210, 150, 120], kept: 0.04, best: "L", bestDE: 7, second: "U", secondDE: 9 }
+          : { rgb: [235, 238, 236], kept: 0.9, best: "U", bestDE: 2, second: "D", secondDE: 40 },
+      ),
+      resolved: null,
+    });
+
+    const { result } = renderHook(() => useAccuracySession());
+    await act(async () => result.current.setMode("solved"));
+    // В тесте камера не смонтирована, а без video съёмка выходит на первой строке.
+    result.current.videoRef.current = {} as HTMLVideoElement;
+    // Первое нажатие только начинает чтение, съёмку делает второе.
+    await act(async () => {
+      await result.current.captureFace();
+    });
+
+    const out = result.current.buildExport();
+    expect(out).toContain("kept 4% (ВЫБИТА)");
+    expect(out).toContain("Почему ошиблись");
+    expect(out).toContain("выбитых пересветом");
   });
 });

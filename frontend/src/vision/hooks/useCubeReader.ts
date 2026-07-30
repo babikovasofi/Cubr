@@ -25,6 +25,7 @@ import { config, squareGuidePx, type Rect } from "../config";
 import { fitFaceRegion } from "../faceFit";
 import { assignFacesByCenter, resolveRotations, lenientVerify } from "../cubeGrid";
 import { diffFacelets, validateFacelets, type Face, type Facelet } from "../cubeState";
+import { type CellDiag } from "../accuracy";
 
 export interface FaceSample {
   rgb: RGB[]; // 9 median RGBs, grid order 0..8 (row-major, TL..BR)
@@ -303,6 +304,7 @@ export type AccuracyCapture =
       kind: "complete";
       rawFaceGrids: Face[][]; // 6 × 9 сырое чтение в фиксированном порядке URFDLB
       productFaceGrids: Face[][]; // то же, но продуктовым путём (нормировка + квоты)
+      cellDiags: CellDiag[]; // 54 записи «почему так прочиталось», тот же порядок
       resolved: Facelet | null; // informational legality-resolve (NOT scored)
       resolveReason?: ResolveReason;
       drifted?: { face: Face; de: number }; // last face drifted > threshold (advisory, not a block)
@@ -396,6 +398,33 @@ async function readFaceBurst(
   // ячейку, ни притвориться, что всё хорошо.
   const kept = rgb.map((_, i) => median(shots.map((s) => s.kept[i] ?? 0)));
   return { rgb, lab: rgb.map((c) => rgb2lab(c)), kept };
+}
+
+/**
+ * «Почему так прочиталось» по всем 54 ячейкам: доля выживших пикселей, ближайший
+ * эталон и второй за ним. Считается по тем же сэмплам, что дали сырое чтение, —
+ * иначе диагностика описывала бы не то чтение, которое попало в гейт.
+ */
+function cellDiagnostics(faces: FaceSample[], refs: Refs): CellDiag[] {
+  const out: CellDiag[] = [];
+  for (const face of faces) {
+    for (let c = 0; c < 9; c++) {
+      const ranked = COLOR_NAMES.map((name) => ({
+        name: name as string,
+        de: deltaE(face.lab[c], refs[name]),
+      })).sort((a, b) => a.de - b.de);
+      const [r, g, b] = face.rgb[c];
+      out.push({
+        rgb: [r, g, b],
+        kept: face.kept[c] ?? 0,
+        best: ranked[0].name,
+        bestDE: ranked[0].de,
+        second: ranked[1].name,
+        secondDE: ranked[1].de,
+      });
+    }
+  }
+  return out;
 }
 
 /** Stateful reader bound to a work-canvas ref. */
@@ -634,6 +663,7 @@ export function useCubeReader(workRef: React.RefObject<HTMLCanvasElement | null>
       kind: "complete",
       rawFaceGrids,
       productFaceGrids,
+      cellDiags: cellDiagnostics(faces, refs),
       resolved,
       resolveReason: reason,
       drifted,
