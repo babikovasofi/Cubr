@@ -54,6 +54,14 @@ export const CAPTURE_HINTS: { face: string; ru: string }[] = [
   { face: "B", ru: "В камеру — грань с СИНИМ центром. Наверху центр белый." },
 ];
 
+// При свободной хватке ориентация не задана — просить «наверху центр белый»
+// значит требовать того, что режим только что разрешил не соблюдать.
+function hintFor(step: number, grip: string): string {
+  const hint = CAPTURE_HINTS[Math.min(step, 5)];
+  if (grip !== "free") return hint.ru;
+  return `${hint.ru.split(".")[0]}. Держи как удобно — ориентация не важна.`;
+}
+
 function pct(x: number): string {
   return `${(x * 100).toFixed(1)}%`;
 }
@@ -79,7 +87,7 @@ export default function AccuracyControls({ session }: AccuracyControlsProps) {
   }
 
   const captureStep = session.collectingAccuracy ? session.accFacesLength : 0;
-  const hint = CAPTURE_HINTS[Math.min(captureStep, 5)];
+  const hint = hintFor(captureStep, session.grip);
 
   return (
     <div className="flex flex-col gap-5">
@@ -129,6 +137,33 @@ export default function AccuracyControls({ session }: AccuracyControlsProps) {
             Эталон — собранный кубик (SOLVED). Санити-проверка, адъяцентности не тестит.
           </p>
         )}
+      </section>
+
+      {/* Grip */}
+      <section className="flex flex-col gap-2 rounded-lg border border-line bg-surface p-4">
+        <span className="font-sans text-overline uppercase text-muted">Хватка</span>
+        <div className="flex gap-2" role="radiogroup" aria-label="Хватка">
+          {(["fixed", "free"] as const).map((g) => (
+            <button
+              key={g}
+              type="button"
+              role="radio"
+              aria-checked={session.grip === g}
+              onClick={() => session.setGrip(g)}
+              className={[
+                "h-9 rounded-full border-2 border-ink px-3.5 font-sans text-small font-bold",
+                session.grip === g ? "bg-primary text-white" : "bg-surface-2 text-ink",
+              ].join(" ")}
+            >
+              {g === "fixed" ? "Строгая (ориентация фиксирована)" : "Свободная (верти как удобно)"}
+            </button>
+          ))}
+        </div>
+        <p className="font-sans text-small text-muted">
+          {session.grip === "fixed"
+            ? "Порядок и ориентация заданы протоколом; счёт позиционный по всем 54 наклейкам."
+            : "Грань опознаётся по центру, центры из счёта исключены, внутри грани сравниваются цвета без учёта поворота (48 наклеек). Цена: перестановка наклеек ВНУТРИ грани не видна — это ошибка геометрии, её ловит строгая хватка."}
+        </p>
       </section>
 
       {/* Condition tag */}
@@ -222,7 +257,7 @@ export default function AccuracyControls({ session }: AccuracyControlsProps) {
             : "Нажми, чтобы начать чтение."}
         </p>
         {session.collectingAccuracy ? (
-          <p className="font-sans text-small font-bold text-ink">{hint.ru}</p>
+          <p className="font-sans text-small font-bold text-ink">{hint}</p>
         ) : null}
         <div className="flex flex-wrap gap-2">
           <Button
@@ -283,7 +318,7 @@ export default function AccuracyControls({ session }: AccuracyControlsProps) {
                   return (
                     <tr key={id} className="border-t border-line">
                       <td className="p-1 text-ink">
-                        {c.key.mode || "?"}/{c.key.light || "?"}/{c.key.cube || "?"}/
+                        {c.key.mode || "?"}/{c.key.grip || "?"}/{c.key.light || "?"}/{c.key.cube || "?"}/
                         {c.key.person || "?"}
                       </td>
                       <td className="p-1 text-ink">{pct(c.fraction)}</td>
@@ -312,7 +347,8 @@ export default function AccuracyControls({ session }: AccuracyControlsProps) {
 
         {gate.min ? (
           <p className="font-sans text-small text-muted">
-            Худшее условие: {gate.min.key.mode || "?"}/{gate.min.key.light || "?"}/
+            Худшее условие: {gate.min.key.mode || "?"}/{gate.min.key.grip || "?"}/
+            {gate.min.key.light || "?"}/
             {gate.min.key.cube || "?"} — Wilson-LB {pct(gate.min.wilsonLower)}. Всего дропов:{" "}
             {totalDrops}.
           </p>
@@ -382,7 +418,7 @@ function reportPreview(session: AccuracySession): string {
     const v = conditionVerdict(acc);
     const hs = hotspots(acc);
     lines.push(
-      `  ${c.key.mode}/${c.key.light}/${c.key.cube}: Wilson-LB ${pct(v.wilsonLower)} · ` +
+      `  ${c.key.mode}/${c.key.grip}/${c.key.light}/${c.key.cube}: Wilson-LB ${pct(v.wilsonLower)} · ` +
         `R↔L ${hs.redOrange.total}/N${hs.redOrange.n} · U↔D ${hs.whiteYellow.total}/N${hs.whiteYellow.n}`,
     );
   }

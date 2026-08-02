@@ -36,6 +36,7 @@ function corrupt(truth: Facelet, indices: number[]): Facelet {
 
 const COND: ConditionKey = {
   mode: "scramble",
+  grip: "fixed",
   light: "день",
   cube: "стикерный",
   person: "A",

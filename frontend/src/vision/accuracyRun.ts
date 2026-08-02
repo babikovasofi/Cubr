@@ -48,6 +48,7 @@ export type DropReason =
   | "unreadable" // luma/refs gate failed
   | "drift" // a captured face center drifted from calibration
   | "illegal" // assembled read is not a legal cube
+  | "assign" // два захвата опознались одной гранью по центру (свободная хватка)
   | "ambiguous" // rotation resolve was ambiguous
   | "resolve" // rotation resolve failed
   | "mis-scramble" // tester applied the wrong scramble (manual exclusion)
@@ -62,6 +63,7 @@ export const DROP_REASONS: readonly DropReason[] = [
   "unreadable",
   "drift",
   "illegal",
+  "assign",
   "ambiguous",
   "resolve",
   "mis-scramble",
@@ -81,6 +83,16 @@ export interface ConditionKey {
    * молча вытягивал средний результат.
    */
   mode: string;
+  /**
+   * Хватка: "fixed" — фиксированный порядок и ориентация (строгий позиционный
+   * счёт), "free" — кубик разрешено вертеть, грань определяется по центру, а
+   * внутри грани сравниваются мультимножества цветов (см. accuracy.scoreFreeGrip).
+   *
+   * Тоже ОСЬ, а не пометка, и по той же причине, что и mode: свободная хватка
+   * слепа к перестановке наклеек ВНУТРИ грани, строгая — нет. Числа двух режимов
+   * измеряют разное, поэтому смешивать их в одном условии нельзя.
+   */
+  grip: string;
   light: string; // e.g. "день", "тёплый ЛН", "холодный LED"
   cube: string; // e.g. "стикерный", "stickerless"
   person: string; // tester id/name
@@ -172,7 +184,7 @@ export function looksSolvedRead(faceGrids: Face[][]): boolean {
 // --- Accumulator -------------------------------------------------------------
 
 export function condKeyString(k: ConditionKey): string {
-  return `${k.mode}|${k.light}|${k.cube}|${k.person}|${k.calib}`;
+  return `${k.mode}|${k.grip}|${k.light}|${k.cube}|${k.person}|${k.calib}`;
 }
 
 function emptyConfusion(): Record<Face, Record<Face, number>> {
@@ -330,7 +342,7 @@ export function runHotspots(run: AccuracyRun): {
   const [ro0, ro1] = HOTSPOT_PAIRS.redOrange;
   const [wy0, wy1] = HOTSPOT_PAIRS.whiteYellow;
   const merged: ConditionAcc = {
-    key: { mode: "", light: "", cube: "", person: "", calib: "" },
+    key: { mode: "", grip: "", light: "", cube: "", person: "", calib: "" },
     confusion: emptyConfusion(),
     correct: 0,
     total: 0,
@@ -376,14 +388,14 @@ export function formatRunSummary(
     return lines.join("\n");
   }
   lines.push("");
-  lines.push("Условия (эталон | свет | кубик | человек | калибровка):");
+  lines.push("Условия (эталон | хватка | свет | кубик | человек | калибровка):");
   for (const c of gate.conditions) {
     const k = c.key;
     const flags: string[] = [];
     if (!c.enoughReads) flags.push(`нужно ≥${MIN_READS} чтений`);
     if (c.dropRate > MAX_DROP_RATE) flags.push(`drop ${pct(c.dropRate)} > ${pct(MAX_DROP_RATE)}`);
     lines.push(
-      `  [${c.pass ? "PASS" : "FAIL"}] ${k.mode} | ${k.light} | ${k.cube} | ${k.person} | ${k.calib}: ` +
+      `  [${c.pass ? "PASS" : "FAIL"}] ${k.mode} | ${k.grip} | ${k.light} | ${k.cube} | ${k.person} | ${k.calib}: ` +
         `${pct(c.fraction)} (Wilson-LB ${pct(c.wilsonLower)}), ` +
         `n=${c.nScored}, drop=${c.nDropped} (${pct(c.dropRate)})` +
         // Гистограмма причин копилась с первого дня и никуда не печаталась.
@@ -398,7 +410,7 @@ export function formatRunSummary(
     const m = gate.min;
     lines.push("");
     lines.push(
-      `Худшее условие: ${m.key.mode} | ${m.key.light} | ${m.key.cube} | ${m.key.person} — ` +
+      `Худшее условие: ${m.key.mode} | ${m.key.grip} | ${m.key.light} | ${m.key.cube} | ${m.key.person} — ` +
         `Wilson-LB ${pct(m.wilsonLower)}`,
     );
   }

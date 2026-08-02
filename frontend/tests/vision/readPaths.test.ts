@@ -23,7 +23,13 @@ function solvedSamples(gain?: [number, number, number]) {
     const rgb = Array.from({ length: 9 }, () =>
       gain ? applyLightGain(REF_RGB[name], gain) : REF_RGB[name],
     );
-    return { rgb, lab: rgb.map((c) => rgb2lab(c)), kept: Array(9).fill(1) };
+    return {
+      rgb,
+      lab: rgb.map((c) => rgb2lab(c)),
+      kept: Array(9).fill(1),
+      // Телеметрия подгонки на синтетике: сетка ложится по рамке, решётки нет.
+      fit: { gain: 0, used: false, gap: 0 },
+    };
   });
 }
 

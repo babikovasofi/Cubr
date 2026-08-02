@@ -13,6 +13,7 @@ import { useCubeReader } from "../vision/hooks/useCubeReader";
 import { useScramble } from "../scramble/hooks/useScramble";
 import {
   scoreRead,
+  scoreFreeGrip,
   formatReport,
   type AccuracyReport,
   type CellDiag,
@@ -41,6 +42,13 @@ import {
 } from "../vision/colors";
 
 export type AccuracyMode = "scramble" | "solved";
+/**
+ * Хватка. "fixed" — протокольная: фиксированный порядок захвата И фиксированная
+ * ориентация, строгий позиционный счёт. "free" — кубик разрешено вертеть: грань
+ * опознаётся по центру, внутри грани сравниваются мультимножества цветов.
+ * Подробности и цена — в accuracy.scoreFreeGrip.
+ */
+export type AccuracyGrip = "fixed" | "free";
 
 export interface AccuracySession {
   videoRef: React.RefObject<HTMLVideoElement | null>;
@@ -53,6 +61,8 @@ export interface AccuracySession {
   // Mode + ground truth.
   mode: AccuracyMode;
   setMode: (m: AccuracyMode) => void;
+  grip: AccuracyGrip;
+  setGrip: (g: AccuracyGrip) => void;
   scramble: string;
   moves: string[];
   scrambleLoading: boolean;
@@ -109,8 +119,10 @@ export function useAccuracySession(): AccuracySession {
 
   const [cameraError, setCameraError] = useState<string | null>(null);
   const [mode, setModeState] = useState<AccuracyMode>("scramble");
+  const [grip, setGripState] = useState<AccuracyGrip>("fixed");
   const [condition, setConditionState] = useState<ConditionKey>({
     mode: "scramble",
+    grip: "fixed",
     light: "",
     cube: "",
     person: "",
@@ -149,6 +161,13 @@ export function useAccuracySession(): AccuracySession {
   const setMode = (m: AccuracyMode): void => {
     setModeState(m);
     setCondition({ mode: m });
+  };
+
+  // Хватка — часть ключа условия ровно по той же причине, что и режим эталона:
+  // свободная и строгая меряют разное, смешивать их числа нельзя.
+  const setGrip = (g: AccuracyGrip): void => {
+    setGripState(g);
+    setCondition({ grip: g });
   };
 
   // Guide-only overlay: draw the yellow capture frame + its U-edge marker. No
@@ -274,6 +293,31 @@ export function useAccuracySession(): AccuracySession {
         // никогда — выравнивание, подобранное под ответ, и есть тот самый
         // survivorship bias, ради запрета которого порядок захвата зафиксирован.
         const lenient = lenientVerify(r.rawFaceGrids, [...CAPTURE_ORDER], truth);
+        setLastLenient(lenient);
+
+        // Свободная хватка: грань опознаётся по центру, внутри грани цвета
+        // сравниваются мультимножествами, центры из счёта исключены. Ориентация
+        // тут не нарушение, а разрешённое условие, поэтому замок ниже не про неё.
+        if (grip === "free") {
+          const free = scoreFreeGrip(r.rawFaceGrids, truth);
+          if (free.kind === "assign-conflict") {
+            setCaptureError(`Грани не опознаны по центрам: ${free.reason}.`);
+            appendDrop(runRef.current, conditionRef.current, "assign");
+            bump();
+            return;
+          }
+          const freeProduct = scoreFreeGrip(r.productFaceGrids, truth);
+          appendRead(runRef.current, conditionRef.current, free.report);
+          lastReadKeyRef.current = conditionRef.current;
+          setLastReport(free.report);
+          setLastProductReport(freeProduct.kind === "ok" ? freeProduct.report : null);
+          setLastDiags(r.cellDiags);
+          setLastFits(r.fitDiags);
+          setCaptureError(r.drifted ? `Чтение готово${driftNote(r.drifted)}` : null);
+          bump();
+          return;
+        }
+
         const strictWrong = 54 - scoreRead(assembleRawRead(r.rawFaceGrids), truth).correct;
         // Почти идеальное совпадение при развале по фиксированному выравниванию
         // значит одно: цвета прочитаны верно, а кубик держали иначе. Зрение тут
@@ -292,7 +336,6 @@ export function useAccuracySession(): AccuracySession {
         const raw = assembleRawRead(r.rawFaceGrids);
         const report = scoreRead(raw, truth);
         const productReport = scoreRead(assembleRawRead(r.productFaceGrids), truth);
-        setLastLenient(lenient);
         appendRead(runRef.current, conditionRef.current, report);
         lastReadKeyRef.current = conditionRef.current;
         setLastReport(report);
@@ -409,6 +452,8 @@ export function useAccuracySession(): AccuracySession {
     startCamera,
     mode,
     setMode,
+    grip,
+    setGrip,
     scramble: scramble.scramble,
     moves: scramble.moves,
     scrambleLoading: scramble.loading,

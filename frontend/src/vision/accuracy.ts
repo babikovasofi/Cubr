@@ -78,6 +78,131 @@ export function scoreRead(
   };
 }
 
+/**
+ * Счёт при СВОБОДНОЙ ХВАТКЕ: кубик разрешено вертеть как удобно, показывая
+ * нужный центр любой стороной вверх.
+ *
+ * Зачем. Строгий счёт требует фиксированного выравнивания, потому что выводить
+ * его из чтения — циркулярность. Но живой прогон дал 54/54 «с точностью до
+ * поворота» при 33% строгих: зрение было идеально, а мерили хватку. Держать
+ * ориентацию двадцать чтений подряд × три света × два кубика — работа, которая
+ * к R1 отношения не имеет.
+ *
+ * Как это остаётся честным:
+ *
+ *  1. Какая грань показана, решает ЦЕНТР — данные, а не подгонка под ответ.
+ *     Ошибся центр — вся грань уезжает в чужой слот и разваливается, то есть
+ *     ошибка наказывается, а не прощается. Центры при этом ИЗ СЧЁТА ИСКЛЮЧЕНЫ:
+ *     иначе шесть наклеек были бы верны по построению, +11% из воздуха.
+ *  2. Внутри грани сравниваются МУЛЬТИМНОЖЕСТВА восьми не-центральных цветов, а
+ *     не позиции. Поворот грани мультимножество не меняет, поэтому подбирать
+ *     поворот (а значит, подгонять под ответ) не приходится вовсе.
+ *
+ * Чем платим, прямым текстом: перестановка двух наклеек ВНУТРИ грани невидима —
+ * мультимножество то же. Это ошибка геометрии, не цвета; её ловят строгий режим
+ * и телеметрия подгонки сетки. Поэтому свободная хватка — отдельная ось условия,
+ * её числа не смешиваются со строгими.
+ *
+ * Какая ячейка объявлена промахом при повторяющихся цветах, зависит от порядка
+ * обхода (побеждают первые) — КОЛИЧЕСТВО при этом точное. Пары «прочитано →
+ * ожидалось» для матрицы путаницы собираются зипом остатков в каноническом
+ * порядке: внутри грани это приближение, счёт верных — нет.
+ */
+export type FreeGripScore =
+  | { kind: "assign-conflict"; reason: string }
+  | { kind: "ok"; report: AccuracyReport; faceOf: Face[] };
+
+export function scoreFreeGrip(
+  faceGrids: Face[][],
+  expected: Facelet,
+  passFrac: number = config.ACCURACY_PASS_FRAC,
+): FreeGripScore {
+  if (faceGrids.length !== 6 || faceGrids.some((g) => g.length !== 9)) {
+    return { kind: "assign-conflict", reason: "нужно ровно 6 граней по 9 ячеек" };
+  }
+  // (a) Кто есть кто — по центру каждой съёмки.
+  const faceOf = faceGrids.map((g) => g[4]);
+  const counts: Record<string, number> = {};
+  for (const f of faceOf) counts[f] = (counts[f] ?? 0) + 1;
+  for (const f of FACE_ORDER) {
+    if (counts[f] !== 1) {
+      return {
+        kind: "assign-conflict",
+        reason: `центр грани ${f} встретился ${counts[f] ?? 0} раз вместо одного — показаны не все шесть граней или центр прочитан неверно`,
+      };
+    }
+  }
+
+  const slotOf: Record<Face, number> = { U: 0, R: 1, F: 2, D: 3, L: 4, B: 5 };
+  const stickers: StickerResult[] = [];
+  const confusion = emptyConfusion();
+  let correct = 0;
+  let total = 0;
+
+  for (let cap = 0; cap < 6; cap++) {
+    const face = faceOf[cap];
+    const exp = expected.slice(slotOf[face] * 9, slotOf[face] * 9 + 9).split("") as Face[];
+    // (b) Бюджет цветов грани — восемь не-центральных наклеек эталона.
+    const budget: Record<string, number> = {};
+    for (let j = 0; j < 9; j++) {
+      if (j === 4) continue;
+      budget[exp[j]] = (budget[exp[j]] ?? 0) + 1;
+    }
+    const wrongCells: number[] = [];
+    for (let j = 0; j < 9; j++) {
+      if (j === 4) continue; // центр — ключ выравнивания, в счёт не идёт
+      total += 1;
+      const read = faceGrids[cap][j];
+      if ((budget[read] ?? 0) > 0) {
+        budget[read] -= 1;
+        correct += 1;
+        // Диагональ матрицы нужна и здесь: hotspots считают долю ошибок от
+        // ЭКСПОЗИЦИИ (сколько наклеек этого цвета вообще было), а экспозиция
+        // берётся из матрицы. Без верных ячеек знаменатель был бы только из
+        // промахов, и red↔orange показывал бы 100%.
+        confusion[read][read] += 1;
+        stickers.push({
+          index: cap * 9 + j,
+          face,
+          cellInFace: j,
+          read,
+          expected: read,
+          correct: true,
+        });
+      } else {
+        wrongCells.push(j);
+      }
+    }
+    // Остаток бюджета — цвета, которых грани не хватило; зипуем с промахами.
+    const missing: Face[] = [];
+    for (const f of FACE_ORDER) {
+      for (let k = 0; k < (budget[f] ?? 0); k++) missing.push(f);
+    }
+    for (let m = 0; m < wrongCells.length; m++) {
+      const j = wrongCells[m];
+      const read = faceGrids[cap][j];
+      const exp1 = missing[m] ?? read;
+      stickers.push({
+        index: cap * 9 + j,
+        face,
+        cellInFace: j,
+        read,
+        expected: exp1,
+        correct: false,
+      });
+      confusion[exp1][read] += 1;
+    }
+  }
+
+  stickers.sort((a, b) => a.index - b.index);
+  const fraction = total > 0 ? correct / total : 0;
+  return {
+    kind: "ok",
+    faceOf,
+    report: { total, correct, fraction, pass: fraction >= passFrac, stickers, confusion },
+  };
+}
+
 function isFace(c: string): boolean {
   return (FACE_ORDER as readonly string[]).includes(c);
 }
