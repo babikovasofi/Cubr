@@ -150,7 +150,7 @@ export default function ScrambleWalkthrough({
   return (
     <div className="flex flex-col gap-4">
       <p className="rounded-md border border-line bg-surface-2 px-3.5 py-2 font-sans text-small font-bold text-ink">
-        {t("Ориентация: белый верх, зелёный к себе.")}
+        {t("Ориентация: белый центр вверх, зелёный центр к себе.")}
       </p>
 
       {error ? (

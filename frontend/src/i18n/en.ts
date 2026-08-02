@@ -392,7 +392,8 @@ export const EN: Record<string, string> = {
   Нотация: "Notation",
   "Мини-карта ходов": "Move minimap",
   "3D-модель кубика на текущем шаге": "3D cube model at the current step",
-  "Ориентация: белый верх, зелёный к себе.": "Orientation: white on top, green facing you.",
+  "Ориентация: белый центр вверх, зелёный центр к себе.":
+    "Orientation: white centre on top, green centre facing you.",
 
   // дуэль
   "Подключаюсь к дуэли…": "Connecting to the duel…",
