@@ -25,6 +25,7 @@ import {
 import { quickAdjust as colorsQuickAdjust } from "../quickAdjust";
 import { config, squareGuidePx, type Rect } from "../config";
 import { fitFaceRegion, gapContrast } from "../faceFit";
+import { notACubeFaceRu } from "../guide";
 import { assignFacesByCenter, resolveRotations, lenientVerify } from "../cubeGrid";
 import { diffFacelets, validateFacelets, type Face, type Facelet } from "../cubeState";
 import { type CellDiag, type FaceFitDiag } from "../accuracy";
@@ -233,6 +234,25 @@ export function explainFace(labs: Lab[], refs: Refs, kept: number[]): string {
   return parts.length ? parts.join("; ") : "цвета читаются, но неустойчиво";
 }
 
+/**
+ * Медиана ΔE до БЛИЖАЙШЕГО эталона по девяти ячейкам — «похоже ли это вообще на
+ * грань кубика».
+ *
+ * Считать ОБЯЗАТЕЛЬНО по сырым цветам, до normalizeFaceByCenter. Нормировка
+ * тянет грань за её собственный центр к эталону того цвета, к которому центр
+ * оказался ближе: серый стол едет к белому и превращается в уверенную белую
+ * грань 9/9. Именно так живой прогон записал стол как грань U — нормировка не
+ * ошиблась, она стёрла улику, а порог уверенности смотрел уже на результат.
+ *
+ * Отличается от `confidentCells` тем, что меряет: тот спрашивает «различимы ли
+ * шесть цветов между собой» (отрыв второго кандидата), этот — «принадлежит ли
+ * цвет кубику вообще». Ровный фон проходит первый вопрос и валится на втором.
+ */
+export function faceMedianDE(labs: Lab[], refs: Refs): number {
+  if (labs.length === 0) return 0;
+  return median(labs.map((lab) => stickerConfidence(lab, refs).d));
+}
+
 /** Сколько ячеек грани прочитаны уверенно (см. config.STICKER_*). */
 export function confidentCells(labs: Lab[], refs: Refs, kept: number[]): number {
   let n = 0;
@@ -311,7 +331,11 @@ function resolveSixFaces(samples: FaceSample[], refs: Refs): SixFaceResolve {
 // harness to assemble + score against an INDEPENDENT ground truth.
 export type AccuracyCapture =
   | { kind: "pending"; facesLength: number; drifted?: { face: Face; de: number } }
-  | { kind: "unreadable"; diag?: string } // luma/refs gate failed или чтение неуверенное
+  // luma/refs gate failed или чтение неуверенное. `reason: "not-a-face"` —
+  // отдельный случай: сняли не кубик. Он не портит уже снятые грани и лечится
+  // одним действием, поэтому вызывающий переспрашивает ЭТУ грань, а не бракует
+  // всё чтение.
+  | { kind: "unreadable"; diag?: string; reason?: "not-a-face" }
   | {
       kind: "complete";
       rawFaceGrids: Face[][]; // 6 × 9 сырое чтение в фиксированном порядке URFDLB
@@ -338,7 +362,7 @@ export type VerifyResult =
   | { kind: "ok" }
   | { kind: "mismatch"; face: string; count: number }
   | { kind: "illegal" } // read is not a legal cube
-  | { kind: "unreadable"; diag?: string } // свет/резкость/уверенность — diag объясняет что именно
+  | { kind: "unreadable"; diag?: string; reason?: "not-a-face" } // свет/резкость/уверенность/не кубик — diag объясняет что именно
   | { kind: "assign" } // two faces classified to the same center
   | { kind: "ambiguous" } // multiple legal rotations
   | { kind: "resolve" }; // no legal rotation combo
@@ -598,6 +622,16 @@ export function useCubeReader(workRef: React.RefObject<HTMLCanvasElement | null>
     // поэтому применяется и в гейте точности тоже.
     const face = await readFaceBurst(video, work, refs);
 
+    // Первым делом — «а кубик ли это». Замок безусловный и без счётчика попыток,
+    // в отличие от порога уверенности ниже: там камера говорит «не уверена» и
+    // человеку нечего с этим сделать, поэтому после нескольких отказов грань
+    // принимается; здесь ему есть что сделать — навести рамку на кубик, — и
+    // молчаливый приём фона отравил бы чтение целиком.
+    const medianDE = faceMedianDE(face.lab, refs);
+    if (medianDE > config.FACE_MAX_MEDIAN_DE) {
+      return { kind: "unreadable", diag: notACubeFaceRu(medianDE), reason: "not-a-face" };
+    }
+
     // Пер-грань нормировка света по своему центру + порог уверенности. Грань,
     // прочитанную наугад (мало отрыва до второго цвета, блик съел ячейку),
     // честнее переспросить — но не бесконечно: после
@@ -683,6 +717,16 @@ export function useCubeReader(workRef: React.RefObject<HTMLCanvasElement | null>
     const faceIndex = accCollectorRef.current.length;
     const expectedColor = COLOR_NAMES[faceIndex];
     const face = await readFaceBurst(video, work, refs);
+
+    // Тот же безусловный замок, что и в продуктовом пути. Здесь он важнее вдвое:
+    // харнесс скорит СЫРОЕ чтение, и снятый вместо грани стол уходит прямо в
+    // числа гейта — девять ячеек фона выглядят как девять ошибок зрения, хотя
+    // зрение их не делало. Отказ = дроп с причиной, дропы учтены протоколом.
+    const medianDE = faceMedianDE(face.lab, refs);
+    if (medianDE > config.FACE_MAX_MEDIAN_DE) {
+      return { kind: "unreadable", diag: notACubeFaceRu(medianDE), reason: "not-a-face" };
+    }
+
     const de = deltaE(face.lab[4], refs[expectedColor]);
     // Drift is ADVISORY, not a block: on a real webcam the center can legitimately
     // drift > CENTER_DRIFT_DE (auto-WB/exposure) and refusing the capture just stops

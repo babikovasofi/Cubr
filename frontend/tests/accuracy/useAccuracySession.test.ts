@@ -125,4 +125,32 @@ describe("useAccuracySession — honesty barrier", () => {
     expect(out).toContain("Подгонка сетки");
     expect(out).toContain("откатов на рамку: 2 из 6");
   });
+
+  // Промах наводки на одной грани не должен стоить целого чтения: остальные
+  // грани сняты честно и лежат в коллекторе. Если бы харнесс бросал всё в дроп,
+  // за двадцать чтений тестировщик потерял бы больше времени на пересъёмку, чем
+  // на сам замер, — и это при том, что камера сама сказала, что делать.
+  it("«сняли не кубик» не бракует чтение и не пишет дроп", async () => {
+    readerStub.calibrated = true;
+    readerStub.collectingAccuracy = true;
+    readerStub.pushAccuracyFace.mockResolvedValue({
+      kind: "unreadable",
+      reason: "not-a-face",
+      diag: "В рамке не грань кубика: медиана ΔE 20.6",
+    });
+    readerStub.resetAccuracy.mockClear();
+
+    const { result } = renderHook(() => useAccuracySession());
+    await act(async () => result.current.setMode("solved"));
+    result.current.videoRef.current = {} as HTMLVideoElement;
+    await act(async () => {
+      await result.current.captureFace();
+    });
+
+    expect(result.current.captureError).toContain("не грань кубика");
+    // Ни «повтори грань» поверх собственного объяснения, ни сброса коллектора.
+    expect(result.current.captureError).not.toContain("Грань не прочиталась");
+    expect(readerStub.resetAccuracy).not.toHaveBeenCalled();
+    expect(result.current.buildExport()).not.toContain("unreadable");
+  });
 });

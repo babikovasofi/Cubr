@@ -232,6 +232,14 @@ export function useAccuracySession(): AccuracySession {
         setCaptureError(r.drifted ? `Снято${driftNote(r.drifted)}` : null);
         return;
       case "unreadable":
+        // «Сняли не кубик» — не брак чтения, а промах наводки на ОДНОЙ грани:
+        // уже снятые грани целы, лечится повтором этой грани. Бросать всё
+        // чтение в дроп значило бы наказывать тестировщика за подсказку камеры
+        // — за двадцать чтений это выгонит его с харнесса.
+        if (r.reason === "not-a-face") {
+          setCaptureError(r.diag ?? faceUnreadableRu());
+          return;
+        }
         setCaptureError(r.diag ? `${faceUnreadableRu()} (${r.diag})` : faceUnreadableRu());
         appendDrop(runRef.current, conditionRef.current, "unreadable");
         reader.resetAccuracy();

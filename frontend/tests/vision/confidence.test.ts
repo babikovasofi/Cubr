@@ -3,8 +3,12 @@
 // грань надо переспросить, а не тащить сомнительный цвет в сборку кубика.
 
 import { describe, it, expect } from "vitest";
-import { confidentCells, stickerConfidence } from "../../src/vision/hooks/useCubeReader";
-import { rgb2lab, type Refs, type RGB } from "../../src/vision/colors";
+import {
+  confidentCells,
+  faceMedianDE,
+  stickerConfidence,
+} from "../../src/vision/hooks/useCubeReader";
+import { normalizeFaceByCenter, rgb2lab, type Refs, type RGB } from "../../src/vision/colors";
 import { config } from "../../src/vision/config";
 
 const REF_RGB: Record<string, RGB> = {
@@ -56,5 +60,65 @@ describe("confidentCells", () => {
     // «прилипает» — ровно случай «рамка съехала с кубика».
     labs[0] = rgb2lab([88, 84, 90]);
     expect(confidentCells(labs, REFS, ALL_KEPT)).toBe(8);
+  });
+});
+
+// Живой отказ 2026-08-03 (LED, монолитный кубик, /accuracy): вместо зелёной
+// грани в рамку попал стол. Числа ниже — из отчёта того прогона, не выдуманные.
+describe("faceMedianDE — «в рамке вообще не кубик»", () => {
+  // Шесть эталонов ровно те, что сняла камера в живом прогоне.
+  const LIVE_REFS: Refs = {
+    U: [88, -3, -7],
+    R: [47, 61, 42],
+    F: [57, -53, 31],
+    D: [84, -16, 72],
+    L: [70, 39, 42],
+    B: [35, 20, -57],
+  };
+  // Девять ячеек стола: нейтральный серо-бежевый, R даже чуть больше G — зелёная
+  // грань в тени так выглядеть не может.
+  const TABLE: RGB[] = [
+    [164, 158, 148],
+    [159, 156, 145],
+    [159, 156, 144],
+    [160, 164, 148],
+    [156, 159, 144],
+    [158, 157, 141],
+    [162, 161, 148],
+    [164, 163, 144],
+    [157, 158, 140],
+  ];
+
+  it("стол вместо грани ловится с запасом над порогом", () => {
+    const de = faceMedianDE(TABLE.map(rgb2lab), LIVE_REFS);
+    // В отчёте живого прогона было 20.6.
+    expect(de).toBeGreaterThan(config.FACE_MAX_MEDIAN_DE);
+    expect(de).toBeGreaterThan(19);
+  });
+
+  // Замок обязан оставлять здоровой грани большой запас, иначе он выключит гейт
+  // вместо того, чтобы его защитить.
+  it("здоровая грань лежит далеко ниже порога", () => {
+    const de = faceMedianDE(
+      Array.from({ length: 9 }, () => LIVE_REFS.F),
+      LIVE_REFS,
+    );
+    expect(de).toBeLessThan(config.FACE_MAX_MEDIAN_DE / 2);
+  });
+
+  // Почему одного порога уверенности не хватило. По СЫРЫМ цветам он стол
+  // отвергает (ячейки далеки и без отрыва). Но продуктовый путь смотрит на
+  // цвета ПОСЛЕ normalizeFaceByCenter, а та тянет грань за её собственный центр
+  // к ближайшему эталону: серый центр ближе всего к белому, вся грань едет к
+  // белому и становится уверенной белой гранью. Замок по расстоянию обязан
+  // стоять ДО нормировки — иначе он проверяет результат подгонки под ответ.
+  it("сырой стол не уверен, но после нормировки по центру становится уверенным", () => {
+    const rawConfident = confidentCells(TABLE.map(rgb2lab), LIVE_REFS, ALL_KEPT);
+    expect(rawConfident).toBeLessThan(config.FACE_MIN_CONFIDENT_CELLS);
+
+    const fixed = normalizeFaceByCenter(TABLE, LIVE_REFS.U).map(rgb2lab);
+    expect(confidentCells(fixed, LIVE_REFS, ALL_KEPT)).toBe(9);
+    // И расстояние тоже схлопывается — считать его после нормировки бессмысленно.
+    expect(faceMedianDE(fixed, LIVE_REFS)).toBeLessThan(config.FACE_MAX_MEDIAN_DE);
   });
 });
