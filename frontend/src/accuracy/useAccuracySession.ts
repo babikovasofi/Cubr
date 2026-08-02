@@ -23,6 +23,7 @@ import {
   appendRead,
   undoRead,
   assembleRawRead,
+  looksSolvedRead,
   formatRunSummary,
   type AccuracyRun,
   type ConditionKey,
@@ -251,6 +252,18 @@ export function useAccuracySession(): AccuracySession {
         // Продуктовое чтение (нормировка света + квоты 9×6) считается рядом —
         // это то, что видит человек в соло, и обе цифры нужны, чтобы понимать,
         // сколько даёт зрение, а сколько ограничения поверх него.
+        // Кубик прочитан собранным, а эталон — скрамбл: скрамбл не собран на
+        // кубике. Это ошибка условия замера, а не зрения, поэтому чтение не
+        // скорится вовсе; в дропы идёт как mis-scramble — тем же путём, что и
+        // разобранный вручную промах, чтобы ничего не пропадало молча.
+        if (truth !== SOLVED && looksSolvedRead(r.rawFaceGrids)) {
+          setCaptureError(
+            "Кубик прочитан как СОБРАННЫЙ, а эталон — скрамбл. Похоже, скрамбл не собран на кубике: собери его по шагам слева (белый верх, зелёный к себе) и сними чтение заново.",
+          );
+          appendDrop(runRef.current, conditionRef.current, "mis-scramble");
+          bump();
+          return;
+        }
         const raw = assembleRawRead(r.rawFaceGrids);
         const report = scoreRead(raw, truth);
         const productReport = scoreRead(assembleRawRead(r.productFaceGrids), truth);

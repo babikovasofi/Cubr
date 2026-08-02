@@ -143,6 +143,25 @@ export function assembleRawRead(rawFaceGrids: Face[][]): Facelet {
   return out;
 }
 
+/**
+ * Похоже ли чтение на СОБРАННЫЙ кубик: каждая из шести граней прочитана одним
+ * цветом.
+ *
+ * Нужно, чтобы поймать самую дорогую ошибку тестировщика — снять кубик, не
+ * собрав на нём скрамбл. Эталон тогда скрамблированный, чтение собранное, и
+ * совпадений выходит около случайных 28%. Ни одна проверка цвета такое не
+ * заметит: цвета-то прочитаны верно, врёт не зрение, а условие замера. Занести
+ * такое в точность — значит записать зрению чужую ошибку.
+ *
+ * Порог намеренно жёсткий (ВСЕ шесть граней одноцветны): у настоящего скрамбла
+ * шансов выглядеть так нет, а у сбойного чтения — тем более, так что ложных
+ * срабатываний ждать неоткуда.
+ */
+export function looksSolvedRead(faceGrids: Face[][]): boolean {
+  if (faceGrids.length !== 6) return false;
+  return faceGrids.every((grid) => grid.length === 9 && grid.every((c) => c === grid[0]));
+}
+
 // --- Accumulator -------------------------------------------------------------
 
 export function condKeyString(k: ConditionKey): string {
@@ -339,6 +358,12 @@ export function formatRunSummary(
   lines.push(
     `Gate (min-over-conditions, Wilson-LB ≥ ${pct(passFrac)}): ${gate.pass ? "PASS" : "FAIL"}`,
   );
+  const dropReasonsOf = (r: AccuracyRun, key: ConditionKey): string => {
+    const acc = r.get(condKeyString(key));
+    const entries = Object.entries(acc?.dropReasons ?? {}).filter(([, n]) => n > 0);
+    if (entries.length === 0) return "";
+    return ` [${entries.map(([reason, n]) => `${reason} ${n}`).join(", ")}]`;
+  };
   if (gate.conditions.length === 0) {
     lines.push("Нет данных: ни одного условия не набрано.");
     return lines.join("\n");
@@ -354,6 +379,11 @@ export function formatRunSummary(
       `  [${c.pass ? "PASS" : "FAIL"}] ${k.mode} | ${k.light} | ${k.cube} | ${k.person} | ${k.calib}: ` +
         `${pct(c.fraction)} (Wilson-LB ${pct(c.wilsonLower)}), ` +
         `n=${c.nScored}, drop=${c.nDropped} (${pct(c.dropRate)})` +
+        // Гистограмма причин копилась с первого дня и никуда не печаталась.
+        // «drop=3» без причин — это «что-то пошло не так»: протокол требует
+        // видеть, чего именно, потому что нечитаемая грань и несобранный скрамбл
+        // говорят о разном (первое — про зрение, второе — про тестировщика).
+        dropReasonsOf(run, c.key) +
         (flags.length ? ` — ${flags.join("; ")}` : ""),
     );
   }

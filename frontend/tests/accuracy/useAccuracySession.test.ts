@@ -9,7 +9,17 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { renderHook, act } from "@testing-library/react";
 
-const { readerStub } = vi.hoisted(() => ({
+const { readerStub, scrambleStub } = vi.hoisted(() => ({
+  // Эталон живёт в изменяемой заглушке: тест «скрамбл не собран» обязан задать
+  // скрамблированный эталон, иначе проверять нечего.
+  scrambleStub: {
+    scramble: "",
+    moves: [] as string[],
+    loading: false,
+    error: null as string | null,
+    regenerate: () => {},
+    expectedFacelets: null as string | null,
+  },
   readerStub: {
     seedProfile: vi.fn(),
     quickAdjust: vi.fn(),
@@ -45,17 +55,11 @@ vi.mock("../../src/vision/hooks/useCamera", () => ({
   },
 }));
 vi.mock("../../src/scramble/hooks/useScramble", () => ({
-  useScramble: () => ({
-    scramble: "",
-    moves: [],
-    loading: false,
-    error: null,
-    regenerate: vi.fn(),
-    expectedFacelets: null,
-  }),
+  useScramble: () => scrambleStub,
 }));
 
 import { useAccuracySession } from "../../src/accuracy/useAccuracySession";
+import { scrambleToFacelets } from "../../src/vision/cubeState";
 
 describe("useAccuracySession — honesty barrier", () => {
   beforeEach(() => {
@@ -152,5 +156,44 @@ describe("useAccuracySession — honesty barrier", () => {
     expect(result.current.captureError).not.toContain("Грань не прочиталась");
     expect(readerStub.resetAccuracy).not.toHaveBeenCalled();
     expect(result.current.buildExport()).not.toContain("unreadable");
+  });
+
+  // Живой отказ: кубик сняли, не собрав на нём скрамбл. Зрение прочитало каждую
+  // грань верно, а совпало 15/54 — случайный уровень. Такое чтение обязано
+  // остаться за пределами точности: иначе гейт меряет память тестировщика.
+  it("собранный кубик при скрамблированном эталоне не идёт в точность", async () => {
+    const uniform = (c: string): string[] => Array.from({ length: 9 }, () => c);
+    const grids = (): string[][] => ["U", "R", "F", "D", "L", "B"].map(uniform);
+
+    scrambleStub.scramble = "R U";
+    scrambleStub.moves = ["R", "U"];
+    // Эталон отличается от собранного — иначе замер и есть санити-режим.
+    scrambleStub.expectedFacelets = scrambleToFacelets("R U");
+
+    readerStub.calibrated = true;
+    readerStub.collectingAccuracy = true;
+    readerStub.pushAccuracyFace.mockResolvedValue({
+      kind: "complete",
+      rawFaceGrids: grids(),
+      productFaceGrids: grids(),
+      cellDiags: [],
+      fitDiags: [],
+      resolved: null,
+    });
+
+    const { result } = renderHook(() => useAccuracySession());
+    result.current.videoRef.current = {} as HTMLVideoElement;
+    await act(async () => {
+      await result.current.captureFace();
+    });
+
+    expect(result.current.captureError).toContain("скрамбл не собран");
+    // Ни отчёта, ни строки точности — только дроп с честной причиной.
+    expect(result.current.lastReport).toBeNull();
+    const out = result.current.buildExport();
+    expect(out).not.toContain("Per-sticker accuracy");
+    expect(out).toContain("mis-scramble");
+
+    scrambleStub.expectedFacelets = null;
   });
 });

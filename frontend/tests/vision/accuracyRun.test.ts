@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   assembleRawRead,
+  looksSolvedRead,
   appendRead,
   appendDrop,
   undoRead,
@@ -266,5 +267,27 @@ describe("gatePass", () => {
 
   it("empty run does not pass", () => {
     expect(gatePass(new Map()).pass).toBe(false);
+  });
+});
+
+// Живой отказ 2026-08-03: тестировщик снял кубик, не собрав на нём скрамбл.
+// Зрение отработало верно — каждая грань прочитана своим цветом, — а совпало с
+// эталоном 15/54, то есть на уровне случайного. Записать это в точность значило
+// бы приписать зрению чужую ошибку.
+describe("looksSolvedRead", () => {
+  const uniform = (c: string): Face[] => Array.from({ length: 9 }, () => c as Face);
+
+  it("шесть одноцветных граней — кубик собран", () => {
+    expect(looksSolvedRead(["U", "R", "F", "D", "L", "B"].map(uniform))).toBe(true);
+  });
+
+  it("одной пёстрой грани хватает, чтобы чтение считалось скрамблированным", () => {
+    const grids = ["U", "R", "F", "D", "L", "B"].map(uniform);
+    grids[2][4] = "B" as Face;
+    expect(looksSolvedRead(grids)).toBe(false);
+  });
+
+  it("неполный набор граней не выдаётся за собранный кубик", () => {
+    expect(looksSolvedRead(["U", "R", "F"].map(uniform))).toBe(false);
   });
 });
