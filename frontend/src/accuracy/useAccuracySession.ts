@@ -18,7 +18,9 @@ import {
   type CellDiag,
   type FaceFitDiag,
 } from "../vision/accuracy";
+import { lenientVerify, type LenientMatch } from "../vision/cubeGrid";
 import {
+  CAPTURE_ORDER,
   appendDrop,
   appendRead,
   undoRead,
@@ -123,6 +125,9 @@ export function useAccuracySession(): AccuracySession {
   // с промахами, чтобы пересвет, промах сетки и слипшиеся эталоны различались.
   const [lastDiags, setLastDiags] = useState<CellDiag[] | null>(null);
   const [lastFits, setLastFits] = useState<FaceFitDiag[] | null>(null);
+  // Совпадение с эталоном с точностью до поворота — диагностика «врёт зрение или
+  // расходится сам кубик». В гейт не идёт.
+  const [lastLenient, setLastLenient] = useState<LenientMatch | null>(null);
   const lastReadKeyRef = useRef<ConditionKey | null>(null);
 
   // The accumulator lives in a ref (append* mutate in place); a version counter
@@ -264,9 +269,30 @@ export function useAccuracySession(): AccuracySession {
           bump();
           return;
         }
+        // Совпадает ли чтение с эталоном С ТОЧНОСТЬЮ ДО ПОВОРОТА: 24 ориентации
+        // кубика × поворот каждой грани. Это ДИАГНОСТИКА, в гейт она не идёт
+        // никогда — выравнивание, подобранное под ответ, и есть тот самый
+        // survivorship bias, ради запрета которого порядок захвата зафиксирован.
+        const lenient = lenientVerify(r.rawFaceGrids, [...CAPTURE_ORDER], truth);
+        const strictWrong = 54 - scoreRead(assembleRawRead(r.rawFaceGrids), truth).correct;
+        // Почти идеальное совпадение при развале по фиксированному выравниванию
+        // значит одно: цвета прочитаны верно, а кубик держали иначе. Зрение тут
+        // ни при чём, и записывать ему такое чтение нельзя. Порог держим жёстким
+        // (≤2 расхождения из 54): при мягком сюда затекли бы настоящие ошибки
+        // классификации, и гейт стало бы нечем провалить.
+        if (lenient.mismatches <= 2 && strictWrong >= 6) {
+          setCaptureError(
+            `Цвета прочитаны верно (${54 - lenient.mismatches}/54 с точностью до поворота), но кубик был показан в другой ориентации, ` +
+              "поэтому чтение не засчитано. Держи белый центр вверху и зелёный к себе, грани показывай по подсказкам, не переворачивая кубик между шагами.",
+          );
+          appendDrop(runRef.current, conditionRef.current, "orientation");
+          bump();
+          return;
+        }
         const raw = assembleRawRead(r.rawFaceGrids);
         const report = scoreRead(raw, truth);
         const productReport = scoreRead(assembleRawRead(r.productFaceGrids), truth);
+        setLastLenient(lenient);
         appendRead(runRef.current, conditionRef.current, report);
         lastReadKeyRef.current = conditionRef.current;
         setLastReport(report);
@@ -295,6 +321,7 @@ export function useAccuracySession(): AccuracySession {
     setLastReport(null);
     setLastDiags(null);
     setLastFits(null);
+    setLastLenient(null);
     bump();
   };
 
@@ -305,6 +332,7 @@ export function useAccuracySession(): AccuracySession {
     setLastProductReport(null);
     setLastDiags(null);
     setLastFits(null);
+    setLastLenient(null);
     bump();
   };
 
@@ -313,6 +341,18 @@ export function useAccuracySession(): AccuracySession {
     if (lastReport) {
       parts.push("=== Последнее чтение (СЫРОЕ зрение — по нему гейт) ===");
       parts.push(formatReport(lastReport, lastDiags ?? undefined, lastFits ?? undefined));
+      if (lastLenient) {
+        // Одна строка отвечает на вопрос, который иначе решается гаданием:
+        // ошибается зрение или расходится сам кубик. Совпало с точностью до
+        // поворота — цвета прочитаны верно, разошлась ориентация или порядок
+        // захвата. Не совпало ни в одной ориентации — на кубике не тот скрамбл,
+        // ЛИБО зрение действительно врёт, и вот тогда цифры выше про зрение.
+        parts.push(
+          `С точностью до поворота кубика (24 ориентации × поворот граней): ` +
+            `${54 - lastLenient.mismatches}/54, хуже всего грань ${lastLenient.worstFace} ` +
+            `(${lastLenient.worstCount} из 9). В ГЕЙТ НЕ ИДЁТ — выравнивание под ответ запрещено протоколом.`,
+        );
+      }
       parts.push("");
     }
     if (lastProductReport) {

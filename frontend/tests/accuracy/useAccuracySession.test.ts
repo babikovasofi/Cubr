@@ -60,6 +60,7 @@ vi.mock("../../src/scramble/hooks/useScramble", () => ({
 
 import { useAccuracySession } from "../../src/accuracy/useAccuracySession";
 import { scrambleToFacelets } from "../../src/vision/cubeState";
+import { rotateFacelets } from "../../src/vision/faceletRotations";
 
 describe("useAccuracySession — honesty barrier", () => {
   beforeEach(() => {
@@ -193,6 +194,87 @@ describe("useAccuracySession — honesty barrier", () => {
     const out = result.current.buildExport();
     expect(out).not.toContain("Per-sticker accuracy");
     expect(out).toContain("mis-scramble");
+
+    scrambleStub.expectedFacelets = null;
+  });
+
+  // Кубик собран правильно, но показан повёрнутым: чтение совпадает с эталоном
+  // с точностью до поворота, а по фиксированному выравниванию разваливается.
+  // Цвета тут прочитаны верно — записывать зрению чужую ошибку нельзя. Считать
+  // по подобранной ориентации тоже нельзя: выравнивание под ответ и есть
+  // survivorship bias, ради запрета которого порядок захвата зафиксирован.
+  it("тот же кубик в другой ориентации не идёт ни в точность, ни в подогнанный счёт", async () => {
+    const truth = scrambleToFacelets("R U F");
+    // k=1 — целиком повёрнутый кубик: тот же физический скрамбл, другая хватка.
+    const turned = rotateFacelets(truth, 1);
+    const grids = (): string[][] =>
+      Array.from({ length: 6 }, (_, f) => turned.slice(f * 9, f * 9 + 9).split(""));
+
+    scrambleStub.scramble = "R U F";
+    scrambleStub.moves = ["R", "U", "F"];
+    scrambleStub.expectedFacelets = truth;
+
+    readerStub.calibrated = true;
+    readerStub.collectingAccuracy = true;
+    readerStub.pushAccuracyFace.mockResolvedValue({
+      kind: "complete",
+      rawFaceGrids: grids(),
+      productFaceGrids: grids(),
+      cellDiags: [],
+      fitDiags: [],
+      resolved: null,
+    });
+
+    const { result } = renderHook(() => useAccuracySession());
+    result.current.videoRef.current = {} as HTMLVideoElement;
+    await act(async () => {
+      await result.current.captureFace();
+    });
+
+    expect(result.current.captureError).toContain("другой ориентации");
+    expect(result.current.lastReport).toBeNull();
+    const out = result.current.buildExport();
+    expect(out).not.toContain("Per-sticker accuracy");
+    expect(out).toContain("orientation");
+
+    scrambleStub.expectedFacelets = null;
+  });
+
+  // Замок на ориентацию обязан быть узким. Если бы он глотал любое расхождение,
+  // гейт стало бы нечем провалить: настоящая ошибка классификации ушла бы в
+  // дропы под видом «не так держал».
+  it("настоящие ошибки цвета скорятся, а не списываются на ориентацию", async () => {
+    const truth = scrambleToFacelets("R U F");
+    const read = truth.split("");
+    // Десять наклеек прочитаны неверно — столько не объяснить никаким поворотом.
+    for (let i = 0; i < 10; i++) read[i * 5] = read[i * 5] === "U" ? "R" : "U";
+    const grids = (): string[][] =>
+      Array.from({ length: 6 }, (_, f) => read.slice(f * 9, f * 9 + 9));
+
+    scrambleStub.scramble = "R U F";
+    scrambleStub.moves = ["R", "U", "F"];
+    scrambleStub.expectedFacelets = truth;
+
+    readerStub.calibrated = true;
+    readerStub.collectingAccuracy = true;
+    readerStub.pushAccuracyFace.mockResolvedValue({
+      kind: "complete",
+      rawFaceGrids: grids(),
+      productFaceGrids: grids(),
+      cellDiags: [],
+      fitDiags: [],
+      resolved: null,
+    });
+
+    const { result } = renderHook(() => useAccuracySession());
+    result.current.videoRef.current = {} as HTMLVideoElement;
+    await act(async () => {
+      await result.current.captureFace();
+    });
+
+    expect(result.current.lastReport).not.toBeNull();
+    expect(result.current.lastReport!.correct).toBeLessThan(54);
+    expect(result.current.buildExport()).toContain("Per-sticker accuracy");
 
     scrambleStub.expectedFacelets = null;
   });

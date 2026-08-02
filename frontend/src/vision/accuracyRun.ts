@@ -50,7 +50,13 @@ export type DropReason =
   | "illegal" // assembled read is not a legal cube
   | "ambiguous" // rotation resolve was ambiguous
   | "resolve" // rotation resolve failed
-  | "mis-scramble"; // tester applied the wrong scramble (manual exclusion)
+  | "mis-scramble" // tester applied the wrong scramble (manual exclusion)
+  // Кубик показан в другой ориентации: чтение совпадает с эталоном с точностью
+  // до поворота, значит цвета прочитаны верно, а фиксированное выравнивание
+  // протокола нарушено. Считать такое чтение по совпавшей ориентации нельзя —
+  // выравнивание, подобранное под ответ, и есть survivorship bias, ради запрета
+  // которого порядок захвата зафиксирован.
+  | "orientation";
 
 export const DROP_REASONS: readonly DropReason[] = [
   "unreadable",
@@ -59,6 +65,7 @@ export const DROP_REASONS: readonly DropReason[] = [
   "ambiguous",
   "resolve",
   "mis-scramble",
+  "orientation",
 ];
 
 export interface ConditionKey {
