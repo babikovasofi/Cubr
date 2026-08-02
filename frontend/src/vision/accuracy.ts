@@ -119,8 +119,32 @@ export interface CellDiag {
   secondDE: number;
 }
 
+/**
+ * Как легла сетка на каждой из шести граней.
+ *
+ * Признак решётки (тёмные щели по границам ячеек) — единственное, чем подгонка
+ * отличает грань кубика от ровного светлого фона. На кубике с наклейками щели
+ * чёрные и контраст велик; на монолитном (stickerless) щель — это только тень
+ * между деталями, и контраст может не дотянуть до FACE_FIT_GAP_TARGET. Тогда
+ * выигрыш кандидата над рамкой падает ниже FACE_FIT_MIN_GAIN, подгонка молча
+ * откатывается на рамку, и разбираться приходится по симптомам. Эти три числа
+ * говорят прямо: был ли выигрыш, приняли ли подгонку, есть ли решётка вообще.
+ */
+export interface FaceFitDiag {
+  /** baselineCost - cost выбранного кандидата: больше нуля — подгонка нашла лучше рамки. */
+  gain: number;
+  /** Приняли ли подгонку (gain >= FACE_FIT_MIN_GAIN) или порезали по рамке. */
+  used: boolean;
+  /** Средний по 9 ячейкам контраст окантовки, единицы яркости 0..255. */
+  gap: number;
+}
+
 /** Human-readable multi-line report string for printing to the page. */
-export function formatReport(rep: AccuracyReport, diags?: readonly CellDiag[]): string {
+export function formatReport(
+  rep: AccuracyReport,
+  diags?: readonly CellDiag[],
+  fits?: readonly FaceFitDiag[],
+): string {
   const lines: string[] = [];
   lines.push(
     `Per-sticker accuracy: ${rep.correct}/${rep.total} = ${(rep.fraction * 100).toFixed(1)}% -> ${rep.pass ? "PASS" : "FAIL"} (gate >=${(config.ACCURACY_PASS_FRAC * 100).toFixed(0)}%)`,
@@ -171,6 +195,20 @@ export function formatReport(rep: AccuracyReport, diags?: readonly CellDiag[]): 
     lines.push(`  без отрыва от второго кандидата (< ${config.STICKER_MARGIN_MIN}): ${tight}`);
     lines.push(`  не похожих ни на один цвет кубика (ΔE > ${config.STICKER_MAX_DELTA_E}): ${far}`);
     lines.push(`  медианный ΔE до ближайшего эталона: ${medianDE.toFixed(1)}`);
+  }
+  if (fits?.length) {
+    const fellBack = fits.filter((f) => !f.used).length;
+    lines.push("");
+    lines.push("Подгонка сетки (по граням в порядке URFDLB):");
+    for (let i = 0; i < fits.length; i++) {
+      const f = fits[i];
+      lines.push(
+        `  ${FACE_ORDER[i] ?? i}: выигрыш ${f.gain.toFixed(2)} (порог ${config.FACE_FIT_MIN_GAIN})` +
+          `, ${f.used ? "ПОДОГНАНА" : "ОТКАТ НА РАМКУ"}` +
+          `, контраст щелей ${f.gap.toFixed(1)} (цель ${config.FACE_FIT_GAP_TARGET})`,
+      );
+    }
+    lines.push(`  откатов на рамку: ${fellBack} из ${fits.length}`);
   }
   return lines.join("\n");
 }

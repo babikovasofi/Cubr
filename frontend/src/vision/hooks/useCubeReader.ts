@@ -24,16 +24,18 @@ import {
 } from "../colors";
 import { quickAdjust as colorsQuickAdjust } from "../quickAdjust";
 import { config, squareGuidePx, type Rect } from "../config";
-import { fitFaceRegion } from "../faceFit";
+import { fitFaceRegion, gapContrast } from "../faceFit";
 import { assignFacesByCenter, resolveRotations, lenientVerify } from "../cubeGrid";
 import { diffFacelets, validateFacelets, type Face, type Facelet } from "../cubeState";
-import { type CellDiag } from "../accuracy";
+import { type CellDiag, type FaceFitDiag } from "../accuracy";
 
 export interface FaceSample {
   rgb: RGB[]; // 9 median RGBs, grid order 0..8 (row-major, TL..BR)
   lab: Lab[]; // same, in Lab
   /** Доля пикселей, переживших отбраковку бликов/теней в каждой ячейке (0..1). */
   kept: number[];
+  /** Как легла сетка: выигрыш подгонки, приняли ли её, контраст щелей. */
+  fit: FaceFitDiag;
 }
 
 /**
@@ -73,17 +75,25 @@ export function readFace(
   let ox = 0;
   let oy = 0;
   let side = gw;
+  const patch = { data: ctx.getImageData(0, 0, gw, gh).data, size: gw };
+  let gain = 0;
+  let used = false;
   if (refs) {
-    const patch = ctx.getImageData(0, 0, gw, gh);
-    const fit = fitFaceRegion({ data: patch.data, size: gw }, refs, centerFrac);
+    const fit = fitFaceRegion(patch, refs, centerFrac);
+    gain = fit.baselineCost - fit.cost;
     // Доверяем подгонке только при ощутимом выигрыше: иначе сетка дёргалась бы
     // от кадра к кадру на шуме.
-    if (fit.baselineCost - fit.cost >= config.FACE_FIT_MIN_GAIN) {
+    if (gain >= config.FACE_FIT_MIN_GAIN) {
+      used = true;
       ox = Math.round(fit.region.x);
       oy = Math.round(fit.region.y);
       side = Math.round(fit.region.side);
     }
   }
+  // Контраст щелей меряется на ТОЙ области, что реально пошла в нарезку, — иначе
+  // число описывало бы не то чтение. Признак не требует эталонов, поэтому есть и
+  // на калибровочном пути, где подгонки нет.
+  const gap = gapContrast(patch, { x: ox, y: oy, side }, centerFrac);
 
   // Distribute the pixel remainder so the whole fitted square is covered.
   const xEdges = [ox, ox + Math.round(side / 3), ox + Math.round((2 * side) / 3), ox + side];
@@ -105,7 +115,7 @@ export function readFace(
       lab.push(rgb2lab(cell.rgb));
     }
   }
-  return { rgb, lab, kept };
+  return { rgb, lab, kept, fit: { gain, used, gap } };
 }
 
 /** Mean luma (Rec. 601) of the guide region, 0..255. */
@@ -307,6 +317,7 @@ export type AccuracyCapture =
       rawFaceGrids: Face[][]; // 6 × 9 сырое чтение в фиксированном порядке URFDLB
       productFaceGrids: Face[][]; // то же, но продуктовым путём (нормировка + квоты)
       cellDiags: CellDiag[]; // 54 записи «почему так прочиталось», тот же порядок
+      fitDiags: FaceFitDiag[]; // 6 записей «как легла сетка», тот же порядок
       resolved: Facelet | null; // informational legality-resolve (NOT scored)
       resolveReason?: ResolveReason;
       drifted?: { face: Face; de: number }; // last face drifted > threshold (advisory, not a block)
@@ -405,7 +416,14 @@ async function readFaceBurst(
   // Надёжность ячейки — медиана по кадрам: разовый блик не должен ни завалить
   // ячейку, ни притвориться, что всё хорошо.
   const kept = rgb.map((_, i) => median(shots.map((s) => s.kept[i] ?? 0)));
-  return { rgb, lab: rgb.map((c) => rgb2lab(c)), kept };
+  // Телеметрия подгонки — тоже по медиане кадров; `used` берём большинством,
+  // чтобы одна дрогнувшая рука не переписала вердикт по всей грани.
+  const fit = {
+    gain: median(shots.map((s) => s.fit.gain)),
+    gap: median(shots.map((s) => s.fit.gap)),
+    used: shots.filter((s) => s.fit.used).length * 2 > shots.length,
+  };
+  return { rgb, lab: rgb.map((c) => rgb2lab(c)), kept, fit };
 }
 
 /**
@@ -690,6 +708,7 @@ export function useCubeReader(workRef: React.RefObject<HTMLCanvasElement | null>
       rawFaceGrids,
       productFaceGrids,
       cellDiags: cellDiagnostics(faces, refs),
+      fitDiags: faces.map((f) => f.fit),
       resolved,
       resolveReason: reason,
       drifted,

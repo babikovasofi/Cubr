@@ -11,7 +11,13 @@ import { useCamera, CameraError, type FrameInfo } from "../vision/hooks/useCamer
 import { cameraErrorRu } from "../vision/cameraErrors";
 import { useCubeReader } from "../vision/hooks/useCubeReader";
 import { useScramble } from "../scramble/hooks/useScramble";
-import { scoreRead, formatReport, type AccuracyReport, type CellDiag } from "../vision/accuracy";
+import {
+  scoreRead,
+  formatReport,
+  type AccuracyReport,
+  type CellDiag,
+  type FaceFitDiag,
+} from "../vision/accuracy";
 import {
   appendDrop,
   appendRead,
@@ -115,6 +121,7 @@ export function useAccuracySession(): AccuracySession {
   // «Почему так прочиталось» по 54 ячейкам последнего чтения — идёт в отчёт рядом
   // с промахами, чтобы пересвет, промах сетки и слипшиеся эталоны различались.
   const [lastDiags, setLastDiags] = useState<CellDiag[] | null>(null);
+  const [lastFits, setLastFits] = useState<FaceFitDiag[] | null>(null);
   const lastReadKeyRef = useRef<ConditionKey | null>(null);
 
   // The accumulator lives in a ref (append* mutate in place); a version counter
@@ -244,6 +251,7 @@ export function useAccuracySession(): AccuracySession {
         setLastReport(report);
         setLastProductReport(productReport);
         setLastDiags(r.cellDiags);
+        setLastFits(r.fitDiags);
         setCaptureError(r.drifted ? `Чтение готово${driftNote(r.drifted)}` : null);
         bump();
         return;
@@ -265,6 +273,7 @@ export function useAccuracySession(): AccuracySession {
     lastReadKeyRef.current = null;
     setLastReport(null);
     setLastDiags(null);
+    setLastFits(null);
     bump();
   };
 
@@ -274,6 +283,7 @@ export function useAccuracySession(): AccuracySession {
     setLastReport(null);
     setLastProductReport(null);
     setLastDiags(null);
+    setLastFits(null);
     bump();
   };
 
@@ -281,7 +291,7 @@ export function useAccuracySession(): AccuracySession {
     const parts: string[] = [];
     if (lastReport) {
       parts.push("=== Последнее чтение (СЫРОЕ зрение — по нему гейт) ===");
-      parts.push(formatReport(lastReport, lastDiags ?? undefined));
+      parts.push(formatReport(lastReport, lastDiags ?? undefined, lastFits ?? undefined));
       parts.push("");
     }
     if (lastProductReport) {

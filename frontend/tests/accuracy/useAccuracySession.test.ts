@@ -96,6 +96,16 @@ describe("useAccuracySession — honesty barrier", () => {
           ? { rgb: [210, 150, 120], kept: 0.04, best: "L", bestDE: 7, second: "U", secondDE: 9 }
           : { rgb: [235, 238, 236], kept: 0.9, best: "U", bestDE: 2, second: "D", secondDE: 40 },
       ),
+      // Две грани из шести подгонка не приняла — на монолитном кубике это
+      // штатный исход, и отчёт обязан назвать его, а не молча резать по рамке.
+      fitDiags: [
+        { gain: 6.2, used: true, gap: 20 },
+        { gain: 0.3, used: false, gap: 3 },
+        { gain: 5.0, used: true, gap: 18 },
+        { gain: 0.2, used: false, gap: 2 },
+        { gain: 4.4, used: true, gap: 16 },
+        { gain: 3.9, used: true, gap: 15 },
+      ],
       resolved: null,
     });
 
@@ -112,5 +122,7 @@ describe("useAccuracySession — honesty barrier", () => {
     expect(out).toContain("kept 4% (ВЫБИТА)");
     expect(out).toContain("Почему ошиблись");
     expect(out).toContain("выбитых пересветом");
+    expect(out).toContain("Подгонка сетки");
+    expect(out).toContain("откатов на рамку: 2 из 6");
   });
 });
