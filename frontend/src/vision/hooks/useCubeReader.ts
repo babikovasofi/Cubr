@@ -10,6 +10,7 @@ import {
   checkCalibration,
   COLOR_NAMES,
   assignQuota,
+  cellWeight,
   deltaE,
   robustCellColor,
   medianAcrossFrames,
@@ -266,13 +267,22 @@ export function confidentCells(labs: Lab[], refs: Refs, kept: number[]): number 
   return n;
 }
 
-function classifyWithQuota(faces: Lab[][], refs: Refs, centers: Face[] | null): Face[][] {
+function classifyWithQuota(
+  faces: Lab[][],
+  refs: Refs,
+  centers: Face[] | null,
+  /** Доля выживших пикселей по ячейкам, гранями — в том же порядке, что `faces`. */
+  kept?: number[][],
+): Face[][] {
   const argminGrids = (): Face[][] =>
     faces.map((grid) => grid.map((lab) => argminRef(lab, refs) as string as Face));
   if (!centers || faces.length !== 6) return argminGrids();
 
   const labs: Lab[] = [];
   for (const grid of faces) labs.push(...grid);
+  // Ячейка, выбитая бликом, не должна отбирать дефицитный слот у честно
+  // измеренной: её мнение о цвете весит меньше (см. colors.cellWeight).
+  const weights = kept ? kept.flatMap((grid) => grid.map((k) => cellWeight(k))) : labs.map(() => 1);
 
   // centerIdx в порядке COLOR_NAMES: индекс центра каждой грани в плоском массиве.
   const centerIdx: number[] = [];
@@ -282,7 +292,14 @@ function classifyWithQuota(faces: Lab[][], refs: Refs, centers: Face[] | null): 
     centerIdx.push(cap * 9 + 4);
   }
 
-  const { assignment } = assignQuota(labs, refs, centerIdx);
+  const { assignment } = assignQuota(
+    labs,
+    refs,
+    centerIdx,
+    config.DELTA_E_MODE,
+    config.QUOTA,
+    weights,
+  );
   const out: Face[][] = [];
   for (let cap = 0; cap < faces.length; cap++) {
     out.push(assignment.slice(cap * 9, cap * 9 + 9) as string[] as Face[]);
@@ -306,7 +323,12 @@ function resolveSixFaces(samples: FaceSample[], refs: Refs): SixFaceResolve {
 
   const labs = normalizeSamples(samples, refs);
   const assign = assignFacesByCenter(labs, refs);
-  const productFaceGrids = classifyWithQuota(labs, refs, assign.ok ? assign.faces : null);
+  const productFaceGrids = classifyWithQuota(
+    labs,
+    refs,
+    assign.ok ? assign.faces : null,
+    samples.map((s) => s.kept),
+  );
 
   if (!assign.ok) return { rawFaceGrids, productFaceGrids, resolved: null, reason: "assign" };
   const res = resolveRotations(productFaceGrids, assign.faces);

@@ -561,6 +561,22 @@ export function applyLightGain(rgb: RGB, g: [number, number, number]): RGB {
 // 9x6 quota assignment (the P1 layer-3 constraint)
 // ---------------------------------------------------------------------------
 
+/**
+ * Насколько можно верить цвету ячейки, из доли выживших пикселей (`kept`).
+ *
+ * Полное доверие начинается там же, где кончается брак: `CELL_MIN_KEPT_FRAC` —
+ * порог, ниже которого ячейка уже считается негодной в `confidentCells`. Ниже
+ * порога доверие падает пропорционально, но не до нуля: у ячейки всё же есть
+ * цвет, просто шумный, а нулевой вес сделал бы её невидимой для оптимизации —
+ * она уехала бы в первый попавшийся слот вместо ближайшего по смыслу.
+ */
+export function cellWeight(kept: number, minKept: number = config.CELL_MIN_KEPT_FRAC): number {
+  if (!Number.isFinite(kept)) return 1;
+  if (kept >= minKept) return 1;
+  const scaled = minKept > 0 ? kept / minKept : 1;
+  return Math.max(config.CELL_WEIGHT_MIN, Math.min(1, scaled));
+}
+
 export interface QuotaResult {
   // 54 assigned color names, index i aligned with input labs[i].
   assignment: ColorName[];
@@ -585,10 +601,17 @@ export interface QuotaResult {
  * такого размена не делает по построению: суммарная стоимость его решения не
  * бывает хуже жадной ни на одной колоде.
  *
+ * `weights` — насколько можно верить цвету каждой наклейки (1 — полностью).
+ * Стоимости ненадёжной наклейки умножаются на её вес, то есть её предпочтения
+ * стоят дешевле: при споре за последний красный слот выигрывает та наклейка,
+ * чей цвет измерен честно, а выбитая бликом довольствуется остатком. Раньше
+ * блик спорил за слот на равных с чистым чтением и мог его отобрать.
+ *
  * @param labs        54 sticker Lab colors.
  * @param refs        6 session references.
  * @param centerIdx   the 6 indices in `labs` that are centers, in COLOR_NAMES
  *                    order (centerIdx[k] is the center of COLOR_NAMES[k]).
+ * @param weights     надёжность каждой наклейки 0..1 (по умолчанию все единицы).
  */
 export function assignQuota(
   labs: Lab[],
@@ -596,6 +619,7 @@ export function assignQuota(
   centerIdx: number[],
   mode: DeltaEMode = config.DELTA_E_MODE,
   quota: number = config.QUOTA,
+  weights?: number[],
 ): QuotaResult {
   const n = labs.length;
   const assignment: (ColorName | null)[] = new Array(n).fill(null);
@@ -617,7 +641,10 @@ export function assignQuota(
   // Матрица стоимостей только для неприпиннованных наклеек.
   const freeIdx: number[] = [];
   for (let i = 0; i < n; i++) if (!pinned.has(i)) freeIdx.push(i);
-  const costs = freeIdx.map((i) => COLOR_NAMES.map((name) => deltaE(labs[i], refs[name], mode)));
+  const costs = freeIdx.map((i) => {
+    const w = weights?.[i] ?? 1;
+    return COLOR_NAMES.map((name) => deltaE(labs[i], refs[name], mode) * w);
+  });
   const groups = minCostQuotaAssign(
     costs,
     COLOR_NAMES.map((name) => remaining[name]),

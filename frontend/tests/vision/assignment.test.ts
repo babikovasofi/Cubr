@@ -1,9 +1,11 @@
 import { describe, expect, it } from "vitest";
 
 import { hungarian, minCostQuotaAssign } from "../../src/vision/assignment";
+import { config } from "../../src/vision/config";
 import {
   COLOR_NAMES,
   assignQuota,
+  cellWeight,
   deltaE,
   rgb2lab,
   type ColorName,
@@ -104,6 +106,18 @@ describe("minCostQuotaAssign", () => {
 
   it("returns an empty result for an empty input", () => {
     expect(minCostQuotaAssign([], [9])).toEqual([]);
+  });
+});
+
+describe("cellWeight", () => {
+  it("trusts a clean cell fully and a blown one partially", () => {
+    expect(cellWeight(1)).toBe(1);
+    expect(cellWeight(config.CELL_MIN_KEPT_FRAC)).toBe(1);
+    expect(cellWeight(config.CELL_MIN_KEPT_FRAC / 2)).toBeCloseTo(0.5, 5);
+    // Ноль пикселей — не ноль доверия: иначе ячейка становится невидимой для
+    // оптимизации и уезжает в произвольный слот.
+    expect(cellWeight(0)).toBe(config.CELL_WEIGHT_MIN);
+    expect(cellWeight(Number.NaN)).toBe(1);
   });
 });
 
@@ -225,6 +239,29 @@ describe("assignQuota on a real 54-sticker deck", () => {
     expect(greedyNames[9]).toBe("L");
     expect(greedyNames[36]).toBe("R");
     expect(res.assignment).toEqual(truth);
+  });
+
+  it("lets an honest sticker win the contested slot over a glare-blown one", () => {
+    const refs = makeRefs();
+    // Оранжевая наклейка выбита бликом и читается почти красной (ΔE 6.1 против
+    // 20.0), красная — просто тёмная (9.4 против 16.7). По одним только ΔE
+    // выгоднее отдать красный слот блику: 6.1+16.7 = 22.8 против 20.0+9.4 = 29.4,
+    // и обе наклейки прочитаны неверно. Блик спорит за слот на равных, хотя его
+    // цвету верить нельзя вовсе.
+    const { labs, centerIdx, truth } = deck((name, cell) => {
+      if (name === "L" && cell === 0) return [170, 70, 50];
+      if (name === "R" && cell === 0) return [170, 80, 50];
+      return baseRGB[name];
+    });
+    const kept = labs.map((_, i) => (i === 36 ? 0.05 : 1)); // L[0] — выбитая ячейка
+    const weights = kept.map((k) => cellWeight(k));
+
+    const blind = assignQuota(labs, refs, centerIdx);
+    expect(blind.assignment[36]).toBe("R"); // блик забрал красный слот
+    expect(blind.assignment[9]).toBe("L"); // честная красная уехала в оранжевый
+
+    const weighted = assignQuota(labs, refs, centerIdx, undefined, undefined, weights);
+    expect(weighted.assignment).toEqual(truth);
   });
 
   it("survives a missing centre instead of corrupting the deal", () => {

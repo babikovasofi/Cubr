@@ -66,6 +66,9 @@ export interface Config {
   CELL_LUMA_TOLERANCE: number; // коридор яркости вокруг медианы ячейки
   CELL_BLOWN_LUMA: number; // выше этой яркости пиксель считается выбитым в пересвет
   CELL_MIN_KEPT_FRAC: number; // если выжило меньше — цвет ячейки ненадёжен
+  // Минимальный вес такой ячейки в раздаче квот (см. colors.cellWeight): её
+  // мнение о цвете стоит дешевле, но не ноль — иначе она уедет в случайный слот.
+  CELL_WEIGHT_MIN: number;
   // Порог уверенности классификации наклейки (см. hooks/useCubeReader).
   STICKER_MARGIN_MIN: number; // минимальный отрыв ΔE второго кандидата от первого
   STICKER_MAX_DELTA_E: number; // дальше этого от эталона — чтение не считается уверенным
@@ -162,6 +165,7 @@ export const config: Config = {
   CELL_LUMA_TOLERANCE: 34,
   CELL_BLOWN_LUMA: 246,
   CELL_MIN_KEPT_FRAC: 0.25,
+  CELL_WEIGHT_MIN: 0.2,
   STICKER_MARGIN_MIN: 4,
   STICKER_MAX_DELTA_E: 34,
   // Между здоровой гранью (медиана ~4 на живом прогоне) и фоном (20.6) огромная
