@@ -14,6 +14,8 @@
 import Button from "../components/Button";
 import { CAPTURE_ORDER } from "../vision/accuracyRun";
 import { lab2rgb } from "../vision/colors";
+import { config } from "../vision/config";
+import { dimWhiteWarningRu } from "../vision/guide";
 import { CAPTURE_HINTS } from "./captureHints";
 import type { AccuracySession } from "./useAccuracySession";
 
@@ -32,6 +34,10 @@ interface CaptureDeckProps {
 export default function CaptureDeck({ session }: CaptureDeckProps) {
   const captureStep = session.collectingAccuracy ? session.accFacesLength : 0;
   const hint = hintFor(captureStep, session.grip);
+  // Светлота снятого белого. Мерить точность по серому «белому» бессмысленно —
+  // предупреждаем сразу, а не после двадцати развалившихся чтений.
+  const whiteL = session.calibratedRefs?.U?.[0] ?? null;
+  const dimWhiteL = whiteL !== null && whiteL < config.CALIB_MIN_WHITE_L ? whiteL : null;
 
   return (
     <div className="flex flex-col gap-3 rounded-lg border-2 border-ink bg-surface p-4">
@@ -87,6 +93,12 @@ export default function CaptureDeck({ session }: CaptureDeckProps) {
       {session.captureError ? (
         <p role="alert" className="font-sans text-small font-bold text-danger">
           {session.captureError}
+        </p>
+      ) : null}
+
+      {dimWhiteL !== null ? (
+        <p className="font-sans text-small text-warning">
+          {dimWhiteWarningRu(dimWhiteL, config.CALIB_MIN_WHITE_L)}
         </p>
       ) : null}
 
