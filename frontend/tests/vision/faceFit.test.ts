@@ -131,6 +131,37 @@ describe("fitFaceRegion", () => {
     expect(Math.abs(cy - (10 + 36))).toBeLessThan(18);
   });
 
+  // Живой прогон 2026-08-04: «ПОДОГНАНА» на всех шести гранях при контрасте щелей
+  // около нуля — решётку не нашли нигде. Причина оказалась не в оценке, а в
+  // переборе: он начинался с масштаба 0.62, то есть молча требовал, чтобы грань
+  // занимала минимум две трети рамки. Кубик подальше от камеры давал грань в
+  // половину, и правильного положения в переборе не существовало вовсе.
+  it("находит грань, занимающую половину рамки — кубик держали дальше", () => {
+    const size = 180;
+    const side = 88; // 0.49 патча: вне прежнего диапазона масштабов
+    const patch = scene(size, 46, 52, side, MIXED_FACE);
+    const fit = fitFaceRegion(patch, REFS);
+
+    const cx = fit.region.x + fit.region.side / 2;
+    const cy = fit.region.y + fit.region.side / 2;
+    expect(Math.abs(cx - (46 + side / 2))).toBeLessThan(side / 6);
+    expect(Math.abs(cy - (52 + side / 2))).toBeLessThan(side / 6);
+    expect(Math.abs(fit.region.side - side)).toBeLessThan(side * 0.25);
+    // И решётка при этом найдена: ровно то число, что на живом прогоне было ~0.
+    expect(gapContrast(patch, fit.region)).toBeGreaterThan(config.FACE_FIT_GAP_TARGET);
+  });
+
+  it("уточнение садится точнее четверти ячейки — грубого шага мало", () => {
+    const size = 180;
+    const side = 96;
+    // Смещение заведомо не попадает в узлы грубой сетки.
+    const patch = scene(size, 37, 29, side, MIXED_FACE);
+    const fit = fitFaceRegion(patch, REFS);
+    const cell = side / 3;
+    expect(Math.abs(fit.region.x - 37)).toBeLessThan(cell * 0.25);
+    expect(Math.abs(fit.region.y - 29)).toBeLessThan(cell * 0.25);
+  });
+
   it("грань во весь патч оставляет как есть — дёргать нечего", () => {
     const patch = scene(120, 0, 0, 120, WHITE_FACE);
     const fit = fitFaceRegion(patch, REFS);

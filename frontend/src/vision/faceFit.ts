@@ -47,6 +47,18 @@ export interface Patch {
   size: number;
 }
 
+/**
+ * Шаг прореживания, дающий примерно `target` отсчётов вдоль стороны.
+ *
+ * Медиане цвета ячейки не нужны все её пиксели: две-три сотни отсчётов дают ту же
+ * медиану, что двадцать тысяч, а перебор кандидатов на полном разрешении стоил
+ * 3.2 секунды на грань — при пяти кадрах на съёмку это шестнадцать секунд, то
+ * есть инструмент, которым нельзя снять двадцать чтений.
+ */
+function strideFor(span: number, target: number): number {
+  return Math.max(1, Math.floor(span / target));
+}
+
 function cellStats(
   patch: Patch,
   x0: number,
@@ -54,16 +66,19 @@ function cellStats(
   cw: number,
   ch: number,
   centerFrac: number,
+  samples = 0,
 ): { rgb: RGB; spread: number } {
   const mx = Math.floor((cw * (1 - centerFrac)) / 2);
   const my = Math.floor((ch * (1 - centerFrac)) / 2);
+  const sx = samples > 0 ? strideFor(cw - 2 * mx, samples) : 1;
+  const sy = samples > 0 ? strideFor(ch - 2 * my, samples) : 1;
   const rs: number[] = [];
   const gs: number[] = [];
   const bs: number[] = [];
   const lumas: number[] = [];
-  for (let y = y0 + my; y < y0 + ch - my; y++) {
+  for (let y = y0 + my; y < y0 + ch - my; y += sy) {
     if (y < 0 || y >= patch.size) continue;
-    for (let x = x0 + mx; x < x0 + cw - mx; x++) {
+    for (let x = x0 + mx; x < x0 + cw - mx; x += sx) {
       if (x < 0 || x >= patch.size) continue;
       const i = (y * patch.size + x) * 4;
       const r = patch.data[i];
@@ -111,15 +126,21 @@ function cellGapContrast(
   h: number,
   cellLuma: number,
   bandFrac: number,
+  samples = 0,
 ): number {
   const halfW = Math.max(1, Math.round((w * bandFrac) / 2));
   const halfH = Math.max(1, Math.round((h * bandFrac) / 2));
 
   const bandMedian = (bx: number, by: number, bw: number, bh: number): number | null => {
     const lumas: number[] = [];
-    for (let y = by; y < by + bh; y++) {
+    // Полоса узкая и длинная: вдоль неё нужен размах, поперёк хватает трёх
+    // отсчётов. Одинаковый шаг по обеим осям делал полосы дороже самих ячеек —
+    // тонкая сторона не прореживалась вовсе.
+    const sx = samples > 0 ? strideFor(bw, bw >= bh ? samples : 3) : 1;
+    const sy = samples > 0 ? strideFor(bh, bh > bw ? samples : 3) : 1;
+    for (let y = by; y < by + bh; y += sy) {
       if (y < 0 || y >= patch.size) continue;
-      for (let x = bx; x < bx + bw; x++) {
+      for (let x = bx; x < bx + bw; x += sx) {
         if (x < 0 || x >= patch.size) continue;
         const i = (y * patch.size + x) * 4;
         lumas.push(luma([patch.data[i], patch.data[i + 1], patch.data[i + 2]]));
@@ -174,6 +195,8 @@ export function regionCost(
   gapTarget: number = config.FACE_FIT_GAP_TARGET,
   gapWeight: number = config.FACE_FIT_GAP_WEIGHT,
   bandFrac: number = config.FACE_FIT_GAP_BAND_FRAC,
+  /** Сколько отсчётов вдоль стороны ячейки брать; 0 — все пиксели. */
+  samples = 0,
 ): number {
   const cw = region.side / 3;
   let total = 0;
@@ -183,7 +206,7 @@ export function regionCost(
       const y0 = Math.round(region.y + row * cw);
       const w = Math.round(region.x + (col + 1) * cw) - x0;
       const h = Math.round(region.y + (row + 1) * cw) - y0;
-      const { rgb, spread } = cellStats(patch, x0, y0, w, h, centerFrac);
+      const { rgb, spread } = cellStats(patch, x0, y0, w, h, centerFrac, samples);
       const lab = rgb2lab(rgb);
       let best = Infinity;
       for (const name of COLOR_NAMES) best = Math.min(best, deltaE(lab, refs[name]));
@@ -191,7 +214,7 @@ export function regionCost(
       // её на сотню единиц, у синей — на десятки, и штрафовать синюю нельзя.
       const deficit = Math.max(
         0,
-        gapTarget - cellGapContrast(patch, x0, y0, w, h, luma(rgb), bandFrac),
+        gapTarget - cellGapContrast(patch, x0, y0, w, h, luma(rgb), bandFrac, samples),
       );
       // ΔE до ближайшего эталона — основная часть; разброс внутри ячейки —
       // добавка, которая штрафует сетку, севшую на щели.
@@ -201,16 +224,64 @@ export function regionCost(
   return total / 9;
 }
 
-/** Кандидаты: масштаб грани внутри патча × сдвиг по обеим осям. */
-export function candidateRegions(patchSize: number): FitRegion[] {
+/**
+ * Кандидаты: масштаб грани внутри патча × сдвиг по обеим осям.
+ *
+ * Диапазон масштабов начинается с 0.4, а не с 0.62. Прежняя нижняя граница
+ * молча требовала, чтобы грань занимала минимум две трети рамки; человек,
+ * держащий кубик чуть дальше, получал грань в половину рамки — правильного
+ * положения в переборе НЕ БЫЛО ВОВСЕ, и подгонка выбирала лучший из заведомо
+ * неверных. Живой прогон это и показал: «подогнана» на всех шести гранях при
+ * контрасте щелей около нуля, то есть решётку не нашли нигде, а промахи имели
+ * цвета-смеси (серо-бежевый, оливковый) — усреднение двух наклеек через щель.
+ *
+ * Шаг сдвига задаётся в долях ЯЧЕЙКИ, а не области: ошибка в полячейки и есть
+ * та самая ошибка, из-за которой ячейка читает соседа.
+ */
+export function candidateRegions(patchSize: number, stepFrac = 0.34): FitRegion[] {
   const out: FitRegion[] = [];
-  for (const scale of [0.62, 0.72, 0.82, 0.92, 1.0]) {
+  for (const scale of [0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0]) {
     const side = patchSize * scale;
     const slack = patchSize - side;
-    const steps = slack < 2 ? [0] : [0, 0.25, 0.5, 0.75, 1];
-    for (const fx of steps) {
-      for (const fy of steps) {
-        out.push({ x: slack * fx, y: slack * fy, side });
+    if (slack < 2) {
+      out.push({ x: 0, y: 0, side });
+      continue;
+    }
+    // Шаг — доля ячейки (side/3), но не мельче пикселя.
+    const step = Math.max(1, (side / 3) * stepFrac);
+    const n = Math.ceil(slack / step);
+    for (let i = 0; i <= n; i++) {
+      for (let j = 0; j <= n; j++) {
+        out.push({ x: Math.min(slack, i * step), y: Math.min(slack, j * step), side });
+      }
+    }
+  }
+  return out;
+}
+
+/**
+ * Уточнение вокруг найденного кандидата: тот же перебор, но мелкой сеткой в
+ * окрестности победителя.
+ *
+ * Нужен, чтобы расширение диапазона не стоило времени. Грубый проход отвечает на
+ * вопрос «где примерно грань», уточнение — «где именно», и второй вопрос имеет
+ * смысл задавать только в одном месте, а не по всему патчу.
+ */
+export function refineRegions(patchSize: number, around: FitRegion): FitRegion[] {
+  const out: FitRegion[] = [];
+  const cell = around.side / 3;
+  const posStep = Math.max(1, cell * 0.08);
+  const sideStep = Math.max(1, around.side * 0.04);
+  for (let ds = -1; ds <= 1; ds++) {
+    const side = around.side + ds * sideStep;
+    if (side < 12 || side > patchSize) continue;
+    const maxOff = patchSize - side;
+    for (let dx = -2; dx <= 2; dx++) {
+      for (let dy = -2; dy <= 2; dy++) {
+        const x = around.x + dx * posStep;
+        const y = around.y + dy * posStep;
+        if (x < 0 || y < 0 || x > maxOff || y > maxOff) continue;
+        out.push({ x, y, side });
       }
     }
   }
@@ -226,17 +297,44 @@ export function candidateRegions(patchSize: number): FitRegion[] {
  * прежней геометрии, чем дёргать сетку от кадра к кадру.
  */
 export function fitFaceRegion(patch: Patch, refs: Refs, centerFrac = 0.5): FitResult {
-  const baseline: FitRegion = { x: 0, y: 0, side: patch.size };
-  const baselineCost = regionCost(patch, baseline, refs, centerFrac);
+  const { GAP_TARGET, GAP_WEIGHT, BAND } = fitParams();
+  // Перебор идёт по ПРОРЕЖЕННЫМ отсчётам: медиана ячейки от этого не меняется, а
+  // семь сотен кандидатов на полном разрешении стоили секунды на каждую грань.
+  const coarse = (r: FitRegion): number =>
+    regionCost(patch, r, refs, centerFrac, GAP_TARGET, GAP_WEIGHT, BAND, 10);
+  const fine = (r: FitRegion): number =>
+    regionCost(patch, r, refs, centerFrac, GAP_TARGET, GAP_WEIGHT, BAND, 20);
 
+  const baseline: FitRegion = { x: 0, y: 0, side: patch.size };
   let best = baseline;
-  let bestCost = baselineCost;
+  let bestCoarse = coarse(baseline);
+  // Грубый проход: где примерно сидит грань.
   for (const cand of candidateRegions(patch.size)) {
-    const cost = regionCost(patch, cand, refs, centerFrac);
+    const cost = coarse(cand);
+    if (cost < bestCoarse) {
+      bestCoarse = cost;
+      best = cand;
+    }
+  }
+  // Уточнение: где именно. Без него шаг грубой сетки (четверть ячейки) остаётся
+  // в остатке, а четверть ячейки — это уже полоса чужой наклейки в выборке.
+  let bestCost = fine(best);
+  for (const cand of refineRegions(patch.size, best)) {
+    const cost = fine(cand);
     if (cost < bestCost) {
       bestCost = cost;
       best = cand;
     }
   }
-  return { region: best, cost: bestCost, baselineCost };
+  // Итоговые числа — на общей мерке с базовой рамкой, иначе «выигрыш» сравнивал
+  // бы стоимости, посчитанные с разной плотностью выборки.
+  return { region: best, cost: fine(best), baselineCost: fine(baseline) };
+}
+
+function fitParams(): { GAP_TARGET: number; GAP_WEIGHT: number; BAND: number } {
+  return {
+    GAP_TARGET: config.FACE_FIT_GAP_TARGET,
+    GAP_WEIGHT: config.FACE_FIT_GAP_WEIGHT,
+    BAND: config.FACE_FIT_GAP_BAND_FRAC,
+  };
 }

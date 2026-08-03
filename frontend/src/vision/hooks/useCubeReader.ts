@@ -25,7 +25,7 @@ import {
 } from "../colors";
 import { quickAdjust as colorsQuickAdjust } from "../quickAdjust";
 import { config, squareGuidePx, type Rect } from "../config";
-import { fitFaceRegion, gapContrast } from "../faceFit";
+import { fitFaceRegion, gapContrast, type FitRegion } from "../faceFit";
 import { notACubeFaceRu } from "../guide";
 import { assignFacesByCenter, resolveRotations, lenientVerify } from "../cubeGrid";
 import { diffFacelets, validateFacelets, type Face, type Facelet } from "../cubeState";
@@ -38,6 +38,8 @@ export interface FaceSample {
   kept: number[];
   /** Как легла сетка: выигрыш подгонки, приняли ли её, контраст щелей. */
   fit: FaceFitDiag;
+  /** Область, которой грань реально нарезана — чтобы пачка кадров делила одну. */
+  region?: FitRegion;
 }
 
 /**
@@ -57,6 +59,13 @@ export function readFace(
    * это не кубик: держишь ближе/дальше/наискось, и ячейки уезжают на щели и фон.
    */
   refs: Refs | null = null,
+  /**
+   * Готовая область грани. Передаётся, когда съёмка делается пачкой кадров:
+   * кубик за сотню миллисекунд никуда не уходит, а поиск сетки — самая дорогая
+   * часть чтения, и повторять его на каждом кадре значит платить за один и тот
+   * же ответ пять раз. Пусто — ищем сами.
+   */
+  presetRegion: FitRegion | null = null,
 ): FaceSample {
   // Sample a CENTERED SQUARE (side = min of the guide's px dimensions). The 3x3
   // grid below assumes a square cube face fills the region; if the sampled region
@@ -80,7 +89,12 @@ export function readFace(
   const patch = { data: ctx.getImageData(0, 0, gw, gh).data, size: gw };
   let gain = 0;
   let used = false;
-  if (refs) {
+  if (presetRegion) {
+    ox = Math.round(presetRegion.x);
+    oy = Math.round(presetRegion.y);
+    side = Math.round(presetRegion.side);
+    used = true;
+  } else if (refs) {
     const fit = fitFaceRegion(patch, refs, centerFrac);
     gain = fit.baselineCost - fit.cost;
     // Доверяем подгонке только при ощутимом выигрыше: иначе сетка дёргалась бы
@@ -117,7 +131,7 @@ export function readFace(
       lab.push(rgb2lab(cell.rgb));
     }
   }
-  return { rgb, lab, kept, fit: { gain, used, gap } };
+  return { rgb, lab, kept, fit: { gain, used, gap }, region: { x: ox, y: oy, side } };
 }
 
 /** Mean luma (Rec. 601) of the guide region, 0..255. */
@@ -484,18 +498,24 @@ async function readFaceBurst(
   gapMs: number = config.CAPTURE_FRAME_GAP_MS,
 ): Promise<FaceSample> {
   const shots: FaceSample[] = [];
+  // Сетку ищем ОДИН раз, на первом кадре, и держим её для остальных: за сотню
+  // миллисекунд кубик не уезжает, а поиск — самая дорогая часть чтения (сотни
+  // миллисекунд против единиц). Заодно это убирает дрожь: все кадры пачки
+  // нарезаны одной и той же сеткой, а не пятью слегка разными.
+  let region: FitRegion | null = null;
   for (let i = 0; i < Math.max(1, frames); i++) {
-    shots.push(
-      readFace(
-        video,
-        video.videoWidth,
-        video.videoHeight,
-        work,
-        config.GUIDE_RECT,
-        config.CELL_CENTER_FRAC,
-        refs,
-      ),
+    const shot = readFace(
+      video,
+      video.videoWidth,
+      video.videoHeight,
+      work,
+      config.GUIDE_RECT,
+      config.CELL_CENTER_FRAC,
+      refs,
+      region,
     );
+    shots.push(shot);
+    if (i === 0) region = shot.region ?? null;
     if (i < frames - 1) await new Promise((r) => setTimeout(r, gapMs));
   }
   const rgb = medianAcrossFrames(shots.map((s) => s.rgb));
@@ -504,10 +524,13 @@ async function readFaceBurst(
   const kept = rgb.map((_, i) => median(shots.map((s) => s.kept[i] ?? 0)));
   // Телеметрия подгонки — тоже по медиане кадров; `used` берём большинством,
   // чтобы одна дрогнувшая рука не переписала вердикт по всей грани.
+  // Телеметрия — от кадра, который ИСКАЛ сетку: остальные её только применяли,
+  // и их «выигрыш» ничего не измеряет. Контраст щелей усредняем по кадрам: он
+  // считается на своей области каждый раз и от шума страхуется медианой.
   const fit = {
-    gain: median(shots.map((s) => s.fit.gain)),
+    gain: shots[0].fit.gain,
     gap: median(shots.map((s) => s.fit.gap)),
-    used: shots.filter((s) => s.fit.used).length * 2 > shots.length,
+    used: shots[0].fit.used,
   };
   return { rgb, lab: rgb.map((c) => rgb2lab(c)), kept, fit };
 }
