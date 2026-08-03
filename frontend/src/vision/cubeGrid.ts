@@ -64,10 +64,15 @@ export function normalizeByRotation<T>(grid: T[], k = 0): T[] {
  * per capture, plus `ambiguous` if two captures classify to the same face
  * (means the tester duplicated a face or lighting is wrong -> FAIL LOUD).
  */
-export function assignFacesByCenter(
-  faceGridsLab: Lab[][],
-  refs: Refs,
-): { faces: Face[]; ok: boolean; reason?: string } {
+export interface CenterAssignment {
+  faces: Face[];
+  ok: boolean;
+  reason?: string;
+  /** Какая съёмка провалила замок: её номер (с нуля), выданный цвет и ΔE до него. */
+  offender?: { capture: number; face: Face; de: number };
+}
+
+export function assignFacesByCenter(faceGridsLab: Lab[][], refs: Refs): CenterAssignment {
   const centers = faceGridsLab.map((grid) => grid[4]);
 
   // Шесть съёмок и шесть цветов — это бижекция, и раздавать её надо целиком.
@@ -103,6 +108,7 @@ export function assignFacesByCenter(
         faces,
         ok: false,
         reason: `capture ${c + 1} centre is ${de.toFixed(1)} away from the ${faces[c]} colour (max ${config.CENTER_MAX_DELTA_E}) — a face was shown twice or the light is wrong`,
+        offender: { capture: c, face: faces[c], de },
       };
     }
   }

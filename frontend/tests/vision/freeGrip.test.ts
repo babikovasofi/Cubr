@@ -10,10 +10,7 @@ import { scrambleToFacelets, type Face, type Facelet } from "../../src/vision/cu
 const TRUTH: Facelet = scrambleToFacelets("R U F D' L2 B");
 
 function gridsOf(facelets: Facelet): Face[][] {
-  return Array.from(
-    { length: 6 },
-    (_, f) => facelets.slice(f * 9, f * 9 + 9).split("") as Face[],
-  );
+  return Array.from({ length: 6 }, (_, f) => facelets.slice(f * 9, f * 9 + 9).split("") as Face[]);
 }
 
 describe("scoreFreeGrip", () => {
@@ -48,9 +45,7 @@ describe("scoreFreeGrip", () => {
     // Портим не-центральную ячейку в цвет, которого на этой грани не хватает.
     const face = grids[0];
     const victim = face.findIndex((c, j) => j !== 4 && c !== face[4]);
-    const wrong = (["U", "R", "F", "D", "L", "B"] as Face[]).find(
-      (c) => !face.includes(c),
-    );
+    const wrong = (["U", "R", "F", "D", "L", "B"] as Face[]).find((c) => !face.includes(c));
     if (wrong) face[victim] = wrong;
     const out = scoreFreeGrip(grids, TRUTH);
     expect(out.kind).toBe("ok");
@@ -64,6 +59,30 @@ describe("scoreFreeGrip", () => {
     grids[1][4] = grids[0][4]; // два захвата с одним центром
     const out = scoreFreeGrip(grids, TRUTH);
     expect(out.kind).toBe("assign-conflict");
+  });
+
+  it("готовое выравнивание перебивает центр, прочитанный неверно", () => {
+    // Ровно живой случай: центр одной съёмки классифицировался тем же цветом,
+    // что и у другой. Раскладка шести съёмок по шести цветам (по СЫРЫМ центрам,
+    // в продукте — assignFacesByCenter) знает, кто есть кто, и чтение считается.
+    const grids = gridsOf(TRUTH);
+    grids[1][4] = grids[0][4];
+    expect(scoreFreeGrip(grids, TRUTH).kind).toBe("assign-conflict");
+
+    const out = scoreFreeGrip(grids, TRUTH, undefined, ["U", "R", "F", "D", "L", "B"] as Face[]);
+    expect(out.kind).toBe("ok");
+    if (out.kind !== "ok") return;
+    // Испорчен ровно один центр, а центры в счёт не идут — все 48 верны.
+    expect(out.report.correct).toBe(48);
+    expect(out.faceOf).toEqual(["U", "R", "F", "D", "L", "B"]);
+  });
+
+  it("выравнивание не той длины игнорируется — падаем обратно на центры", () => {
+    const grids = gridsOf(TRUTH);
+    const out = scoreFreeGrip(grids, TRUTH, undefined, ["U", "R"] as Face[]);
+    expect(out.kind).toBe("ok");
+    if (out.kind !== "ok") return;
+    expect(out.faceOf).toEqual(["U", "R", "F", "D", "L", "B"]);
   });
 
   // Цена послабления, записанная тестом: перестановка ВНУТРИ грани невидима.

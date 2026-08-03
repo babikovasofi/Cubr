@@ -8,6 +8,7 @@ import CameraStage from "../solo/CameraStage";
 import ScrambleWalkthrough from "../solo/ScrambleWalkthrough";
 import Button from "../components/Button";
 import AccuracyControls from "./AccuracyControls";
+import CaptureDeck from "./CaptureDeck";
 import { useAccuracySession } from "./useAccuracySession";
 
 export default function AccuracyPage() {
@@ -28,8 +29,12 @@ export default function AccuracyPage() {
         </p>
       </header>
 
-      <div className="grid gap-6 lg:grid-cols-2">
-        <div className="flex flex-col gap-3">
+      <div className="grid items-start gap-6 lg:grid-cols-2">
+        {/* Камера и всё, что жмут с кубиком в руках, — одним блоком и липко:
+            снимая грань, человек смотрит в кадр, и подсказка с текстом отказа
+            должны попадать в тот же взгляд. Настройки и таблицы уезжают вправо —
+            их трогают один раз за условие. */}
+        <div className="flex flex-col gap-3 lg:sticky lg:top-4">
           <CameraStage
             videoRef={session.videoRef}
             overlayRef={session.overlayRef}
@@ -40,6 +45,13 @@ export default function AccuracyPage() {
           {!session.cameraStarted ? (
             <Button onClick={session.startCamera}>Включить камеру</Button>
           ) : null}
+          <CaptureDeck session={session} />
+        </div>
+
+        {/* Скрамбл собирают ДО чтения и смотрят при этом не в кадр, поэтому
+            walkthrough уехал из липкой колонки — иначе она перерастает экран и
+            липкость перестаёт работать вовсе. */}
+        <div className="flex flex-col gap-6">
           {session.mode === "scramble" && session.moves.length > 0 ? (
             <div className="rounded-lg border border-line bg-surface p-3">
               <span className="font-sans text-overline uppercase text-muted">
@@ -52,9 +64,8 @@ export default function AccuracyPage() {
               />
             </div>
           ) : null}
+          <AccuracyControls session={session} />
         </div>
-
-        <AccuracyControls session={session} />
       </div>
     </div>
   );

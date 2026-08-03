@@ -116,12 +116,24 @@ export function scoreFreeGrip(
   faceGrids: Face[][],
   expected: Facelet,
   passFrac: number = config.ACCURACY_PASS_FRAC,
+  /**
+   * Готовое выравнивание: какой гранью была каждая съёмка. Приходит из
+   * `cubeGrid.assignFacesByCenter` по СЫРЫМ центрам — раскладка шести съёмок по
+   * шести цветам целиком, со своим замком на «центр далеко от выданного цвета».
+   *
+   * Без него грань называет одиночный argmin по центру, а он на тёплом свете
+   * отдаёт один и тот же цвет двум съёмкам (порыжевший красный центр ближе к
+   * оранжевому эталону, чем к своему) — и всё чтение уходит в дроп, хотя человек
+   * показал ровно шесть разных граней. Подгонкой под ответ это не является:
+   * эталон в раскладке не участвует, решают только цвета центров.
+   */
+  faceOfOverride?: Face[],
 ): FreeGripScore {
   if (faceGrids.length !== 6 || faceGrids.some((g) => g.length !== 9)) {
     return { kind: "assign-conflict", reason: "нужно ровно 6 граней по 9 ячеек" };
   }
   // (a) Кто есть кто — по центру каждой съёмки.
-  const faceOf = faceGrids.map((g) => g[4]);
+  const faceOf = faceOfOverride?.length === 6 ? [...faceOfOverride] : faceGrids.map((g) => g[4]);
   const counts: Record<string, number> = {};
   for (const f of faceOf) counts[f] = (counts[f] ?? 0) + 1;
   for (const f of FACE_ORDER) {

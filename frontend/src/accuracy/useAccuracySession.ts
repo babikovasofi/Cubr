@@ -32,7 +32,12 @@ import {
   type ConditionKey,
 } from "../vision/accuracyRun";
 import { SOLVED, type Facelet } from "../vision/cubeState";
-import { calibrationRejectedRu, cameraDeniedRu, faceUnreadableRu } from "../vision/guide";
+import {
+  calibrationRejectedRu,
+  cameraDeniedRu,
+  centerAssignFailedRu,
+  faceUnreadableRu,
+} from "../vision/guide";
 import {
   COLOR_NAMES,
   lab2rgb,
@@ -299,14 +304,29 @@ export function useAccuracySession(): AccuracySession {
         // сравниваются мультимножествами, центры из счёта исключены. Ориентация
         // тут не нарушение, а разрешённое условие, поэтому замок ниже не про неё.
         if (grip === "free") {
-          const free = scoreFreeGrip(r.rawFaceGrids, truth);
+          // Выравнивание — из раскладки шести съёмок по шести цветам (сырые
+          // центры), а не из одиночного argmin по центру: тот на тёплом свете
+          // выдаёт один цвет дважды и топит чтение, в котором зрение не виновато.
+          // Раскладка отказала — так и говорим, с её собственной причиной.
+          if (!r.rawCenterFaces) {
+            const o = r.rawCenterOffender;
+            setCaptureError(
+              o
+                ? centerAssignFailedRu(o.capture, o.face, o.de, config.CENTER_MAX_DELTA_E)
+                : `Грани не опознаны по центрам: ${r.rawCenterReason ?? "раскладка не сошлась"}.`,
+            );
+            appendDrop(runRef.current, conditionRef.current, "assign");
+            bump();
+            return;
+          }
+          const free = scoreFreeGrip(r.rawFaceGrids, truth, undefined, r.rawCenterFaces);
           if (free.kind === "assign-conflict") {
             setCaptureError(`Грани не опознаны по центрам: ${free.reason}.`);
             appendDrop(runRef.current, conditionRef.current, "assign");
             bump();
             return;
           }
-          const freeProduct = scoreFreeGrip(r.productFaceGrids, truth);
+          const freeProduct = scoreFreeGrip(r.productFaceGrids, truth, undefined, r.rawCenterFaces);
           appendRead(runRef.current, conditionRef.current, free.report);
           lastReadKeyRef.current = conditionRef.current;
           setLastReport(free.report);

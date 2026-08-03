@@ -6,9 +6,7 @@
 import { useState } from "react";
 import Button from "../components/Button";
 import Input from "../components/Input";
-import { lab2rgb } from "../vision/colors";
 import {
-  CAPTURE_ORDER,
   MIN_READS,
   conditionVerdict,
   condKeyString,
@@ -16,51 +14,10 @@ import {
   hotspots,
   runHotspots,
 } from "../vision/accuracyRun";
+import { CAPTURE_HINTS } from "./captureHints";
+
+export { CAPTURE_HINTS };
 import type { AccuracySession } from "./useAccuracySession";
-
-// Short per-step orientation hints: which face points at the camera and which
-// ends up on top — named by CENTRE colour, no U/R/F/D/L/B jargon, so the tester
-// doesn't need to know cube notation to follow along.
-//
-// Centre, not face. Чтения снимаются со СКРАМБЛИРОВАННОГО кубика: белой грани
-// на нём нет вообще, у каждой грани все девять наклеек разные. Единственное, что
-// делает грань «той самой», — её центр: центры не двигаются никакими ходами,
-// поэтому «грань с белым центром» однозначно и на собранном, и на разобранном.
-// Прежний текст («покажи БЕЛУЮ грань») был написан под калибровку, где кубик
-// собран, и переехал сюда как есть — на скрамбле он отправлял искать грань,
-// которой не существует.
-//
-// Geometry (verified two ways — physical "tip toward/away from viewer" + the
-// standard whole-cube rotations x/x'): spinning around the vertical axis to
-// show R/F/L/B keeps white on top unchanged. Showing U or D is a PIVOT, not a
-// spin, and the two pivots go in OPPOSITE directions:
-//   x'  (U to front): white->front, green->bottom, BLUE->top.
-//   x   (D to front): yellow->front, white->bottom, GREEN->top.
-// An earlier version of this copy had U/D's top-colour swapped, which fed the
-// reader a mismatched orientation on exactly those two steps — the likely root
-// cause of drift errors reported downstream (e.g. on L, right after D).
-export const CAPTURE_HINTS: { face: string; ru: string }[] = [
-  {
-    face: "U",
-    ru: "В камеру — грань с БЕЛЫМ центром. Наверху окажется центр синий, внизу зелёный.",
-  },
-  { face: "R", ru: "В камеру — грань с КРАСНЫМ центром. Наверху центр белый." },
-  { face: "F", ru: "В камеру — грань с ЗЕЛЁНЫМ центром. Наверху центр белый." },
-  {
-    face: "D",
-    ru: "В камеру — грань с ЖЁЛТЫМ центром. Наверху окажется центр зелёный, внизу белый.",
-  },
-  { face: "L", ru: "В камеру — грань с ОРАНЖЕВЫМ центром. Наверху центр белый." },
-  { face: "B", ru: "В камеру — грань с СИНИМ центром. Наверху центр белый." },
-];
-
-// При свободной хватке ориентация не задана — просить «наверху центр белый»
-// значит требовать того, что режим только что разрешил не соблюдать.
-function hintFor(step: number, grip: string): string {
-  const hint = CAPTURE_HINTS[Math.min(step, 5)];
-  if (grip !== "free") return hint.ru;
-  return `${hint.ru.split(".")[0]}. Держи как удобно — ориентация не важна.`;
-}
 
 function pct(x: number): string {
   return `${(x * 100).toFixed(1)}%`;
@@ -85,9 +42,6 @@ export default function AccuracyControls({ session }: AccuracyControlsProps) {
       setCopied(false);
     }
   }
-
-  const captureStep = session.collectingAccuracy ? session.accFacesLength : 0;
-  const hint = hintFor(captureStep, session.grip);
 
   return (
     <div className="flex flex-col gap-5">
@@ -197,88 +151,6 @@ export default function AccuracyControls({ session }: AccuracyControlsProps) {
         </div>
       </section>
 
-      {/* Calibration */}
-      <section className="flex flex-col gap-2 rounded-lg border border-line bg-surface p-4">
-        <span className="font-sans text-overline uppercase text-muted">Калибровка</span>
-        <p className="font-sans text-small text-muted">
-          Собранный кубик, 6 граней в порядке {CAPTURE_ORDER.join(" ")}. Шаг{" "}
-          {Math.min(session.calibrationStep, 6)}/6.{" "}
-          {session.calibrated ? "Готово ✓" : "Не откалибровано."}
-        </p>
-        <div className="flex flex-wrap gap-2">
-          <Button onClick={session.captureCalibration} disabled={!session.cameraStarted}>
-            Снять грань калибровки
-          </Button>
-          <Button
-            onClick={session.recalibrate}
-            className="bg-surface-2 text-ink"
-            disabled={!session.cameraStarted}
-          >
-            Сбросить калибровку
-          </Button>
-        </div>
-
-        {/* DEBUG: the 6 learned reference colours. If these 6 swatches are NOT
-            clearly 6 distinct cube colours (muddy / near-identical), calibration
-            failed — the camera/light couldn't produce distinct colours, and every
-            read then collapses to one colour. Screenshot this to diagnose. */}
-        {session.calibratedRefs ? (
-          <div className="flex flex-col gap-1">
-            <span className="font-sans text-caption uppercase text-muted">
-              Снятые эталоны (должны быть 6 РАЗНЫХ цветов кубика)
-            </span>
-            <div className="flex gap-2">
-              {CAPTURE_ORDER.map((face) => {
-                const lab = session.calibratedRefs?.[face];
-                const [r, g, b] = lab ? lab2rgb(lab) : [0, 0, 0];
-                return (
-                  <div key={face} className="flex flex-col items-center gap-0.5">
-                    <span
-                      className="h-9 w-9 rounded border-2 border-ink"
-                      style={{ backgroundColor: `rgb(${r} ${g} ${b})` }}
-                      title={`${face}: rgb(${r} ${g} ${b}) lab(${lab?.map((n) => n.toFixed(0)).join(",")})`}
-                    />
-                    <span className="font-mono text-caption text-muted">{face}</span>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        ) : null}
-      </section>
-
-      {/* Capture */}
-      <section className="flex flex-col gap-2 rounded-lg border border-line bg-surface p-4">
-        <span className="font-sans text-overline uppercase text-muted">Снять чтение</span>
-        <p className="font-sans text-small text-muted">
-          Фикс-порядок {CAPTURE_ORDER.join(" ")}.{" "}
-          {session.collectingAccuracy
-            ? `Грань ${captureStep + 1}/6.`
-            : "Нажми, чтобы начать чтение."}
-        </p>
-        {session.collectingAccuracy ? (
-          <p className="font-sans text-small font-bold text-ink">{hint}</p>
-        ) : null}
-        <div className="flex flex-wrap gap-2">
-          <Button
-            onClick={session.captureFace}
-            disabled={!session.cameraStarted || !session.calibrated}
-          >
-            {session.collectingAccuracy ? `Снять грань ${captureStep + 1}/6` : "Начать чтение"}
-          </Button>
-          {session.collectingAccuracy ? (
-            <Button onClick={session.cancelCapture} className="bg-surface-2 text-ink">
-              Отменить
-            </Button>
-          ) : null}
-        </div>
-        {session.captureError ? (
-          <p role="alert" className="font-sans text-small text-danger">
-            {session.captureError}
-          </p>
-        ) : null}
-      </section>
-
       {/* Gate */}
       <section className="flex flex-col gap-3 rounded-lg border border-line bg-surface p-4">
         <div className="flex items-center justify-between">
@@ -318,8 +190,8 @@ export default function AccuracyControls({ session }: AccuracyControlsProps) {
                   return (
                     <tr key={id} className="border-t border-line">
                       <td className="p-1 text-ink">
-                        {c.key.mode || "?"}/{c.key.grip || "?"}/{c.key.light || "?"}/{c.key.cube || "?"}/
-                        {c.key.person || "?"}
+                        {c.key.mode || "?"}/{c.key.grip || "?"}/{c.key.light || "?"}/
+                        {c.key.cube || "?"}/{c.key.person || "?"}
                       </td>
                       <td className="p-1 text-ink">{pct(c.fraction)}</td>
                       <td className="p-1 text-ink">{pct(c.wilsonLower)}</td>
@@ -348,9 +220,8 @@ export default function AccuracyControls({ session }: AccuracyControlsProps) {
         {gate.min ? (
           <p className="font-sans text-small text-muted">
             Худшее условие: {gate.min.key.mode || "?"}/{gate.min.key.grip || "?"}/
-            {gate.min.key.light || "?"}/
-            {gate.min.key.cube || "?"} — Wilson-LB {pct(gate.min.wilsonLower)}. Всего дропов:{" "}
-            {totalDrops}.
+            {gate.min.key.light || "?"}/{gate.min.key.cube || "?"} — Wilson-LB{" "}
+            {pct(gate.min.wilsonLower)}. Всего дропов: {totalDrops}.
           </p>
         ) : null}
 

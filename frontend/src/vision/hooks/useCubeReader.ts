@@ -172,6 +172,17 @@ interface SixFaceResolve {
    * идёт в сверку скрамбла и в сборку кубика.
    */
   productFaceGrids: Face[][];
+  /**
+   * Какой гранью была каждая съёмка — по СЫРЫМ центрам, одной раскладкой
+   * шесть-на-шесть (cubeGrid.assignFacesByCenter). `null`, если раскладка
+   * отказала: центр слишком далеко от выданного цвета, то есть грань показали
+   * дважды или в рамку попал не кубик. Свободная хватка выравнивается по этому
+   * полю: центр — данные, а не подгонка под ответ.
+   */
+  rawCenterFaces: Face[] | null;
+  rawCenterReason?: string;
+  /** Какая съёмка провалила замок раскладки: номер, выданный цвет, ΔE до него. */
+  rawCenterOffender?: { capture: number; face: Face; de: number };
   resolved: Facelet | null; // legality-resolved URFDLB string, or null on failure
   reason?: ResolveReason; // set iff resolve/validate did not produce a legal cube
 }
@@ -320,6 +331,12 @@ function resolveSixFaces(samples: FaceSample[], refs: Refs): SixFaceResolve {
   const rawFaceGrids: Face[][] = rawLabs.map((grid) =>
     grid.map((lab) => argminRef(lab, refs) as string as Face),
   );
+  // Какая съёмка какой гранью была — по СЫРЫМ центрам, раскладкой целиком.
+  // Нужно отдельно от продуктового `assign`: тот считается по нормированным
+  // цветам, а нормировка тянет грань за её собственный центр к эталону, то есть
+  // опознание центра начинает опираться на своё же предположение. Для замера
+  // точности выравнивание обязано браться из данных, не из подпорок.
+  const rawCenters = assignFacesByCenter(rawLabs, refs);
 
   const labs = normalizeSamples(samples, refs);
   const assign = assignFacesByCenter(labs, refs);
@@ -330,21 +347,30 @@ function resolveSixFaces(samples: FaceSample[], refs: Refs): SixFaceResolve {
     samples.map((s) => s.kept),
   );
 
-  if (!assign.ok) return { rawFaceGrids, productFaceGrids, resolved: null, reason: "assign" };
+  const centres = {
+    rawCenterFaces: rawCenters.ok ? rawCenters.faces : null,
+    rawCenterReason: rawCenters.ok ? undefined : rawCenters.reason,
+    rawCenterOffender: rawCenters.offender,
+  };
+
+  if (!assign.ok) {
+    return { rawFaceGrids, productFaceGrids, ...centres, resolved: null, reason: "assign" };
+  }
   const res = resolveRotations(productFaceGrids, assign.faces);
   if (!res.ok) {
     return {
       rawFaceGrids,
       productFaceGrids,
+      ...centres,
       resolved: null,
       reason: res.reason?.includes("ambiguous") ? "ambiguous" : "resolve",
     };
   }
   const read = res.facelets!;
   if (!validateFacelets(read).ok) {
-    return { rawFaceGrids, productFaceGrids, resolved: read, reason: "illegal" };
+    return { rawFaceGrids, productFaceGrids, ...centres, resolved: read, reason: "illegal" };
   }
-  return { rawFaceGrids, productFaceGrids, resolved: read };
+  return { rawFaceGrids, productFaceGrids, ...centres, resolved: read };
 }
 
 // An accuracy capture outcome (fixed capture order, known ground truth). Drift is
@@ -362,6 +388,12 @@ export type AccuracyCapture =
       kind: "complete";
       rawFaceGrids: Face[][]; // 6 × 9 сырое чтение в фиксированном порядке URFDLB
       productFaceGrids: Face[][]; // то же, но продуктовым путём (нормировка + квоты)
+      // Какой гранью была каждая съёмка по СЫРЫМ центрам (раскладка целиком), и
+      // почему раскладка отказала, если отказала. Свободная хватка берёт
+      // выравнивание отсюда.
+      rawCenterFaces: Face[] | null;
+      rawCenterReason?: string;
+      rawCenterOffender?: { capture: number; face: Face; de: number };
       cellDiags: CellDiag[]; // 54 записи «почему так прочиталось», тот же порядок
       fitDiags: FaceFitDiag[]; // 6 записей «как легла сетка», тот же порядок
       resolved: Facelet | null; // informational legality-resolve (NOT scored)
@@ -768,11 +800,22 @@ export function useCubeReader(workRef: React.RefObject<HTMLCanvasElement | null>
     setCollectingAccuracy(false);
     setAccFacesLength(0);
 
-    const { rawFaceGrids, productFaceGrids, resolved, reason } = resolveSixFaces(faces, refs);
+    const {
+      rawFaceGrids,
+      productFaceGrids,
+      rawCenterFaces,
+      rawCenterReason,
+      rawCenterOffender,
+      resolved,
+      reason,
+    } = resolveSixFaces(faces, refs);
     return {
       kind: "complete",
       rawFaceGrids,
       productFaceGrids,
+      rawCenterFaces,
+      rawCenterReason,
+      rawCenterOffender,
       cellDiags: cellDiagnostics(faces, refs),
       fitDiags: faces.map((f) => f.fit),
       resolved,
