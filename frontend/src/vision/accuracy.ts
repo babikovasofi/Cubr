@@ -2,15 +2,15 @@
 // builds a per-color confusion matrix. PASS iff >= ACCURACY_PASS_FRAC of stickers
 // are correct at normal light.
 //
-// GROUND TRUTH вЂ” two novice-runnable modes (no notation), see gateHandMix / B:
-//   Mode A "РїРµСЂРµРјРµС€Р°Р№ СЂСѓРєР°РјРё": the user hand-scrambles (no formulas) and shows
+// GROUND TRUTH — two novice-runnable modes (no notation), see gateHandMix / B:
+//   Mode A "перемешай руками": the user hand-scrambles (no formulas) and shows
 //     the 6 faces. The existing pipeline (assignFacesByCenter -> resolveRotations)
-//     yields a LEGALITY-RESOLVED 54-char state вЂ” legality physically pins the
+//     yields a LEGALITY-RESOLVED 54-char state — legality physically pins the
 //     answer. We then score the RAW per-sticker argmin classification against that
 //     resolved state. This measures the CLASSIFIER on a genuinely mixed cube
 //     (adjacent red<->orange = the R1 risk). If resolve is ambiguous/failed we do
-//     NOT score garbage вЂ” the caller re-prompts.
-//   Mode B "СЃРѕР±СЂР°РЅРЅС‹Р№ РєСѓР±РёРє": score vs the known SOLVED string. Simple sanity;
+//     NOT score garbage — the caller re-prompts.
+//   Mode B "собранный кубик": score vs the known SOLVED string. Simple sanity;
 //     solid faces don't test adjacency.
 //
 // The old KNOWN-scramble path (scoreRead vs scrambleToFacelets) stays for the
@@ -341,12 +341,12 @@ export function formatReport(
 // ---- Novice gate modes (no notation) --------------------------------------
 
 /**
- * Mode A "РїРµСЂРµРјРµС€Р°Р№ СЂСѓРєР°РјРё". Score the RAW per-sticker classification against a
+ * Mode A "перемешай руками". Score the RAW per-sticker classification against a
  * ground truth that was independently RESOLVED to a legal cube by the pipeline
  * (assignFacesByCenter + resolveRotations, done by the caller).
  *
  * @param rawRead  the 54-char argmin classification (what the classifier "saw",
- *                 unconstrained by quota вЂ” the thing under test)
+ *                 unconstrained by quota — the thing under test)
  * @param resolved the legality-resolved 54-char ground truth from resolveRotations
  *
  * Both must be aligned in URFDLB order (the caller assembles rawRead in the same
@@ -364,8 +364,8 @@ export function gateHandMix(
 }
 
 /**
- * Mode B "СЃРѕР±СЂР°РЅРЅС‹Р№ РєСѓР±РёРє". Score the raw classification of a SOLVED cube against
- * the known SOLVED string. Simple sanity вЂ” solid faces, no adjacency test.
+ * Mode B "собранный кубик". Score the raw classification of a SOLVED cube against
+ * the known SOLVED string. Simple sanity — solid faces, no adjacency test.
  */
 export function gateSolved(
   rawRead: Facelet,
