@@ -10,9 +10,11 @@
 //       assemble the 54-char URFDLB string, and keep the combo cubejs accepts as
 //       a LEGAL cube. Ambiguous / none legal -> FAIL LOUD (re-capture).
 
+import { hungarian } from "./assignment";
 import { deltaE, COLOR_NAMES, type Lab, type ColorName, type Refs } from "./colors";
+import { config } from "./config";
 import { orientationVariants } from "./faceletRotations";
-import { validateFacelets, FACE_ORDER, type Face, type Facelet } from "./cubeState";
+import { validateFacelets, type Face, type Facelet } from "./cubeState";
 
 // ---- Grid rotation helpers -------------------------------------------------
 
@@ -66,33 +68,58 @@ export function assignFacesByCenter(
   faceGridsLab: Lab[][],
   refs: Refs,
 ): { faces: Face[]; ok: boolean; reason?: string } {
-  const faces: Face[] = [];
-  for (const grid of faceGridsLab) {
-    const center = grid[4];
-    let best: ColorName = COLOR_NAMES[0];
-    let bestD = Infinity;
-    for (const name of COLOR_NAMES) {
-      const d = deltaE(center, refs[name]);
-      if (d < bestD) {
-        bestD = d;
-        best = name;
-      }
-    }
-    faces.push(best as Face);
+  const centers = faceGridsLab.map((grid) => grid[4]);
+
+  // Шесть съёмок и шесть цветов — это бижекция, и раздавать её надо целиком.
+  // Независимый argmin по каждому центру этого не знает: стоит красному центру
+  // оказаться на волос ближе к оранжевому эталону, как оранжевый достаётся
+  // дважды, а красный — ни разу, и всё чтение бракуется, хотя человек показал
+  // ровно то, что просили. Минимальная по сумме раскладка такого не делает: если
+  // цвета вообще различимы, каждый получает свою грань. Тот же приём уже стоит в
+  // calibrateByColorIdentity — там раскладываются шесть эталонов, здесь шесть
+  // съёмок.
+  if (faceGridsLab.length !== COLOR_NAMES.length) {
+    return {
+      faces: centers.map((lab) => nearestRef(lab, refs) as Face),
+      ok: false,
+      reason: `got ${faceGridsLab.length} captures, need exactly ${COLOR_NAMES.length} — re-capture`,
+    };
   }
-  // Each of the 6 faces must appear exactly once.
-  const counts: Record<string, number> = {};
-  for (const f of faces) counts[f] = (counts[f] ?? 0) + 1;
-  for (const f of FACE_ORDER) {
-    if (counts[f] !== 1) {
+
+  const cost = centers.map((lab) => COLOR_NAMES.map((name) => deltaE(lab, refs[name])));
+  const pick = hungarian(cost);
+  const faces = pick.map((colorIdx) => COLOR_NAMES[colorIdx] as Face);
+
+  // Замок против подгонки под ответ. Раскладка НИКОГДА не отказывает: покажи одну
+  // грань дважды — второй съёмке всё равно достанется какой-нибудь свободный
+  // цвет, и вместо честного «покажи шестую грань» человек получил бы уверенно
+  // неверное чтение. Настоящий центр от своего эталона далеко не уходит, поэтому
+  // назначение принимается, только если каждый центр в него правдоподобно
+  // укладывается.
+  for (let c = 0; c < faces.length; c++) {
+    const de = cost[c][pick[c]];
+    if (de > config.CENTER_MAX_DELTA_E) {
       return {
         faces,
         ok: false,
-        reason: `face ${f} assigned ${counts[f] ?? 0}x by center color (need exactly 1) — re-capture / check light`,
+        reason: `capture ${c + 1} centre is ${de.toFixed(1)} away from the ${faces[c]} colour (max ${config.CENTER_MAX_DELTA_E}) — a face was shown twice or the light is wrong`,
       };
     }
   }
   return { faces, ok: true };
+}
+
+function nearestRef(lab: Lab, refs: Refs): ColorName {
+  let best: ColorName = COLOR_NAMES[0];
+  let bestD = Infinity;
+  for (const name of COLOR_NAMES) {
+    const d = deltaE(lab, refs[name]);
+    if (d < bestD) {
+      bestD = d;
+      best = name;
+    }
+  }
+  return best;
 }
 
 /**

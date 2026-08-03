@@ -9,8 +9,13 @@ import {
   FACE_ORDER,
   randomStateFacelets,
 } from "../../src/vision/cubeState";
-import { rotateGrid, normalizeByRotation, resolveRotations, assignFacesByCenter } from "../../src/vision/cubeGrid";
-import { calibrate, rgb2lab, type ColorName } from "../../src/vision/colors";
+import {
+  rotateGrid,
+  normalizeByRotation,
+  resolveRotations,
+  assignFacesByCenter,
+} from "../../src/vision/cubeGrid";
+import { calibrate, deltaE, rgb2lab, type ColorName } from "../../src/vision/colors";
 
 describe("URFDLB facelet mapping", () => {
   it("solved cube round-trips through cubejs", () => {
@@ -184,9 +189,7 @@ describe("auto-orientation (plan #6)", () => {
     };
     const refs = calibrate(refRgb);
     // Each captured face is a solid patch of its color (center = that color).
-    const gridsLab = FACE_ORDER.map((f) =>
-      new Array(9).fill(rgb2lab(refRgb[f as ColorName])),
-    );
+    const gridsLab = FACE_ORDER.map((f) => new Array(9).fill(rgb2lab(refRgb[f as ColorName])));
     const a = assignFacesByCenter(gridsLab as any, refs);
     expect(a.ok).toBe(true);
     expect(a.faces).toEqual([...FACE_ORDER]);
@@ -196,6 +199,85 @@ describe("auto-orientation (plan #6)", () => {
     dupLab[1] = new Array(9).fill(rgb2lab(refRgb.U)); // 2nd capture also white
     const bad = assignFacesByCenter(dupLab as any, refs);
     expect(bad.ok).toBe(false);
+  });
+
+  it("assignFacesByCenter saves a read where argmin would collide on red/orange", () => {
+    const refRgb: Record<ColorName, [number, number, number]> = {
+      U: [235, 235, 235],
+      R: [190, 40, 40], // красный
+      F: [40, 160, 70],
+      D: [235, 210, 50],
+      L: [225, 110, 35], // оранжевый
+      B: [35, 70, 180],
+    };
+    const refs = calibrate(refRgb);
+    // Красный центр под тёплым светом «порыжел» и по одиночному argmin ближе к
+    // оранжевому эталону, чем к своему. Сам оранжевый центр при этом чистый.
+    const warmRed: [number, number, number] = [215, 85, 40]; // ΔE: до R 13.8, до L 9.0
+    const centers: Record<ColorName, [number, number, number]> = {
+      ...refRgb,
+      R: warmRed,
+    };
+    const gridsLab = FACE_ORDER.map((f) => new Array(9).fill(rgb2lab(centers[f as ColorName])));
+
+    // Одиночный argmin отдал бы оранжевый дважды: и порыжевшему красному, и
+    // настоящему оранжевому.
+    const nearest = (lab: any) => {
+      let best = "U";
+      let bestD = Infinity;
+      for (const n of Object.keys(refRgb) as ColorName[]) {
+        const d = deltaE(lab, (refs as any)[n]);
+        if (d < bestD) {
+          bestD = d;
+          best = n;
+        }
+      }
+      return best;
+    };
+    const argmin = gridsLab.map((g) => nearest(g[4]));
+    expect(argmin.filter((f) => f === "L").length).toBe(2);
+
+    // Раскладка целиком выдаёт каждой съёмке её собственный цвет.
+    const a = assignFacesByCenter(gridsLab as any, refs);
+    expect(a.ok).toBe(true);
+    expect(a.faces).toEqual([...FACE_ORDER]);
+  });
+
+  it("assignFacesByCenter refuses when a capture centre is nowhere near its colour", () => {
+    const refRgb: Record<ColorName, [number, number, number]> = {
+      U: [255, 255, 255],
+      R: [200, 0, 0],
+      F: [0, 160, 0],
+      D: [230, 230, 0],
+      L: [255, 140, 0],
+      B: [0, 0, 200],
+    };
+    const refs = calibrate(refRgb);
+    const gridsLab = FACE_ORDER.map((f) => new Array(9).fill(rgb2lab(refRgb[f as ColorName])));
+    // Вместо синей грани сняли столешницу: раскладке всё равно останется только
+    // слот B, и без замка она молча объявила бы стол синей гранью.
+    gridsLab[5] = new Array(9).fill(rgb2lab([150, 130, 110]));
+    const res = assignFacesByCenter(gridsLab as any, refs);
+    expect(res.ok).toBe(false);
+    expect(res.reason).toMatch(/centre is/);
+  });
+
+  it("assignFacesByCenter refuses a capture count other than six", () => {
+    const refRgb: Record<ColorName, [number, number, number]> = {
+      U: [255, 255, 255],
+      R: [200, 0, 0],
+      F: [0, 160, 0],
+      D: [230, 230, 0],
+      L: [255, 140, 0],
+      B: [0, 0, 200],
+    };
+    const refs = calibrate(refRgb);
+    const gridsLab = FACE_ORDER.slice(0, 5).map((f) =>
+      new Array(9).fill(rgb2lab(refRgb[f as ColorName])),
+    );
+    const res = assignFacesByCenter(gridsLab as any, refs);
+    expect(res.ok).toBe(false);
+    expect(res.faces).toHaveLength(5);
   });
 });
 
