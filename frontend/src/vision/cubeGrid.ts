@@ -70,6 +70,13 @@ export interface CenterAssignment {
   reason?: string;
   /** Какая съёмка провалила замок: её номер (с нуля), выданный цвет и ΔE до него. */
   offender?: { capture: number; face: Face; de: number };
+  /**
+   * ΔE каждой съёмки до выданного ей цвета и медиана по шести. Нужны наружу:
+   * одно число «40.8» одинаково выглядит и когда в рамку попал стол, и когда
+   * свет уехал у всей сессии разом, а лечится это по-разному.
+   */
+  centerDEs: number[];
+  medianDE: number;
 }
 
 export function assignFacesByCenter(faceGridsLab: Lab[][], refs: Refs): CenterAssignment {
@@ -88,31 +95,53 @@ export function assignFacesByCenter(faceGridsLab: Lab[][], refs: Refs): CenterAs
       faces: centers.map((lab) => nearestRef(lab, refs) as Face),
       ok: false,
       reason: `got ${faceGridsLab.length} captures, need exactly ${COLOR_NAMES.length} — re-capture`,
+      centerDEs: [],
+      medianDE: 0,
     };
   }
 
   const cost = centers.map((lab) => COLOR_NAMES.map((name) => deltaE(lab, refs[name])));
   const pick = hungarian(cost);
   const faces = pick.map((colorIdx) => COLOR_NAMES[colorIdx] as Face);
+  const centerDEs = pick.map((colorIdx, c) => cost[c][colorIdx]);
+  const medianDE = medianOf(centerDEs);
 
   // Замок против подгонки под ответ. Раскладка НИКОГДА не отказывает: покажи одну
   // грань дважды — второй съёмке всё равно достанется какой-нибудь свободный
   // цвет, и вместо честного «покажи шестую грань» человек получил бы уверенно
-  // неверное чтение. Настоящий центр от своего эталона далеко не уходит, поэтому
-  // назначение принимается, только если каждый центр в него правдоподобно
-  // укладывается.
+  // неверное чтение.
+  //
+  // Замок ОТНОСИТЕЛЬНЫЙ, и это не мягкость. Абсолютный порог путает две разные
+  // болезни: свет, уехавший у всей сессии разом (тучи ушли, камера подкрутила
+  // экспозицию), двигает ВСЕ шесть центров примерно одинаково — цвета при этом
+  // по-прежнему различимы, и чтение имеет смысл; а стол или рука в рамке
+  // выбивает ОДНУ съёмку из общей картины. Медиана по шести — это и есть «общая
+  // картина», поэтому ловим отрыв от неё. Абсолютный потолок остаётся вторым
+  // рубежом: за ним центр уже не похож ни на что, сдвинулась сессия или нет.
   for (let c = 0; c < faces.length; c++) {
-    const de = cost[c][pick[c]];
-    if (de > config.CENTER_MAX_DELTA_E) {
+    const de = centerDEs[c];
+    const outlier = de - medianDE > config.CENTER_OUTLIER_DE;
+    if (outlier || de > config.CENTER_MAX_DELTA_E) {
       return {
         faces,
         ok: false,
-        reason: `capture ${c + 1} centre is ${de.toFixed(1)} away from the ${faces[c]} colour (max ${config.CENTER_MAX_DELTA_E}) — a face was shown twice or the light is wrong`,
+        reason: outlier
+          ? `capture ${c + 1} centre is ${de.toFixed(1)} from the ${faces[c]} colour while the other captures sit around ${medianDE.toFixed(1)} — that one capture is not a cube face`
+          : `capture ${c + 1} centre is ${de.toFixed(1)} away from the ${faces[c]} colour (max ${config.CENTER_MAX_DELTA_E}) — the light moved far from calibration`,
         offender: { capture: c, face: faces[c], de },
+        centerDEs,
+        medianDE,
       };
     }
   }
-  return { faces, ok: true };
+  return { faces, ok: true, centerDEs, medianDE };
+}
+
+function medianOf(xs: number[]): number {
+  if (xs.length === 0) return 0;
+  const s = [...xs].sort((a, b) => a - b);
+  const mid = s.length >> 1;
+  return s.length % 2 ? s[mid] : (s[mid - 1] + s[mid]) / 2;
 }
 
 function nearestRef(lab: Lab, refs: Refs): ColorName {

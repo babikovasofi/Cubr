@@ -15,7 +15,13 @@ import {
   resolveRotations,
   assignFacesByCenter,
 } from "../../src/vision/cubeGrid";
-import { calibrate, deltaE, rgb2lab, type ColorName } from "../../src/vision/colors";
+import {
+  applyLightGain,
+  calibrate,
+  deltaE,
+  rgb2lab,
+  type ColorName,
+} from "../../src/vision/colors";
 
 describe("URFDLB facelet mapping", () => {
   it("solved cube round-trips through cubejs", () => {
@@ -260,6 +266,54 @@ describe("auto-orientation (plan #6)", () => {
     const res = assignFacesByCenter(gridsLab as any, refs);
     expect(res.ok).toBe(false);
     expect(res.reason).toMatch(/centre is/);
+  });
+
+  it("assignFacesByCenter keeps a read where the light moved for ALL six captures", () => {
+    const refRgb: Record<ColorName, [number, number, number]> = {
+      U: [235, 235, 235],
+      R: [190, 40, 40],
+      F: [40, 160, 70],
+      D: [235, 210, 50],
+      L: [225, 110, 35],
+      B: [35, 70, 180],
+    };
+    const refs = calibrate(refRgb);
+    // Калибровались при одном свете, читаем при заметно более тусклом: канальный
+    // сдвиг двигает ВСЕ шесть центров разом, но цвета остаются различимы, и
+    // чтение имеет смысл. Замок обязан пропустить — он про подменённую грань, а
+    // не про свет.
+    const dimmer: [number, number, number] = [0.35, 0.5, 0.9];
+    const gridsLab = FACE_ORDER.map((f) =>
+      new Array(9).fill(rgb2lab(applyLightGain(refRgb[f as ColorName], dimmer))),
+    );
+    const res = assignFacesByCenter(gridsLab as any, refs);
+    expect(res.ok).toBe(true);
+    expect(res.faces).toEqual([...FACE_ORDER]);
+    // Сдвиг ощутимый: центры ушли далеко от эталонов, и всё равно все шесть
+    // опознаны — потому что ушли ВМЕСТЕ.
+    expect(res.medianDE).toBeGreaterThan(15);
+  });
+
+  it("assignFacesByCenter still refuses the ONE capture that breaks ranks", () => {
+    const refRgb: Record<ColorName, [number, number, number]> = {
+      U: [235, 235, 235],
+      R: [190, 40, 40],
+      F: [40, 160, 70],
+      D: [235, 210, 50],
+      L: [225, 110, 35],
+      B: [35, 70, 180],
+    };
+    const refs = calibrate(refRgb);
+    const dimmer: [number, number, number] = [0.72, 0.78, 0.95];
+    const gridsLab = FACE_ORDER.map((f) =>
+      new Array(9).fill(rgb2lab(applyLightGain(refRgb[f as ColorName], dimmer))),
+    );
+    // Та же уехавшая сессия, но одна съёмка — столешница.
+    gridsLab[2] = new Array(9).fill(rgb2lab([150, 130, 110]));
+    const res = assignFacesByCenter(gridsLab as any, refs);
+    expect(res.ok).toBe(false);
+    expect(res.offender?.capture).toBe(2);
+    expect(res.reason).toMatch(/not a cube face/);
   });
 
   it("assignFacesByCenter refuses a capture count other than six", () => {

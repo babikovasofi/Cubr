@@ -36,7 +36,9 @@ import {
   calibrationRejectedRu,
   cameraDeniedRu,
   centerAssignFailedRu,
+  centerSpreadRu,
   faceUnreadableRu,
+  fitSpreadRu,
 } from "../vision/guide";
 import {
   COLOR_NAMES,
@@ -310,10 +312,18 @@ export function useAccuracySession(): AccuracySession {
           // Раскладка отказала — так и говорим, с её собственной причиной.
           if (!r.rawCenterFaces) {
             const o = r.rawCenterOffender;
+            const spread = r.rawCenterSpread;
+            const head = o
+              ? centerAssignFailedRu(o.capture, o.face, o.de, config.CENTER_MAX_DELTA_E)
+              : `Грани не опознаны по центрам: ${r.rawCenterReason ?? "раскладка не сошлась"}.`;
             setCaptureError(
-              o
-                ? centerAssignFailedRu(o.capture, o.face, o.de, config.CENTER_MAX_DELTA_E)
-                : `Грани не опознаны по центрам: ${r.rawCenterReason ?? "раскладка не сошлась"}.`,
+              [
+                head,
+                spread ? centerSpreadRu(spread.faces, spread.des, spread.medianDE) : null,
+                r.fitDiags.length ? fitSpreadRu(r.fitDiags) : null,
+              ]
+                .filter(Boolean)
+                .join(" "),
             );
             appendDrop(runRef.current, conditionRef.current, "assign");
             bump();

@@ -183,6 +183,8 @@ interface SixFaceResolve {
   rawCenterReason?: string;
   /** Какая съёмка провалила замок раскладки: номер, выданный цвет, ΔE до него. */
   rawCenterOffender?: { capture: number; face: Face; de: number };
+  /** Расклад по всем шести: кому какой цвет и на каком расстоянии сидит центр. */
+  rawCenterSpread?: { faces: Face[]; des: number[]; medianDE: number };
   resolved: Facelet | null; // legality-resolved URFDLB string, or null on failure
   reason?: ResolveReason; // set iff resolve/validate did not produce a legal cube
 }
@@ -351,6 +353,11 @@ function resolveSixFaces(samples: FaceSample[], refs: Refs): SixFaceResolve {
     rawCenterFaces: rawCenters.ok ? rawCenters.faces : null,
     rawCenterReason: rawCenters.ok ? undefined : rawCenters.reason,
     rawCenterOffender: rawCenters.offender,
+    rawCenterSpread: {
+      faces: rawCenters.faces,
+      des: rawCenters.centerDEs,
+      medianDE: rawCenters.medianDE,
+    },
   };
 
   if (!assign.ok) {
@@ -394,6 +401,7 @@ export type AccuracyCapture =
       rawCenterFaces: Face[] | null;
       rawCenterReason?: string;
       rawCenterOffender?: { capture: number; face: Face; de: number };
+      rawCenterSpread?: { faces: Face[]; des: number[]; medianDE: number };
       cellDiags: CellDiag[]; // 54 записи «почему так прочиталось», тот же порядок
       fitDiags: FaceFitDiag[]; // 6 записей «как легла сетка», тот же порядок
       resolved: Facelet | null; // informational legality-resolve (NOT scored)
@@ -806,6 +814,7 @@ export function useCubeReader(workRef: React.RefObject<HTMLCanvasElement | null>
       rawCenterFaces,
       rawCenterReason,
       rawCenterOffender,
+      rawCenterSpread,
       resolved,
       reason,
     } = resolveSixFaces(faces, refs);
@@ -816,6 +825,7 @@ export function useCubeReader(workRef: React.RefObject<HTMLCanvasElement | null>
       rawCenterFaces,
       rawCenterReason,
       rawCenterOffender,
+      rawCenterSpread,
       cellDiags: cellDiagnostics(faces, refs),
       fitDiags: faces.map((f) => f.fit),
       resolved,
