@@ -2,6 +2,7 @@
 // testable under Vitest/node. Pipeline: sRGB -> Lab -> deltaE to 6 session refs
 // -> global 9x6 quota assignment (center-pinned) -> validated facelet.
 
+import { minCostQuotaAssign } from "./assignment";
 import { config, type DeltaEMode } from "./config";
 
 export type RGB = [number, number, number]; // 0..255
@@ -569,13 +570,20 @@ export interface QuotaResult {
 }
 
 /**
- * Greedy 9x6 assignment.
+ * Назначение 9×6 с МИНИМАЛЬНОЙ СУММАРНОЙ стоимостью (не жадное).
  *
- * Center stickers are UNAMBIGUOUS (a center never moves; its color IS the face
- * color), so we PIN the 6 centers to their color first and remove them from the
- * pool. Then we greedily assign the remaining 48: sort all (sticker,color) pairs
- * by deltaE ascending and take them cheapest-first, skipping any color whose
- * quota is exhausted and any sticker already placed.
+ * Центры однозначны — центр никогда не двигается, его цвет и ЕСТЬ цвет грани, —
+ * поэтому шесть центров пиннятся первыми и выходят из розыгрыша. Остальные 48
+ * раздаются по оставшимся квотам целиком, одним решением: венгерский алгоритм на
+ * матрице «наклейка × цвето-слот» (см. assignment.minCostQuotaAssign).
+ *
+ * Раньше здесь был жадный обход пар по возрастанию ΔE. Он смотрит на одну пару
+ * за раз и не видит, чего лишает остальных: наклейка, которой красный и
+ * оранжевый почти безразличны, съедает последний красный слот, а та, которой
+ * красный нужен позарез, уезжает в оранжевый. Две ошибки вместо нуля, и обе — в
+ * паре red↔orange, то есть ровно в R1, ради которого квоты и заведены. Оптимум
+ * такого размена не делает по построению: суммарная стоимость его решения не
+ * бывает хуже жадной ни на одной колоде.
  *
  * @param labs        54 sticker Lab colors.
  * @param refs        6 session references.
@@ -594,29 +602,31 @@ export function assignQuota(
   const remaining: Record<ColorName, number> = {} as Record<ColorName, number>;
   for (const name of COLOR_NAMES) remaining[name] = quota;
 
-  // Pin centers first.
+  // Pin centers first. Индекс вне массива игнорируем: центр, которого нет, не
+  // должен ни занимать квоту, ни ронять раздачу остальных.
+  const pinned = new Set<number>();
   for (let k = 0; k < COLOR_NAMES.length; k++) {
     const idx = centerIdx[k];
+    if (idx === undefined || idx < 0 || idx >= n || pinned.has(idx)) continue;
     const name = COLOR_NAMES[k];
     assignment[idx] = name;
     remaining[name] -= 1;
+    pinned.add(idx);
   }
 
-  // Build all (sticker, color) pairs for unpinned stickers, sorted by deltaE.
-  const pinned = new Set(centerIdx);
-  const pairs: { i: number; name: ColorName; d: number }[] = [];
-  for (let i = 0; i < n; i++) {
-    if (pinned.has(i)) continue;
-    for (const name of COLOR_NAMES) {
-      pairs.push({ i, name, d: deltaE(labs[i], refs[name], mode) });
-    }
-  }
-  pairs.sort((p, q) => p.d - q.d);
-
-  for (const { i, name } of pairs) {
-    if (assignment[i] !== null) continue;
-    if (remaining[name] <= 0) continue;
-    assignment[i] = name;
+  // Матрица стоимостей только для неприпиннованных наклеек.
+  const freeIdx: number[] = [];
+  for (let i = 0; i < n; i++) if (!pinned.has(i)) freeIdx.push(i);
+  const costs = freeIdx.map((i) => COLOR_NAMES.map((name) => deltaE(labs[i], refs[name], mode)));
+  const groups = minCostQuotaAssign(
+    costs,
+    COLOR_NAMES.map((name) => remaining[name]),
+  );
+  for (let f = 0; f < freeIdx.length; f++) {
+    const g = groups[f];
+    if (g === null) continue;
+    const name = COLOR_NAMES[g];
+    assignment[freeIdx[f]] = name;
     remaining[name] -= 1;
   }
 
@@ -625,7 +635,8 @@ export function assignQuota(
   for (const a of assignment) if (a) counts[a] += 1;
 
   const balanced = COLOR_NAMES.every((name) => counts[name] === quota);
-  // Greedy CAN leave a sticker unassigned if a quota runs out; surface it.
+  // Наклеек может оказаться больше, чем мест (54 против 6×9 сходится, но входы
+  // бывают и другими) — тогда кто-то остаётся ни с чем; сообщаем об этом.
   const complete = assignment.every((a) => a !== null);
 
   return {
