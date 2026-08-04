@@ -1,23 +1,16 @@
 import { useEffect, useRef, useState, lazy, Suspense } from "react";
 import { Routes, Route, Link, useNavigate } from "react-router-dom";
 import HomePage from "./pages/HomePage";
-import SoloPage from "./pages/SoloPage";
-import TournamentPage from "./pages/TournamentPage";
-import DailyPage from "./pages/DailyPage";
-import DuelPage from "./pages/DuelPage";
-import DuelJoinPage from "./pages/DuelJoinPage";
 import LoginPage from "./pages/LoginPage";
 import RegisterPage from "./pages/RegisterPage";
 import VerifyEmailPage from "./pages/VerifyEmailPage";
 import ForgotPasswordPage from "./pages/ForgotPasswordPage";
 import ResetPasswordPage from "./pages/ResetPasswordPage";
 import OAuthCallbackPage from "./pages/OAuthCallbackPage";
-import OnboardingPage from "./pages/OnboardingPage";
-import ProfilePage from "./pages/ProfilePage";
-import RulesPage from "./pages/RulesPage";
-import PrivacyPage from "./pages/PrivacyPage";
 import { ProtectedRoute, GuestOnlyRoute } from "./auth/ProtectedRoute";
 import DesktopOnlyGate from "./components/DesktopOnlyGate";
+import Spinner from "./components/Spinner";
+import RouteErrorBoundary from "./components/RouteErrorBoundary";
 import TrophyIcon from "./components/TrophyIcon";
 import { ToastViewport, toast } from "./components/Toast";
 import { useAuthStore } from "./store/authStore";
@@ -28,6 +21,27 @@ import { useT } from "./i18n/t";
 // DEV-only Stage-0.3 accuracy gate. React.lazy + import.meta.env.DEV so the whole
 // module (camera harness + accuracy panel) tree-shakes out of the prod bundle.
 const AccuracyPage = import.meta.env.DEV ? lazy(() => import("./accuracy/AccuracyPage")) : null;
+
+// Экраны с камерой тянут за собой MediaPipe (распознавание рук) и cubejs
+// (солвер) — вместе это больше половины бандла, и до онбординга они не нужны
+// ни разу. Человек с улицы читает лендинг, правила и форму регистрации; грузить
+// ему заодно распознавание рук — это платить трафиком за экран, до которого он
+// может и не дойти. Ленивыми сделаны ровно ритуальные роуты: лендинг, вход и
+// текстовые страницы остаются в основном чанке, чтобы первый экран не мигал
+// спиннером.
+const SoloPage = lazy(() => import("./pages/SoloPage"));
+const TournamentPage = lazy(() => import("./pages/TournamentPage"));
+const DailyPage = lazy(() => import("./pages/DailyPage"));
+const DuelPage = lazy(() => import("./pages/DuelPage"));
+const DuelJoinPage = lazy(() => import("./pages/DuelJoinPage"));
+const OnboardingPage = lazy(() => import("./pages/OnboardingPage"));
+const ProfilePage = lazy(() => import("./pages/ProfilePage"));
+
+// Правила и приватность — длинная проза, и обе версии, русская и английская,
+// лежат в бандле целиком (перевод здесь пофайловый, а не по словарю). Читают их
+// один раз и по своей воле; в первый экран они попадать не обязаны.
+const RulesPage = lazy(() => import("./pages/RulesPage"));
+const PrivacyPage = lazy(() => import("./pages/PrivacyPage"));
 
 function AuthMenu() {
   const t = useT();
@@ -208,6 +222,7 @@ function Footer() {
 }
 
 export default function App() {
+  const t = useT();
   const bootstrap = useAuthStore((s) => s.bootstrap);
 
   // Probe the session once at boot (external sync: single network call at startup).
@@ -219,118 +234,119 @@ export default function App() {
     <div className="min-h-screen bg-bg text-ink">
       <Header />
       <main className="mx-auto max-w-content px-4 py-7">
-        <Routes>
-          <Route path="/" element={<HomePage />} />
-          {/* Этап 6 (R8): ритуальные роуты под десктопным гейтом — с телефона
+        <RouteErrorBoundary>
+          <Suspense
+            fallback={
+              <div className="flex min-h-[40vh] items-center justify-center" aria-live="polite">
+                <Spinner label={t("Загрузка…")} />
+              </div>
+            }
+          >
+            <Routes>
+              <Route path="/" element={<HomePage />} />
+              {/* Этап 6 (R8): ритуальные роуты под десктопным гейтом — с телефона
               вместо сломанной камеры показывается честная заглушка. */}
-          <Route
-            path="/solo"
-            element={
-              <DesktopOnlyGate>
-                <SoloPage />
-              </DesktopOnlyGate>
-            }
-          />
-          {/* Этап 6: публичные текстовые страницы — читаются ДО регистрации. */}
-          <Route path="/rules" element={<RulesPage />} />
-          <Route path="/privacy" element={<PrivacyPage />} />
+              <Route
+                path="/solo"
+                element={
+                  <DesktopOnlyGate>
+                    <SoloPage />
+                  </DesktopOnlyGate>
+                }
+              />
+              {/* Этап 6: публичные текстовые страницы — читаются ДО регистрации. */}
+              <Route path="/rules" element={<RulesPage />} />
+              <Route path="/privacy" element={<PrivacyPage />} />
 
-          {AccuracyPage ? (
-            <Route
-              path="/accuracy"
-              element={
-                <Suspense fallback={<p className="font-sans text-body text-muted">Загрузка…</p>}>
-                  <AccuracyPage />
-                </Suspense>
-              }
-            />
-          ) : null}
+              {AccuracyPage ? <Route path="/accuracy" element={<AccuracyPage />} /> : null}
 
-          <Route
-            path="/login"
-            element={
-              <GuestOnlyRoute>
-                <LoginPage />
-              </GuestOnlyRoute>
-            }
-          />
-          <Route
-            path="/register"
-            element={
-              <GuestOnlyRoute>
-                <RegisterPage />
-              </GuestOnlyRoute>
-            }
-          />
-          <Route
-            path="/forgot-password"
-            element={
-              <GuestOnlyRoute>
-                <ForgotPasswordPage />
-              </GuestOnlyRoute>
-            }
-          />
-          <Route path="/verify" element={<VerifyEmailPage />} />
-          <Route path="/reset-password" element={<ResetPasswordPage />} />
-          <Route path="/auth/callback" element={<OAuthCallbackPage />} />
+              <Route
+                path="/login"
+                element={
+                  <GuestOnlyRoute>
+                    <LoginPage />
+                  </GuestOnlyRoute>
+                }
+              />
+              <Route
+                path="/register"
+                element={
+                  <GuestOnlyRoute>
+                    <RegisterPage />
+                  </GuestOnlyRoute>
+                }
+              />
+              <Route
+                path="/forgot-password"
+                element={
+                  <GuestOnlyRoute>
+                    <ForgotPasswordPage />
+                  </GuestOnlyRoute>
+                }
+              />
+              <Route path="/verify" element={<VerifyEmailPage />} />
+              <Route path="/reset-password" element={<ResetPasswordPage />} />
+              <Route path="/auth/callback" element={<OAuthCallbackPage />} />
 
-          <Route
-            path="/onboarding"
-            element={
-              <ProtectedRoute>
-                <OnboardingPage />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/profile"
-            element={
-              <ProtectedRoute>
-                <ProfilePage />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/tournament"
-            element={
-              <ProtectedRoute>
-                <DesktopOnlyGate>
-                  <TournamentPage />
-                </DesktopOnlyGate>
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/daily"
-            element={
-              <ProtectedRoute>
-                <DesktopOnlyGate>
-                  <DailyPage />
-                </DesktopOnlyGate>
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/duel/join/:token"
-            element={
-              <ProtectedRoute>
-                <DesktopOnlyGate>
-                  <DuelJoinPage />
-                </DesktopOnlyGate>
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/duel/:roomId"
-            element={
-              <ProtectedRoute>
-                <DesktopOnlyGate>
-                  <DuelPage />
-                </DesktopOnlyGate>
-              </ProtectedRoute>
-            }
-          />
-        </Routes>
+              <Route
+                path="/onboarding"
+                element={
+                  <ProtectedRoute>
+                    <OnboardingPage />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/profile"
+                element={
+                  <ProtectedRoute>
+                    <ProfilePage />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/tournament"
+                element={
+                  <ProtectedRoute>
+                    <DesktopOnlyGate>
+                      <TournamentPage />
+                    </DesktopOnlyGate>
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/daily"
+                element={
+                  <ProtectedRoute>
+                    <DesktopOnlyGate>
+                      <DailyPage />
+                    </DesktopOnlyGate>
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/duel/join/:token"
+                element={
+                  <ProtectedRoute>
+                    <DesktopOnlyGate>
+                      <DuelJoinPage />
+                    </DesktopOnlyGate>
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/duel/:roomId"
+                element={
+                  <ProtectedRoute>
+                    <DesktopOnlyGate>
+                      <DuelPage />
+                    </DesktopOnlyGate>
+                  </ProtectedRoute>
+                }
+              />
+            </Routes>
+          </Suspense>
+        </RouteErrorBoundary>
       </main>
       <Footer />
       <ToastViewport />

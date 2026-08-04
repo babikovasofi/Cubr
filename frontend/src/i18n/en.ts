@@ -622,6 +622,11 @@ export const EN: Record<string, string> = {
   "Рекорд: {n} дня": "Best: {n} days",
   "Рекорд: {n} дней": "Best: {n} days",
 
+  // --- ленивые роуты: чанк не доехал ---
+  "Не удалось загрузить эту страницу — похоже, оборвалась связь или вышла новая версия.":
+    "Could not load this page — the connection dropped, or a new version shipped.",
+  "Обновить страницу": "Reload the page",
+
   // --- проход 4: подсказки зрения, добавленные после прохода 3 ---
   "В рамке не грань кубика: все ячейки далеки от цветов кубика (медиана ΔE {de}). Похоже, в кадр попал стол, стена или рука — наведи рамку на кубик и сними грань заново.":
     "That is not a cube face in the frame: every cell is far from the cube colours (median ΔE {de}). Looks like the table, a wall or your hand got in — aim the frame at the cube and capture the face again.",

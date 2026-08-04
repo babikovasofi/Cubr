@@ -7,6 +7,7 @@
     "dev": "vite",
     "prebuild": "node scripts/check-api-proxy.mjs",
     "build": "tsc -b && vite build",
+    "postbuild": "node scripts/check-bundle.mjs",
     "preview": "vite preview",
     "test": "vitest run",
     "test:watch": "vitest",
