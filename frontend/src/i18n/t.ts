@@ -15,6 +15,9 @@ import { useLangStore, type Lang } from "../store/langStore";
 
 export type Dict = Record<string, string>;
 
+/** Сигнатура переводчика — для модулей, которым его передают параметром. */
+export type T = (key: string, params?: Record<string, string | number>) => string;
+
 const DICTS: Record<Lang, Dict | null> = {
   ru: null, // русский — исходный текст, словарь не нужен
   en: EN,
@@ -39,7 +42,7 @@ export function translate(
 }
 
 /** Хук перевода: перерисовывает компонент при смене языка. */
-export function useT(): (key: string, params?: Record<string, string | number>) => string {
+export function useT(): T {
   const lang = useLangStore((s) => s.lang);
   return (key, params) => translate(lang, key, params);
 }

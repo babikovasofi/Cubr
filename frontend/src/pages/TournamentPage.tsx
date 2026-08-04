@@ -77,7 +77,10 @@ function PrecommitCard({
 
   return (
     <Card>
-      <Overline>Челлендж недели{current ? ` · ${current.week_label}` : ""}</Overline>
+      <Overline>
+        {t("Челлендж недели")}
+        {current ? ` · ${current.week_label}` : ""}
+      </Overline>
       <h3 className="font-sans text-h3 text-ink">{t("Одна попытка на всю неделю")}</h3>
       <p className="max-w-prose font-sans text-body text-muted">
         {t(
@@ -127,12 +130,17 @@ function ResumeCard({
 
   return (
     <Card>
-      <Overline>Челлендж недели{current ? ` · ${current.week_label}` : ""}</Overline>
+      <Overline>
+        {t("Челлендж недели")}
+        {current ? ` · ${current.week_label}` : ""}
+      </Overline>
       <h3 className="font-sans text-h3 text-ink">{t("Попытка уже начата")}</h3>
       <p className="max-w-prose font-sans text-body text-muted">
         {expired
-          ? "Окно попытки, похоже, истекло — жми «Продолжить», сервер сам защитает результат."
-          : `Осталось ${label} на эту попытку. Скрамбл прежний — «Продолжить» вернёт к нему.`}
+          ? t("Окно попытки, похоже, истекло — жми «Продолжить», сервер сам защитает результат.")
+          : t("Осталось {label} на эту попытку. Скрамбл прежний — «Продолжить» вернёт к нему.", {
+              label,
+            })}
       </p>
       <Button onClick={commit} className="self-start">
         {t("Продолжить")}
@@ -156,11 +164,11 @@ function ErrorCard({
   return (
     <Card>
       <p role="alert" className="max-w-prose font-sans text-body text-danger">
-        {message ?? "Что-то пошло не так. Попробуй ещё раз."}
+        {t(message ?? "Что-то пошло не так. Попробуй ещё раз.")}
       </p>
       {reauth ? (
         <p className="font-sans text-small text-muted">
-          Результат сохранён локально —{" "}
+          {t("Результат сохранён локально —")}{" "}
           <Link to="/login?next=/tournament" className="font-bold text-primary">
             {t("войди заново")}
           </Link>

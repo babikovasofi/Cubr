@@ -31,12 +31,12 @@ export default function TournamentResult({ result }: TournamentResultProps) {
       {dnf ? (
         <div className="bg-surface-2 px-7 py-3">
           <span className="font-sans text-overline uppercase text-muted">
-            Челлендж недели · {week_label}
+            {t("Челлендж недели")} · {week_label}
           </span>
         </div>
       ) : (
         <span className="font-sans text-overline uppercase text-muted">
-          Челлендж недели · {week_label}
+          {t("Челлендж недели")} · {week_label}
         </span>
       )}
 
@@ -48,8 +48,8 @@ export default function TournamentResult({ result }: TournamentResultProps) {
         <Timer value={dnf ? "DNF" : seconds} phase={dnf ? "dnf" : "success"} />
         <p className="max-w-prose font-sans text-body text-muted">
           {dnf
-            ? "Сборка не защитана. Единственная попытка на эту неделю использована."
-            : "Результат записан. Единственная попытка на эту неделю использована."}
+            ? t("Сборка не защитана. Единственная попытка на эту неделю использована.")
+            : t("Результат записан. Единственная попытка на эту неделю использована.")}
         </p>
         {forcedLateDnf ? (
           <p className="max-w-prose font-sans text-small text-muted">

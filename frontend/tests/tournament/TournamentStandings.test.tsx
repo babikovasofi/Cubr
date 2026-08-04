@@ -101,7 +101,7 @@ describe("TournamentStandings", () => {
       />,
     );
 
-    expect(screen.getByText(/1 участник не финишировали/)).toBeTruthy();
+    expect(screen.getByText("1 участник не финишировал")).toBeTruthy();
   });
 
   it("renders disclaimer text (дружеский зачёт)", () => {

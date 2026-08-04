@@ -13,6 +13,7 @@ import Button from "../components/Button";
 import Spinner from "../components/Spinner";
 import type { DailyBoardEntry, DailyBoardRead } from "../api/daily";
 import { useT } from "../i18n/t";
+import { pluralRu } from "../i18n/plural";
 
 export interface DailyBoardProps {
   data: DailyBoardRead | null;
@@ -55,7 +56,8 @@ export default function DailyBoard({ data, loading, error, reload }: DailyBoardP
     <section className="flex flex-col gap-4 rounded-lg border-2 border-ink bg-surface p-7">
       <div className="flex flex-col gap-1">
         <span className="font-sans text-overline uppercase text-muted">
-          Скрамбл дня{data ? ` · ${data.day_label}` : ""}
+          {t("Скрамбл дня")}
+          {data ? ` · ${data.day_label}` : ""}
         </span>
         <h3 className="font-sans text-h3 text-ink">{t("Кто уже собрал сегодня")}</h3>
       </div>
@@ -68,7 +70,7 @@ export default function DailyBoard({ data, loading, error, reload }: DailyBoardP
 
       {error ? (
         <div role="alert" className="flex flex-col items-start gap-3">
-          <p className="font-sans text-small text-danger">{error}</p>
+          <p className="font-sans text-small text-danger">{t(error)}</p>
           <Button onClick={reload} variant="secondary">
             {t("Повторить")}
           </Button>
@@ -93,7 +95,7 @@ export default function DailyBoard({ data, loading, error, reload }: DailyBoardP
 
           {data.dnf_count > 0 ? (
             <p className="font-sans text-small text-muted">
-              {data.dnf_count} {dnfWord(data.dnf_count)} не финишировали
+              {t(pluralRu(data.dnf_count, DNF_PHRASES), { n: data.dnf_count })}
             </p>
           ) : null}
 
@@ -111,10 +113,8 @@ export default function DailyBoard({ data, loading, error, reload }: DailyBoardP
   );
 }
 
-function dnfWord(n: number): string {
-  const mod10 = n % 10;
-  const mod100 = n % 100;
-  if (mod10 === 1 && mod100 !== 11) return "участник";
-  if ([2, 3, 4].includes(mod10) && ![12, 13, 14].includes(mod100)) return "участника";
-  return "участников";
-}
+const DNF_PHRASES = [
+  "{n} участник не финишировал",
+  "{n} участника не финишировали",
+  "{n} участников не финишировали",
+] as const;

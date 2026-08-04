@@ -576,4 +576,57 @@ export const EN: Record<string, string> = {
   Скорость: "Speed",
   "{sec} с/ход": "{sec}s per move",
   Слоями: "Layers",
+
+  // --- проход 4: турнир, скрамбл дня, серия ---
+  ты: "you",
+  Дуэль: "Duel",
+  Войди: "Log in",
+  "Войти через Google": "Log in with Google",
+  "Окно попытки, похоже, истекло — жми «Продолжить», сервер сам защитает результат.":
+    "The attempt window looks expired — hit «Continue» and the server will score the result itself.",
+  "Осталось {label} на эту попытку. Скрамбл прежний — «Продолжить» вернёт к нему.":
+    "{label} left on this attempt. The scramble is unchanged — «Continue» takes you back to it.",
+  "Результат сохранён локально —": "The result is saved locally —",
+  "Сессия истекла, пока шла сборка.": "The session expired while you were solving.",
+  "Не удалось отправить результат — проверь интернет.":
+    "Could not send the result — check your connection.",
+  "Не удалось загрузить турнирную таблицу.": "Could not load the tournament board.",
+  "Не удалось загрузить таблицу дня.": "Could not load the daily board.",
+  "Сборка не защитана. Единственная попытка на эту неделю использована.":
+    "The solve was not counted. Your only attempt this week is used up.",
+  "Результат записан. Единственная попытка на эту неделю использована.":
+    "The result is recorded. Your only attempt this week is used up.",
+  "Сборка не защитана. Единственная попытка на сегодня использована.":
+    "The solve was not counted. Your only attempt for today is used up.",
+  "Результат записан. Единственная попытка на сегодня использована.":
+    "The result is recorded. Your only attempt for today is used up.",
+
+  // Три русские формы схлопываются в две английские — см. i18n/plural.ts.
+  "{n} участник не финишировал": "{n} participant did not finish",
+  "{n} участника не финишировали": "{n} participants did not finish",
+  "{n} участников не финишировали": "{n} participants did not finish",
+  "Серия прервалась. Пройди скрамбл дня — начнётся новая.":
+    "The streak is broken. Do the daily scramble and a new one starts.",
+  "Серии пока нет. Пройди скрамбл дня — начнётся.":
+    "No streak yet. Do the daily scramble and it starts.",
+  "{n} день подряд — сегодня уже засчитано.": "{n} day in a row — today is already counted.",
+  "{n} дня подряд — сегодня уже засчитано.": "{n} days in a row — today is already counted.",
+  "{n} дней подряд — сегодня уже засчитано.": "{n} days in a row — today is already counted.",
+  "{n} день подряд. Сегодня ещё не пройден — серия оборвётся в полночь UTC.":
+    "{n} day in a row. Today is not done yet — the streak breaks at midnight UTC.",
+  "{n} дня подряд. Сегодня ещё не пройден — серия оборвётся в полночь UTC.":
+    "{n} days in a row. Today is not done yet — the streak breaks at midnight UTC.",
+  "{n} дней подряд. Сегодня ещё не пройден — серия оборвётся в полночь UTC.":
+    "{n} days in a row. Today is not done yet — the streak breaks at midnight UTC.",
+  "Рекорд: {n} день": "Best: {n} day",
+  "Рекорд: {n} дня": "Best: {n} days",
+  "Рекорд: {n} дней": "Best: {n} days",
+
+  // --- проход 4: подсказки зрения, добавленные после прохода 3 ---
+  "В рамке не грань кубика: все ячейки далеки от цветов кубика (медиана ΔE {de}). Похоже, в кадр попал стол, стена или рука — наведи рамку на кубик и сними грань заново.":
+    "That is not a cube face in the frame: every cell is far from the cube colours (median ΔE {de}). Looks like the table, a wall or your hand got in — aim the frame at the cube and capture the face again.",
+  "Белый снят тускло (светлота {l} при норме от {min}): сцена недосвечена или кубик далеко. Добавь света или поднеси кубик ближе и откалибруйся заново — иначе стол и стена будут читаться как белая грань.":
+    "The white came out dim (lightness {l}, expected at least {min}): the scene is underlit or the cube is too far. Add light or bring the cube closer and calibrate again — otherwise the table and the wall will read as a white face.",
+  "Съёмка {n} не опознана: её центр в {de} от цвета {face} (допустимо {max}). Либо одна и та же грань показана дважды, либо в рамку попал не кубик. Покажи шесть РАЗНЫХ граней, каждую — центром в рамку.":
+    "Capture {n} was not recognised: its centre is {de} away from the colour {face} (at most {max} is allowed). Either the same face was shown twice, or what got into the frame was not the cube. Show six DIFFERENT faces, each with its centre in the frame.",
 };

@@ -66,7 +66,7 @@ describe("DailyBoard", () => {
     const mockReload = () => {};
     render(<DailyBoard data={WITH_ENTRIES} loading={false} error={null} reload={mockReload} />);
 
-    expect(screen.getByText(/1 участник не финишировали/)).toBeTruthy();
+    expect(screen.getByText("1 участник не финишировал")).toBeTruthy();
   });
 
   it("renders «Кто уже собрал сегодня» heading (daily copy, not weekly)", () => {

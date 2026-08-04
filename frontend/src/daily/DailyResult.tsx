@@ -29,7 +29,7 @@ export default function DailyResult({ result }: DailyResultProps) {
       {dnf ? (
         <div className="bg-surface-2 px-7 py-3">
           <span className="font-sans text-overline uppercase text-muted">
-            Скрамбл дня · {day_label}
+            {t("Скрамбл дня")} · {day_label}
           </span>
         </div>
       ) : (
@@ -46,8 +46,8 @@ export default function DailyResult({ result }: DailyResultProps) {
         <Timer value={dnf ? "DNF" : seconds} phase={dnf ? "dnf" : "success"} />
         <p className="max-w-prose font-sans text-body text-muted">
           {dnf
-            ? "Сборка не защитана. Единственная попытка на сегодня использована."
-            : "Результат записан. Единственная попытка на сегодня использована."}
+            ? t("Сборка не защитана. Единственная попытка на сегодня использована.")
+            : t("Результат записан. Единственная попытка на сегодня использована.")}
         </p>
         {forcedLateDnf ? (
           <p className="max-w-prose font-sans text-small text-muted">

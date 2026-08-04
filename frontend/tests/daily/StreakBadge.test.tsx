@@ -13,7 +13,8 @@ vi.mock("../../src/api/daily", () => ({
   getDailyStreak: getDailyStreakMock,
 }));
 
-import StreakBadge, { streakHeadline, daysWord } from "../../src/daily/StreakBadge";
+import StreakBadge, { streakHeadline } from "../../src/daily/StreakBadge";
+import { translate } from "../../src/i18n/t";
 
 const BASE = { last_day: "2026-07-28", today: "2026-07-28" };
 
@@ -65,17 +66,34 @@ describe("streakHeadline", () => {
   });
 });
 
-describe("daysWord", () => {
+describe("streakHeadline · склонение и перевод", () => {
+  const enT = (key: string, params?: Record<string, string | number>) =>
+    translate("en", key, params);
+
   it.each([
-    [1, "день"],
-    [2, "дня"],
-    [5, "дней"],
-    [11, "дней"],
-    [21, "день"],
-    [22, "дня"],
-    [111, "дней"],
-  ])("%i → %s", (n, word) => {
-    expect(daysWord(n)).toBe(word);
+    [1, "1 день подряд — сегодня уже засчитано."],
+    [2, "2 дня подряд — сегодня уже засчитано."],
+    [5, "5 дней подряд — сегодня уже засчитано."],
+    [11, "11 дней подряд — сегодня уже засчитано."],
+    [21, "21 день подряд — сегодня уже засчитано."],
+    [111, "111 дней подряд — сегодня уже засчитано."],
+  ])("%i дней по-русски", (n, expected) => {
+    expect(
+      streakHeadline({ ...BASE, current_streak: n, best_streak: n, completed_today: true }),
+    ).toBe(expected);
+  });
+
+  it("английский берёт форму единственного числа только для одного дня", () => {
+    const one = streakHeadline(
+      { ...BASE, current_streak: 1, best_streak: 1, completed_today: true },
+      enT,
+    );
+    const many = streakHeadline(
+      { ...BASE, current_streak: 3, best_streak: 3, completed_today: true },
+      enT,
+    );
+    expect(one).toBe("1 day in a row — today is already counted.");
+    expect(many).toBe("3 days in a row — today is already counted.");
   });
 });
 
