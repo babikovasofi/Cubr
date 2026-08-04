@@ -1,0 +1,19 @@
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Local sqlite scratch DB — the image must never carry a database.
+dev.db
+
+# Secrets live in the platform's environment, never in a layer.
+.env
+.env.*
+!.env.example
+
+tests/
+docs/
+docker-compose.yml
+README.md

@@ -143,6 +143,21 @@ fastapi-users **15** (`app/services/{auth,email,ratelimit}.py`, `routers/auth.py
   (ключи U/R/F/D/L/B = backend `ColorProfile`). «Мои кубики» — секция в `/profile`. Селектор в соло =
   метаданные к результату (зрение НЕ потребляет профиль — отложено на vision-интеграцию/Этап 0).
 
+## Прод-топология (артефакты готовы, выкатка руками — docs/deploy.md)
+SPA на **Vercel** (root `frontend`), API на **Railway** (`backend/Dockerfile`, `backend/railway.json`),
+managed Postgres там же, почта Resend, финализация попыток — внешний cron на
+`python -m app.jobs.finalize`. Фронт зовёт только относительный `/api/...`; Vercel переписывает
+его на Railway — иначе cookie `SameSite=Lax` не уедет на чужой origin и вход не работает.
+- **Ровно одна реплика.** Комнаты дуэлей — в памяти процесса (`services/duel_manager.py`):
+  `WEB_CONCURRENCY=1` + `numReplicas: 1` + `--workers 1`, `main.py` отказывается стартовать при >1.
+- **Миграции — `preDeployCommand`** (`alembic upgrade head`): упала миграция → деплой не состоялся,
+  старая версия держит трафик. Откат кода схему НЕ откатывает (см. раннбук).
+- **`DATABASE_URL` требует схемы `postgresql+asyncpg://`** — платформа отдаёт голый `postgresql://`.
+- **Адрес бэкенда в `vercel.json` — статический**, Vercel читает файл до сборки, переменной не
+  подставить. Прод-сборку с плейсхолдером валит `frontend/scripts/check-api-proxy.mjs` (`prebuild`).
+- **`.env.example` = единственный список настроек деплоя**, сверяется с `config.py` тестом
+  `backend/tests/test_env_example.py` в обе стороны.
+
 ## Локализация RU/EN (реализовано, пасы 1–4)
 `i18n/t.ts` — **ключ перевода = сама русская строка**, не `footer.rules`. Словарь один
 (`i18n/en.ts`, `Record<string,string>`), русский словаря не имеет — это исходный текст.
