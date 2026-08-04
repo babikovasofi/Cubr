@@ -439,9 +439,13 @@ export function useSoloSession(opts?: UseSoloSessionOpts): SoloSession {
     dispatch({ type: "solve_verify_skip" });
   };
 
+  // Переход НЕ ждёт камеру: экран verify сам показывает cameraError и «Повторить»,
+  // а startCamera может зависнуть (getUserMedia/video.play() по скрытому <video>,
+  // пока walkthrough держит CameraStage в display:none). Раньше зависший await
+  // просто съедал клик по «Готово, проверить» — кнопка выглядела мёртвой.
   const gotoVerify = async (): Promise<void> => {
-    await startCamera();
     dispatch({ type: "goto_verify" });
+    await startCamera();
   };
 
   const backToWalkthrough = (): void => {
