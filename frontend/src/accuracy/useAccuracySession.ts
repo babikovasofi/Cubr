@@ -14,6 +14,7 @@ import { useScramble } from "../scramble/hooks/useScramble";
 import {
   scoreRead,
   scoreFreeGrip,
+  scorePictureGrip,
   formatReport,
   type AccuracyReport,
   type CellDiag,
@@ -50,12 +51,22 @@ import {
 
 export type AccuracyMode = "scramble" | "solved";
 /**
- * Хватка. "fixed" — протокольная: фиксированный порядок захвата И фиксированная
- * ориентация, строгий позиционный счёт. "free" — кубик разрешено вертеть: грань
- * опознаётся по центру, внутри грани сравниваются мультимножества цветов.
- * Подробности и цена — в accuracy.scoreFreeGrip.
+ * Хватка — ось условия, а не пометка: числа разных хваток не смешиваются.
+ *
+ * "fixed" — протокольная: фиксированный порядок захвата И фиксированная
+ * ориентация, строгий позиционный счёт по 54.
+ *
+ * "free" — кубик разрешено вертеть: грань опознаётся по центру, внутри грани
+ * сравниваются МУЛЬТИМНОЖЕСТВА цветов (48). Цена — слепота к перестановке
+ * наклеек внутри грани. Подробности в accuracy.scoreFreeGrip.
+ *
+ * "picture" — кубик так же разрешено вертеть, но грань сравнивается с эталонной
+ * ПОЗИЦИОННО, с точностью до её поворота в кадре (48). Поворот выводится из
+ * физики кубика, а не из совпадения с ответом. Ловит перестановку внутри грани,
+ * которую "free" не видит, и не мерит руки, как "fixed". Подробности и замки —
+ * в accuracy.scorePictureGrip.
  */
-export type AccuracyGrip = "fixed" | "free";
+export type AccuracyGrip = "fixed" | "free" | "picture";
 
 export interface AccuracySession {
   videoRef: React.RefObject<HTMLVideoElement | null>;
@@ -305,7 +316,7 @@ export function useAccuracySession(): AccuracySession {
         // Свободная хватка: грань опознаётся по центру, внутри грани цвета
         // сравниваются мультимножествами, центры из счёта исключены. Ориентация
         // тут не нарушение, а разрешённое условие, поэтому замок ниже не про неё.
-        if (grip === "free") {
+        if (grip === "free" || grip === "picture") {
           // Выравнивание — из раскладки шести съёмок по шести цветам (сырые
           // центры), а не из одиночного argmin по центру: тот на тёплом свете
           // выдаёт один цвет дважды и топит чтение, в котором зрение не виновато.
@@ -326,6 +337,37 @@ export function useAccuracySession(): AccuracySession {
                 .join(" "),
             );
             appendDrop(runRef.current, conditionRef.current, "assign");
+            bump();
+            return;
+          }
+          if (grip === "picture") {
+            // Счёт по картинке: позиции сравниваются, поворот грани выведен из
+            // физики кубика. Неопределённый физикой поворот — честный дроп со
+            // своей причиной, а НЕ подбор поворота под ответ.
+            const pic = scorePictureGrip(r.rawFaceGrids, truth, r.rawCenterFaces);
+            if (pic.kind === "assign-conflict") {
+              setCaptureError(`Грани не опознаны по центрам: ${pic.reason}.`);
+              appendDrop(runRef.current, conditionRef.current, "assign");
+              bump();
+              return;
+            }
+            if (pic.kind === "rotation-ambiguous") {
+              setCaptureError(
+                `Поворот граней не определился по физике кубика (${pic.reason}). ` +
+                  "Чтение не засчитано: подбирать поворот под ответ протокол запрещает. Переснимай грани.",
+              );
+              appendDrop(runRef.current, conditionRef.current, "ambiguous");
+              bump();
+              return;
+            }
+            const picProduct = scorePictureGrip(r.productFaceGrids, truth, r.rawCenterFaces);
+            appendRead(runRef.current, conditionRef.current, pic.report);
+            lastReadKeyRef.current = conditionRef.current;
+            setLastReport(pic.report);
+            setLastProductReport(picProduct.kind === "ok" ? picProduct.report : null);
+            setLastDiags(r.cellDiags);
+            setLastFits(r.fitDiags);
+            setCaptureError(r.drifted ? `Чтение готово${driftNote(r.drifted)}` : null);
             bump();
             return;
           }

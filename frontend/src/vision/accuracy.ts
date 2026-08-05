@@ -20,6 +20,7 @@
 // camera read + pipeline; accuracy.ts just scores.
 
 import { config } from "./config";
+import { pinRotationsByPhysics, rotateGrid } from "./cubeGrid";
 import { SOLVED, FACE_ORDER, type Face, type Facelet } from "./cubeState";
 
 export interface StickerResult {
@@ -211,6 +212,99 @@ export function scoreFreeGrip(
   return {
     kind: "ok",
     faceOf,
+    report: { total, correct, fraction, pass: fraction >= passFrac, stickers, confusion },
+  };
+}
+
+/**
+ * Счёт «ПО КАРТИНКЕ»: грань сравнивается с эталонной гранью ПОЗИЦИОННО, но с
+ * точностью до её поворота в кадре (0/90/180/270).
+ *
+ * Ритуал, который этот режим обслуживает: харнесс говорит «покажи грань с зелёным
+ * центром», человек показывает её плашмя в камеру, но кубик при этом перекачен
+ * как удобно — сверху может оказаться любая грань. Значит квадрат 3×3 приезжает
+ * повёрнутым, и сравнивать надо две картинки, а не два мешка цветов.
+ *
+ * Чем он лучше свободной хватки. Та сравнивает МУЛЬТИМНОЖЕСТВА и потому слепа к
+ * перестановке наклеек внутри грани — а это ровно тот отказ, который даёт съехавшая
+ * сетка. Здесь перестановка видна: её не спасает ни один из четырёх поворотов.
+ * Продукту нужны именно позиции (из них собирается состояние для cubejs), поэтому
+ * этот режим меряет то же свойство, которым продукт и пользуется.
+ *
+ * Чем он лучше строгой хватки. Не требует держать кубик в одной ориентации
+ * двадцать чтений подряд — то есть не мерит руки вместо зрения.
+ *
+ * ЧЕСТНОСТЬ. Поворот берётся из ФИЗИКИ кубика (`pinRotationsByPhysics`), а не из
+ * совпадения с ответом: ожидаемый скрамбл в выборе поворота не участвует вообще.
+ * Ошибка цвета физику нарушает, то есть наказывается. Если физика поворот НЕ
+ * определила (`tied > 1`), режим честно говорит об этом отдельным исходом —
+ * подбирать поворот под ответ здесь нельзя, это и есть survivorship bias.
+ *
+ * Центры из счёта исключены (48, не 54): грань опознаётся по центру, значит центр
+ * верен по построению и дал бы +11% из воздуха. Та же логика, что в свободной хватке.
+ */
+export type PictureGripScore =
+  | { kind: "assign-conflict"; reason: string }
+  | { kind: "rotation-ambiguous"; reason: string; violations: number; tied: number }
+  | { kind: "ok"; report: AccuracyReport; rotations: number[]; violations: number };
+
+export function scorePictureGrip(
+  faceGrids: Face[][],
+  expected: Facelet,
+  faceOf: Face[],
+  passFrac: number = config.ACCURACY_PASS_FRAC,
+): PictureGripScore {
+  if (faceGrids.length !== 6 || faceGrids.some((g) => g.length !== 9)) {
+    return { kind: "assign-conflict", reason: "нужно ровно 6 граней по 9 ячеек" };
+  }
+  const pin = pinRotationsByPhysics(faceGrids, faceOf);
+  if (!pin.ok || !pin.rotations) {
+    return { kind: "assign-conflict", reason: pin.reason ?? "повороты не выведены" };
+  }
+  if ((pin.tied ?? 1) > 1) {
+    return {
+      kind: "rotation-ambiguous",
+      reason: `физика не определила поворот граней: ${pin.tied} комбинаций нарушают её одинаково (${pin.violations})`,
+      violations: pin.violations ?? 0,
+      tied: pin.tied ?? 0,
+    };
+  }
+
+  const slotOf: Record<Face, number> = { U: 0, R: 1, F: 2, D: 3, L: 4, B: 5 };
+  const stickers: StickerResult[] = [];
+  const confusion = emptyConfusion();
+  let correct = 0;
+  let total = 0;
+
+  for (let cap = 0; cap < 6; cap++) {
+    const face = faceOf[cap];
+    const slot = slotOf[face];
+    const exp = expected.slice(slot * 9, slot * 9 + 9).split("") as Face[];
+    const rotated = rotateGrid(faceGrids[cap], pin.rotations[cap]);
+    for (let j = 0; j < 9; j++) {
+      if (j === 4) continue; // центр — ключ выравнивания, в счёт не идёт
+      total += 1;
+      const read = rotated[j];
+      const isCorrect = read === exp[j];
+      if (isCorrect) correct += 1;
+      stickers.push({
+        index: slot * 9 + j,
+        face,
+        cellInFace: j,
+        read,
+        expected: exp[j],
+        correct: isCorrect,
+      });
+      confusion[exp[j]][read] += 1;
+    }
+  }
+
+  stickers.sort((a, b) => a.index - b.index);
+  const fraction = total > 0 ? correct / total : 0;
+  return {
+    kind: "ok",
+    rotations: pin.rotations,
+    violations: pin.violations ?? 0,
     report: { total, correct, fraction, pass: fraction >= passFrac, stickers, confusion },
   };
 }

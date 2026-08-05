@@ -13,6 +13,7 @@
 import { hungarian } from "./assignment";
 import { deltaE, COLOR_NAMES, type Lab, type ColorName, type Refs } from "./colors";
 import { config } from "./config";
+import { countPhysicsViolations } from "./cubePhysics";
 import { orientationVariants } from "./faceletRotations";
 import { validateFacelets, type Face, type Facelet } from "./cubeState";
 
@@ -254,6 +255,89 @@ export function lenientVerify(
     if (best.mismatches === 0) break;
   }
   return best!;
+}
+
+export interface PhysicsPin {
+  ok: boolean;
+  reason?: string;
+  /** Поворот (0..3) каждой съёмки, выбранный по физике кубика. */
+  rotations?: number[];
+  /** Собранная строка URFDLB при этих поворотах. */
+  facelets?: Facelet;
+  /** Сколько физических ограничений всё-таки нарушено у лучшего варианта. */
+  violations?: number;
+  /** Сколько комбинаций дали ТОТ ЖЕ минимум: >1 — поворот физикой не определён. */
+  tied?: number;
+}
+
+/**
+ * Поворот каждой грани, выведенный из ФИЗИКИ КУБИКА, а не из ответа.
+ *
+ * Зачем отдельно от `resolveRotations`. Тот требует полностью легального кубика и
+ * при первой же ошибке цвета отвергает чтение целиком. Для сборки это правильно.
+ * Для ЗАМЕРА точности — самоубийственно: оценивались бы только идеальные чтения,
+ * а всё остальное уходило бы в брак, и мерить стало бы нечего.
+ *
+ * Здесь выбирается комбинация поворотов, МЕНЬШЕ ВСЕГО нарушающая физику
+ * (`countPhysicsViolations`). Чтение с двумя ошибками цвета останется оценённым,
+ * а его повороты — определёнными.
+ *
+ * Почему это не подгонка под ответ: ожидаемый скрамбл в расчёт не входит вообще.
+ * Опора — только устройство кубика (у угла по одной наклейке с каждой оси, каждый
+ * кубик встречается один раз). Ошибка цвета физику НАРУШАЕТ, то есть наказывается,
+ * а не прощается.
+ *
+ * `tied > 1` означает, что физика поворот не определила (симметричное или сильно
+ * битое чтение) — вызывающий обязан это пометить, а не молча взять первый вариант.
+ */
+export function pinRotationsByPhysics(faceGrids: Face[][], faceOf: Face[]): PhysicsPin {
+  if (faceGrids.length !== 6 || faceOf.length !== 6) {
+    return { ok: false, reason: `нужно 6 граней, пришло ${faceGrids.length}` };
+  }
+  const slotOf: Record<Face, number> = { U: 0, R: 1, F: 2, D: 3, L: 4, B: 5 };
+  const seen = new Set(faceOf);
+  if (seen.size !== 6) {
+    return {
+      ok: false,
+      reason: "грани не опознаны по центрам: шесть съёмок дали не шесть разных цветов",
+    };
+  }
+
+  let best: { rotations: number[]; facelets: Facelet; violations: number } | null = null;
+  let tied = 0;
+  const rot = new Array(6).fill(0);
+
+  for (let combo = 0; combo < 4096; combo++) {
+    let c = combo;
+    for (let i = 0; i < 6; i++) {
+      rot[i] = c & 3;
+      c >>= 2;
+    }
+    const slots: (Face[] | null)[] = new Array(6).fill(null);
+    for (let capture = 0; capture < 6; capture++) {
+      slots[slotOf[faceOf[capture]]] = rotateGrid(faceGrids[capture], rot[capture]);
+    }
+    const s = slots.map((g) => (g as Face[]).join("")).join("") as Facelet;
+    const violations = countPhysicsViolations(s).total;
+    if (best === null || violations < best.violations) {
+      best = { rotations: rot.slice(), facelets: s, violations };
+      tied = 1;
+    } else if (violations === best.violations) {
+      tied += 1;
+    }
+    // Досрочного выхода на нуле нарушений НЕТ намеренно: надо досчитать, не
+    // даёт ли ноль ещё какая-то комбинация — тогда поворот неоднозначен, и это
+    // обязано быть видно вызывающему, а не скрыто ранним break.
+  }
+
+  if (best === null) return { ok: false, reason: "не нашлось ни одной комбинации поворотов" };
+  return {
+    ok: true,
+    rotations: best.rotations,
+    facelets: best.facelets,
+    violations: best.violations,
+    tied,
+  };
 }
 
 export function resolveRotations(faceGrids: Face[][], faceOf: Face[]): RotationResolution {

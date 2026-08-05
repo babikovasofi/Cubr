@@ -19,11 +19,12 @@ import { dimWhiteWarningRu } from "../vision/guide";
 import { CAPTURE_HINTS } from "./captureHints";
 import type { AccuracySession } from "./useAccuracySession";
 
-// При свободной хватке ориентация не задана — просить «наверху центр белый»
-// значит требовать того, что режим только что разрешил не соблюдать.
+// При свободной хватке и счёте по картинке ориентация не задана — просить
+// «наверху центр белый» значит требовать того, что режим только что разрешил не
+// соблюдать. Порядок граней там тоже свободный: грань называется по центру.
 export function hintFor(step: number, grip: string): string {
   const hint = CAPTURE_HINTS[Math.min(step, 5)];
-  if (grip !== "free") return hint.ru;
+  if (grip !== "free" && grip !== "picture") return hint.ru;
   return `${hint.ru.split(".")[0]}. Держи как удобно — ориентация не важна.`;
 }
 
