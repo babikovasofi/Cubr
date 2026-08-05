@@ -322,10 +322,16 @@ export function useAccuracySession(): AccuracySession {
           // выдаёт один цвет дважды и топит чтение, в котором зрение не виновато.
           // Раскладка отказала — так и говорим, с её собственной причиной.
           if (!r.rawCenterFaces) {
-            const o = r.rawCenterOffender;
+            const offenders =
+              r.rawCenterOffenders ?? (r.rawCenterOffender ? [r.rawCenterOffender] : []);
             const spread = r.rawCenterSpread;
-            const head = o
-              ? centerAssignFailedRu(o.capture, o.face, o.de, config.CENTER_MAX_DELTA_E)
+            const head = offenders.length
+              ? centerAssignFailedRu(
+                  offenders,
+                  spread?.medianDE ?? 0,
+                  config.CENTER_MAX_DELTA_E,
+                  config.CENTER_OUTLIER_DE,
+                )
               : `Грани не опознаны по центрам: ${r.rawCenterReason ?? "раскладка не сошлась"}.`;
             setCaptureError(
               [

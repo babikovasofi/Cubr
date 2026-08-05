@@ -65,12 +65,29 @@ export function normalizeByRotation<T>(grid: T[], k = 0): T[] {
  * per capture, plus `ambiguous` if two captures classify to the same face
  * (means the tester duplicated a face or lighting is wrong -> FAIL LOUD).
  */
+export interface CenterOffender {
+  capture: number;
+  face: Face;
+  de: number;
+  /** Сработал относительный замок: центр оторвался от медианы остальных. */
+  relative: boolean;
+  /** Сработал абсолютный: центр не похож ни на что, как ни сдвинулся свет. */
+  absolute: boolean;
+}
+
 export interface CenterAssignment {
   faces: Face[];
   ok: boolean;
   reason?: string;
-  /** Какая съёмка провалила замок: её номер (с нуля), выданный цвет и ΔE до него. */
-  offender?: { capture: number; face: Face; de: number };
+  /** ХУДШАЯ съёмка из проваливших замок: её номер (с нуля), выданный цвет и ΔE. */
+  offender?: CenterOffender;
+  /**
+   * ВСЕ провалившие съёмки. Их выданные цвета — это ровно те центры, которых
+   * раскладка по-настоящему не увидела: бижекция обязана раздать шесть цветов,
+   * поэтому непоказанная грань достаётся лишней съёмке с огромным ΔE. Знать их
+   * все — единственный способ сказать человеку «ты не показала вот эти грани».
+   */
+  offenders?: CenterOffender[];
   /**
    * ΔE каждой съёмки до выданного ей цвета и медиана по шести. Нужны наружу:
    * одно число «40.8» одинаково выглядит и когда в рамку попал стол, и когда
@@ -119,21 +136,34 @@ export function assignFacesByCenter(faceGridsLab: Lab[][], refs: Refs): CenterAs
   // выбивает ОДНУ съёмку из общей картины. Медиана по шести — это и есть «общая
   // картина», поэтому ловим отрыв от неё. Абсолютный потолок остаётся вторым
   // рубежом: за ним центр уже не похож ни на что, сдвинулась сессия или нет.
+  //
+  // Собираем ВСЕХ нарушителей, а не возвращаемся на первом. Живой прогон
+  // 2026-08-05: съёмки 5 и 6 ушли на ΔE 30 и 55, человеку показали пятую — и он
+  // час чинил не ту грань, пока настоящая беда сидела в шестой. Заодно
+  // сообщение печатало порог АБСОЛЮТНОГО замка, когда срабатывал относительный,
+  // и выглядело самоопровержением: «в 30.0 от цвета, допустимо 34».
+  const offenders: CenterOffender[] = [];
   for (let c = 0; c < faces.length; c++) {
     const de = centerDEs[c];
-    const outlier = de - medianDE > config.CENTER_OUTLIER_DE;
-    if (outlier || de > config.CENTER_MAX_DELTA_E) {
-      return {
-        faces,
-        ok: false,
-        reason: outlier
-          ? `capture ${c + 1} centre is ${de.toFixed(1)} from the ${faces[c]} colour while the other captures sit around ${medianDE.toFixed(1)} — that one capture is not a cube face`
-          : `capture ${c + 1} centre is ${de.toFixed(1)} away from the ${faces[c]} colour (max ${config.CENTER_MAX_DELTA_E}) — the light moved far from calibration`,
-        offender: { capture: c, face: faces[c], de },
-        centerDEs,
-        medianDE,
-      };
-    }
+    const relative = de - medianDE > config.CENTER_OUTLIER_DE;
+    const absolute = de > config.CENTER_MAX_DELTA_E;
+    if (relative || absolute)
+      offenders.push({ capture: c, face: faces[c], de, relative, absolute });
+  }
+  if (offenders.length > 0) {
+    // Худший, а не первый: именно он объясняет, что пошло не так.
+    const worst = offenders.reduce((a, b) => (b.de > a.de ? b : a));
+    return {
+      faces,
+      ok: false,
+      reason: worst.absolute
+        ? `capture ${worst.capture + 1} centre is ${worst.de.toFixed(1)} away from the ${worst.face} colour (max ${config.CENTER_MAX_DELTA_E}) — the light moved far from calibration`
+        : `capture ${worst.capture + 1} centre is ${worst.de.toFixed(1)} from the ${worst.face} colour while the other captures sit around ${medianDE.toFixed(1)} — that one capture is not a cube face`,
+      offender: worst,
+      offenders,
+      centerDEs,
+      medianDE,
+    };
   }
   return { faces, ok: true, centerDEs, medianDE };
 }

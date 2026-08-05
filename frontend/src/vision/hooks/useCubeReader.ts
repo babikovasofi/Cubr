@@ -27,7 +27,12 @@ import { quickAdjust as colorsQuickAdjust } from "../quickAdjust";
 import { config, squareGuidePx, type Rect } from "../config";
 import { fitFaceRegion, gapContrast, type FitRegion } from "../faceFit";
 import { notACubeFaceRu } from "../guide";
-import { assignFacesByCenter, resolveRotations, lenientVerify } from "../cubeGrid";
+import {
+  assignFacesByCenter,
+  resolveRotations,
+  lenientVerify,
+  type CenterOffender,
+} from "../cubeGrid";
 import { diffFacelets, validateFacelets, type Face, type Facelet } from "../cubeState";
 import { type CellDiag, type FaceFitDiag } from "../accuracy";
 
@@ -196,7 +201,8 @@ interface SixFaceResolve {
   rawCenterFaces: Face[] | null;
   rawCenterReason?: string;
   /** Какая съёмка провалила замок раскладки: номер, выданный цвет, ΔE до него. */
-  rawCenterOffender?: { capture: number; face: Face; de: number };
+  rawCenterOffender?: CenterOffender;
+  rawCenterOffenders?: CenterOffender[];
   /** Расклад по всем шести: кому какой цвет и на каком расстоянии сидит центр. */
   rawCenterSpread?: { faces: Face[]; des: number[]; medianDE: number };
   resolved: Facelet | null; // legality-resolved URFDLB string, or null on failure
@@ -367,6 +373,7 @@ function resolveSixFaces(samples: FaceSample[], refs: Refs): SixFaceResolve {
     rawCenterFaces: rawCenters.ok ? rawCenters.faces : null,
     rawCenterReason: rawCenters.ok ? undefined : rawCenters.reason,
     rawCenterOffender: rawCenters.offender,
+    rawCenterOffenders: rawCenters.offenders,
     rawCenterSpread: {
       faces: rawCenters.faces,
       des: rawCenters.centerDEs,
@@ -414,7 +421,8 @@ export type AccuracyCapture =
       // выравнивание отсюда.
       rawCenterFaces: Face[] | null;
       rawCenterReason?: string;
-      rawCenterOffender?: { capture: number; face: Face; de: number };
+      rawCenterOffender?: CenterOffender;
+      rawCenterOffenders?: CenterOffender[];
       rawCenterSpread?: { faces: Face[]; des: number[]; medianDE: number };
       cellDiags: CellDiag[]; // 54 записи «почему так прочиталось», тот же порядок
       fitDiags: FaceFitDiag[]; // 6 записей «как легла сетка», тот же порядок
@@ -837,6 +845,7 @@ export function useCubeReader(workRef: React.RefObject<HTMLCanvasElement | null>
       rawCenterFaces,
       rawCenterReason,
       rawCenterOffender,
+      rawCenterOffenders,
       rawCenterSpread,
       resolved,
       reason,
@@ -848,6 +857,7 @@ export function useCubeReader(workRef: React.RefObject<HTMLCanvasElement | null>
       rawCenterFaces,
       rawCenterReason,
       rawCenterOffender,
+      rawCenterOffenders,
       rawCenterSpread,
       cellDiags: cellDiagnostics(faces, refs),
       fitDiags: faces.map((f) => f.fit),
