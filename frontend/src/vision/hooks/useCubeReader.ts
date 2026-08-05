@@ -223,7 +223,14 @@ interface SixFaceResolve {
   rawCenterOffender?: CenterOffender;
   rawCenterOffenders?: CenterOffender[];
   /** Расклад по всем шести: кому какой цвет и на каком расстоянии сидит центр. */
-  rawCenterSpread?: { faces: Face[]; des: number[]; medianDE: number };
+  rawCenterSpread?: {
+    faces: Face[];
+    des: number[];
+    medianDE: number;
+    own?: Face[];
+    ownDes?: number[];
+    rgb?: RGB[];
+  };
   resolved: Facelet | null; // legality-resolved URFDLB string, or null on failure
   reason?: ResolveReason; // set iff resolve/validate did not produce a legal cube
 }
@@ -397,6 +404,13 @@ function resolveSixFaces(samples: FaceSample[], refs: Refs): SixFaceResolve {
       faces: rawCenters.faces,
       des: rawCenters.centerDEs,
       medianDE: rawCenters.medianDE,
+      // К чему каждый центр тянется САМ, вне бижекции, и его сырой цвет.
+      // Назначенный цвет один этого не показывает: два центра, оба похожие на
+      // белый, выглядят в отчёте как «белый» и «оранжевый ΔE 37», и понять,
+      // что камера увидела два белых, невозможно.
+      own: samples.map((sm) => argminRef(sm.lab[4], refs) as Face),
+      ownDes: samples.map((sm) => deltaE(sm.lab[4], refs[argminRef(sm.lab[4], refs)])),
+      rgb: samples.map((sm) => sm.rgb[4]),
     },
   };
 
@@ -442,7 +456,14 @@ export type AccuracyCapture =
       rawCenterReason?: string;
       rawCenterOffender?: CenterOffender;
       rawCenterOffenders?: CenterOffender[];
-      rawCenterSpread?: { faces: Face[]; des: number[]; medianDE: number };
+      rawCenterSpread?: {
+        faces: Face[];
+        des: number[];
+        medianDE: number;
+        own?: Face[];
+        ownDes?: number[];
+        rgb?: RGB[];
+      };
       cellDiags: CellDiag[]; // 54 записи «почему так прочиталось», тот же порядок
       fitDiags: FaceFitDiag[]; // 6 записей «как легла сетка», тот же порядок
       resolved: Facelet | null; // informational legality-resolve (NOT scored)

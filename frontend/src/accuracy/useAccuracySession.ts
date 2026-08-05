@@ -336,7 +336,16 @@ export function useAccuracySession(): AccuracySession {
             setCaptureError(
               [
                 head,
-                spread ? centerSpreadRu(spread.faces, spread.des, spread.medianDE) : null,
+                spread
+                  ? centerSpreadRu(
+                      spread.faces,
+                      spread.des,
+                      spread.medianDE,
+                      spread.own,
+                      spread.ownDes,
+                      spread.rgb,
+                    )
+                  : null,
                 r.fitDiags.length ? fitSpreadRu(r.fitDiags) : null,
               ]
                 .filter(Boolean)

@@ -11,7 +11,7 @@ import { describe, it, expect } from "vitest";
 import { assignFacesByCenter } from "../../src/vision/cubeGrid";
 import { rgb2lab, type Lab, type Refs, type RGB } from "../../src/vision/colors";
 import { config } from "../../src/vision/config";
-import { centerAssignFailedRu } from "../../src/vision/guide";
+import { centerAssignFailedRu, centerSpreadRu } from "../../src/vision/guide";
 
 const REF_RGB: Record<string, RGB> = {
   U: [235, 238, 236],
@@ -146,5 +146,38 @@ describe("assignFacesByCenter собирает всех нарушителей",
     const res = assignFacesByCenter(grids, REFS);
     expect(res.ok).toBe(true);
     expect(res.offenders).toBeUndefined();
+  });
+});
+
+describe("centerSpreadRu", () => {
+  it("показывает СВОЙ цвет центра, а не только назначенный", () => {
+    // Живой прогон 2026-08-05 (stickerless, LED): «1:L 37 … 5:U 1» читалось как
+    // «первая съёмка — плохая оранжевая», хотя камера видела ДВА белых центра.
+    const msg = centerSpreadRu(
+      ["L", "R", "F", "D", "U", "B"],
+      [37, 2, 5, 3, 1, 15],
+      3.8,
+      ["U", "R", "F", "D", "U", "B"],
+      [4, 2, 5, 3, 1, 15],
+      [
+        [230, 234, 231],
+        [220, 60, 60],
+        [10, 180, 95],
+        [235, 230, 70],
+        [228, 236, 240],
+        [10, 70, 170],
+      ],
+    );
+    // Обе съёмки тянутся к белому — вот что надо было увидеть сразу.
+    expect(msg).toContain("1:L 37 (сам U 4)");
+    expect(msg).toContain("5:U 1 (сам U 1)");
+    expect(msg).toContain("RGB(230,234,231)");
+  });
+
+  it("без новых данных остаётся прежней строкой", () => {
+    const msg = centerSpreadRu(["U", "R", "F", "D", "L", "B"], [1, 2, 3, 4, 5, 6], 3.5);
+    expect(msg).toContain("1:U 1");
+    expect(msg).not.toContain("сам");
+    expect(msg).not.toContain("RGB");
   });
 });

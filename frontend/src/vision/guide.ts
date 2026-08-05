@@ -266,9 +266,37 @@ export function centerAssignFailedRu(
  * съёмка торчит над остальными, во втором далеки все шесть. Диагностика, не
  * замер: в гейт эта строка не идёт.
  */
-export function centerSpreadRu(faces: string[], des: number[], medianDE: number): string {
-  const parts = faces.map((f, i) => `${i + 1}:${f} ${(des[i] ?? 0).toFixed(0)}`);
-  return `Центры съёмок (номер:цвет ΔE): ${parts.join(", ")}. Медиана ${medianDE.toFixed(1)}.`;
+export function centerSpreadRu(
+  faces: string[],
+  des: number[],
+  medianDE: number,
+  /**
+   * К какому цвету центр тянется САМ, вне бижекции, и его сырой RGB.
+   *
+   * Назначенного цвета мало. Живой прогон 2026-08-05 (stickerless, LED) дал
+   * «1:L 37 … 5:U 1»: выглядит как «первая съёмка — плохая оранжевая», а на деле
+   * камера увидела ДВА белых центра, и раскладка отдала белый лучшему, а первой
+   * достался никем не занятый оранжевый. Понять это по назначенным цветам
+   * нельзя в принципе — они и есть результат раздачи, а не то, что видела камера.
+   */
+  own?: string[],
+  ownDes?: number[],
+  rgb?: [number, number, number][],
+): string {
+  const parts = faces.map((f, i) => {
+    const assigned = `${i + 1}:${f} ${(des[i] ?? 0).toFixed(0)}`;
+    const ownPart =
+      own?.[i] !== undefined ? ` (сам ${own[i]} ${(ownDes?.[i] ?? 0).toFixed(0)})` : "";
+    const rgbPart = rgb?.[i] ? ` RGB(${rgb[i].map((v) => Math.round(v)).join(",")})` : "";
+    return assigned + ownPart + rgbPart;
+  });
+  // Заголовок описывает РОВНО те поля, что напечатаны: обещать RGB, которого в
+  // строке нет, — тот же сорт вранья, что «допустимо 34» при сработавшем
+  // относительном замке.
+  const header = own
+    ? "Центры съёмок (номер:назначено ΔE (сам ΔE)" + (rgb ? " RGB" : "") + ")"
+    : "Центры съёмок (номер:цвет ΔE)";
+  return `${header}: ${parts.join(", ")}. Медиана ${medianDE.toFixed(1)}.`;
 }
 
 /**
