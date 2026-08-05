@@ -183,7 +183,15 @@ const CENTRE_COLOUR_RU: Record<string, string> = {
  *     и раньше он вычислялся, но выбрасывался.
  */
 export function centerAssignFailedRu(
-  offenders: { capture: number; face: string; de: number; relative: boolean }[],
+  offenders: {
+    capture: number;
+    face: string;
+    de: number;
+    relative: boolean;
+    own?: string;
+    ownDE?: number;
+    duplicateOf?: number;
+  }[],
   medianDE: number,
   maxAbs: number,
   maxRel: number,
@@ -209,17 +217,44 @@ export function centerAssignFailedRu(
         max: String(maxAbs),
       });
 
-  const missing = offenders
-    .map((o) => CENTRE_COLOUR_RU[o.face] ?? o.face)
-    .filter((v, i, a) => a.indexOf(v) === i);
-  const tail =
-    missing.length > 0
-      ? t("Похоже, ты не показала грань с {colours} центром — а показала что-то дважды.", {
-          colours: missing.join(" и "),
-        })
-      : t("Либо одна и та же грань показана дважды, либо в рамку попал не кубик.");
+  // Дубликат и плохо прочитанный центр выглядят для раскладки одинаково, а
+  // лечатся по-разному, поэтому и говорим о них РАЗНОЕ. Признак дубликата —
+  // съёмка тянется к цвету, который уже занят другой, севшей на него лучше.
+  const dupes = offenders.filter((o) => o.duplicateOf !== undefined);
+  const misread = offenders.filter((o) => o.duplicateOf === undefined);
 
-  return `${head} ${tail} ${t("Покажи шесть РАЗНЫХ граней, каждую — центром в рамку.")}`;
+  const parts: string[] = [];
+  if (dupes.length > 0) {
+    const colours = dupes
+      .map((o) => CENTRE_COLOUR_RU[o.face] ?? o.face)
+      .filter((v, i, a) => a.indexOf(v) === i);
+    parts.push(
+      t("Похоже, ты не показала грань с {colours} центром — а показала что-то дважды.", {
+        colours: colours.join(" и "),
+      }),
+    );
+  }
+  for (const o of misread) {
+    parts.push(
+      t(
+        "Центр съёмки {n} не похож и на свой ближайший цвет ({own}, {ownDE}) — значит дело не в порядке граней: центр прочитан плохо. Кубик мог стоять наискось, центр — уехать из ячейки, или свет ушёл от калибровки.",
+        {
+          n: String(o.capture + 1),
+          own: CENTRE_COLOUR_RU[o.own ?? ""] ?? o.own ?? "?",
+          ownDE: (o.ownDE ?? 0).toFixed(1),
+        },
+      ),
+    );
+  }
+  if (parts.length === 0) {
+    parts.push(t("Либо одна и та же грань показана дважды, либо в рамку попал не кубик."));
+  }
+  const tail =
+    dupes.length > 0
+      ? t("Покажи шесть РАЗНЫХ граней, каждую — центром в рамку.")
+      : t("Переснимай: держи грань ровно к камере и целиком в рамке.");
+
+  return `${head} ${parts.join(" ")} ${tail}`;
 }
 
 /**

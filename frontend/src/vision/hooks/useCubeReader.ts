@@ -25,7 +25,7 @@ import {
 } from "../colors";
 import { quickAdjust as colorsQuickAdjust } from "../quickAdjust";
 import { config, squareGuidePx, type Rect } from "../config";
-import { fitFaceRegion, gapContrast, type FitRegion } from "../faceFit";
+import { fitFaceRegion, gapContrast, edgeContrast, type FitRegion } from "../faceFit";
 import { notACubeFaceRu } from "../guide";
 import {
   assignFacesByCenter,
@@ -94,6 +94,13 @@ export function readFace(
   const patch = { data: ctx.getImageData(0, 0, gw, gh).data, size: gw };
   let gain = 0;
   let used = false;
+  // Отрыв победителя от несогласного соперника и вердикт «фаза сетки известна».
+  // ТЕЛЕМЕТРИЯ: гейт их не читает, поведение чтения от них не зависит (блокер B1
+  // плана — путь гейта не трогаем). Но без них живой отчёт не показывал НОВЫЙ
+  // структурный признак вовсе, и по прогону нельзя было сказать, сработал он или
+  // нет. Печатать число, ради которого чинили, — не машинерия отказа.
+  let margin: number | undefined;
+  let decided: boolean | undefined;
   if (presetRegion) {
     ox = Math.round(presetRegion.x);
     oy = Math.round(presetRegion.y);
@@ -102,6 +109,8 @@ export function readFace(
   } else if (refs) {
     const fit = fitFaceRegion(patch, refs, centerFrac);
     gain = fit.baselineCost - fit.cost;
+    margin = fit.margin;
+    decided = fit.decided;
     // Доверяем подгонке только при ощутимом выигрыше: иначе сетка дёргалась бы
     // от кадра к кадру на шуме.
     if (gain >= config.FACE_FIT_MIN_GAIN) {
@@ -115,6 +124,10 @@ export function readFace(
   // число описывало бы не то чтение. Признак не требует эталонов, поэтому есть и
   // на калибровочном пути, где подгонки нет.
   const gap = gapContrast(patch, { x: ox, y: oy, side }, centerFrac);
+  // Тот же замер для НОВОГО признака — перепада цвета на внутренних границах.
+  // На монолитном кубике `gap` уходит в ноль и в минус, и по одному ему нельзя
+  // отличить «сетка села верно» от «сетка не нашла ничего».
+  const edge = edgeContrast(patch, { x: ox, y: oy, side }, centerFrac);
 
   // Distribute the pixel remainder so the whole fitted square is covered.
   const xEdges = [ox, ox + Math.round(side / 3), ox + Math.round((2 * side) / 3), ox + side];
@@ -136,7 +149,13 @@ export function readFace(
       lab.push(rgb2lab(cell.rgb));
     }
   }
-  return { rgb, lab, kept, fit: { gain, used, gap }, region: { x: ox, y: oy, side } };
+  return {
+    rgb,
+    lab,
+    kept,
+    fit: { gain, used, gap, edge, margin, decided },
+    region: { x: ox, y: oy, side },
+  };
 }
 
 /** Mean luma (Rec. 601) of the guide region, 0..255. */
@@ -538,7 +557,10 @@ async function readFaceBurst(
   const fit = {
     gain: shots[0].fit.gain,
     gap: median(shots.map((s) => s.fit.gap)),
+    edge: median(shots.map((s) => s.fit.edge ?? 0)),
     used: shots[0].fit.used,
+    margin: shots[0].fit.margin,
+    decided: shots[0].fit.decided,
   };
   return { rgb, lab: rgb.map((c) => rgb2lab(c)), kept, fit };
 }

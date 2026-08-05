@@ -474,6 +474,12 @@ export function formatReport(
         f.edge !== undefined
           ? `, контраст границ ${f.edge.toFixed(1)} (цель ${config.FACE_FIT_EDGE_TARGET})`
           : "";
+      const margin =
+        f.margin !== undefined && Number.isFinite(f.margin)
+          ? `, отрыв ${f.margin.toFixed(2)} (порог ${config.FACE_FIT_MIN_MARGIN})`
+          : f.margin !== undefined
+            ? `, отрыв ∞ (несогласных соперников нет)`
+            : "";
       const decided =
         f.decided !== undefined
           ? `, ${f.decided ? "фаза сетки определена" : "фаза сетки НЕ определена"}`
@@ -483,6 +489,7 @@ export function formatReport(
           `, ${f.used ? "ПОДОГНАНА" : "ОТКАТ НА РАМКУ"}` +
           `, контраст щелей ${f.gap.toFixed(1)} (цель ${config.FACE_FIT_GAP_TARGET})` +
           edge +
+          margin +
           decided,
       );
     }

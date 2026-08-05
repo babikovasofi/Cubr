@@ -73,6 +73,12 @@ export interface CenterOffender {
   relative: boolean;
   /** Сработал абсолютный: центр не похож ни на что, как ни сдвинулся свет. */
   absolute: boolean;
+  /** К какому цвету съёмка тянется САМА, вне бижекции. */
+  own?: Face;
+  /** ΔE до этого своего цвета. Велик — центр прочитан плохо, а не дублирован. */
+  ownDE?: number;
+  /** Номер съёмки, уже занявшей `own` с меньшим ΔE: тогда это правда дубликат. */
+  duplicateOf?: number;
 }
 
 export interface CenterAssignment {
@@ -147,8 +153,29 @@ export function assignFacesByCenter(faceGridsLab: Lab[][], refs: Refs): CenterAs
     const de = centerDEs[c];
     const relative = de - medianDE > config.CENTER_OUTLIER_DE;
     const absolute = de > config.CENTER_MAX_DELTA_E;
-    if (relative || absolute)
-      offenders.push({ capture: c, face: faces[c], de, relative, absolute });
+    if (relative || absolute) {
+      // К какому цвету эта съёмка тянется САМА, вне бижекции, и насколько.
+      // Без этого «не показала грань с жёлтым центром» — обвинение наугад:
+      // тот же отказ выглядит одинаково и когда грань правда показана дважды
+      // (своё лучшее уже занято другой съёмкой), и когда центр просто плохо
+      // прочитан (своё лучшее тоже далеко). Живой прогон 2026-08-05 дал второй
+      // случай, а текст уверенно заявил первый.
+      const own = nearestRef(centers[c], refs) as Face;
+      const ownDE = deltaE(centers[c], refs[own]);
+      const takenBy = faces.findIndex((f, i) => f === own && i !== c);
+      offenders.push({
+        capture: c,
+        face: faces[c],
+        de,
+        relative,
+        absolute,
+        own,
+        ownDE,
+        // Дубликат — только если своё лучшее УЖЕ занято съёмкой, которая села на
+        // него заметно лучше. Иначе это плохо прочитанный центр.
+        duplicateOf: takenBy >= 0 && centerDEs[takenBy] < ownDE ? takenBy : undefined,
+      });
+    }
   }
   if (offenders.length > 0) {
     // Худший, а не первый: именно он объясняет, что пошло не так.

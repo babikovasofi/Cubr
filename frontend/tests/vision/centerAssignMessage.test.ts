@@ -67,11 +67,11 @@ describe("centerAssignFailedRu", () => {
     expect(msg).not.toContain("Съёмка 5 не опознана");
   });
 
-  it("называет цветом центры, которых не увидел — по всем нарушителям", () => {
+  it("называет цветом центры, которых не увидел — но только у настоящих дубликатов", () => {
     const msg = centerAssignFailedRu(
       [
-        { capture: 4, face: "F", de: 30, relative: true },
-        { capture: 5, face: "B", de: 55, relative: false },
+        { capture: 4, face: "F", de: 30, relative: true, own: "U", ownDE: 2, duplicateOf: 0 },
+        { capture: 5, face: "B", de: 55, relative: false, own: "R", ownDE: 3, duplicateOf: 1 },
       ],
       3.7,
       config.CENTER_MAX_DELTA_E,
@@ -80,6 +80,36 @@ describe("centerAssignFailedRu", () => {
     expect(msg).toContain("зелёным");
     expect(msg).toContain("синим");
     expect(msg).toContain("дважды");
+  });
+
+  it("НЕ обвиняет в повторе, когда центр просто прочитан плохо", () => {
+    // Живой прогон 2026-08-05 (stickerless): съёмка 1 села на жёлтый с ΔE 35,
+    // но и к своему ближайшему цвету была далека — грани показаны все, плохо
+    // прочитан центр. Прежний текст уверенно заявлял «не показала жёлтую».
+    const msg = centerAssignFailedRu(
+      [{ capture: 0, face: "D", de: 35.2, relative: true, own: "U", ownDE: 28.4 }],
+      10,
+      config.CENTER_MAX_DELTA_E,
+      config.CENTER_OUTLIER_DE,
+    );
+    expect(msg).not.toContain("дважды");
+    expect(msg).not.toContain("не показала");
+    expect(msg).toContain("центр прочитан плохо");
+    expect(msg).toContain("28.4");
+  });
+
+  it("смешанный случай: и повтор, и плохой центр — говорит про оба", () => {
+    const msg = centerAssignFailedRu(
+      [
+        { capture: 0, face: "D", de: 35, relative: true, own: "U", ownDE: 28 },
+        { capture: 3, face: "F", de: 40, relative: true, own: "R", ownDE: 2, duplicateOf: 1 },
+      ],
+      10,
+      config.CENTER_MAX_DELTA_E,
+      config.CENTER_OUTLIER_DE,
+    );
+    expect(msg).toContain("дважды");
+    expect(msg).toContain("центр прочитан плохо");
   });
 
   it("пустой список нарушителей не роняет текст", () => {
