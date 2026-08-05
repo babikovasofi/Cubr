@@ -26,6 +26,11 @@ export default tseslint.config(
     languageOptions: { globals: { ...globals.node } },
   },
   {
+    // Build-time guards (scripts/*.mjs) run in Node, not in the browser.
+    files: ["scripts/**/*.mjs"],
+    languageOptions: { globals: { ...globals.node } },
+  },
+  {
     // Tests feed deliberately-shaped fixtures to typed fns via `as any`.
     files: ["**/tests/**", "**/*.test.{ts,tsx}"],
     rules: { "@typescript-eslint/no-explicit-any": "off" },

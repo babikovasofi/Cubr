@@ -7,7 +7,7 @@
 // with the mirrored video. Cyrillic labels are drawn inside a local horizontal
 // flip so the text still reads forward on the mirrored canvas.
 
-import type { Rect } from "./config";
+import { squareGuidePx, type Rect } from "./config";
 import type { HandObservation } from "./hooks/useHands";
 
 // Two zones at the bottom of the frame (left half / right half).
@@ -42,13 +42,17 @@ export function drawOverlay(
     ctx.strokeRect(z.x * w, z.y * h, z.w * w, z.h * h);
   }
 
-  // Guide frame for cube face.
+  // Guide frame for cube face. Draw the CENTERED SQUARE that readFace actually
+  // samples (side = min of the guide px dims), so the yellow box the tester aligns
+  // the cube to is EXACTLY the read region — a wider-than-square box would sample
+  // the background in the side sticker columns (see useCubeReader.squareGuidePx).
+  const g = squareGuidePx(guide, w, h);
   ctx.strokeStyle = "#ffd23f";
   ctx.lineWidth = 3;
-  ctx.strokeRect(guide.x * w, guide.y * h, guide.w * w, guide.h * h);
+  ctx.strokeRect(g.gx, g.gy, g.gw, g.gh);
   // Mark the U-edge (top) so the tester knows which way is up.
   ctx.fillStyle = "#ffd23f";
-  ctx.fillRect(guide.x * w, guide.y * h - 6, guide.w * w, 4);
+  ctx.fillRect(g.gx, g.gy - 6, g.gw, 4);
 
   // Russian labels. Draw each inside a local horizontal-flip transform so the
   // text reads forward on the CSS-mirrored canvas. Anchor to the element's
@@ -64,7 +68,7 @@ export function drawOverlay(
       ctx.fillText(text, 0, 0);
       ctx.restore();
     };
-    label(labels.guide, (guide.x + guide.w) * w, guide.y * h - 8, "#ffd23f");
+    label(labels.guide, g.gx + g.gw, g.gy - 8, "#ffd23f");
     label(labels.left, (zones.left.x + zones.left.w) * w, zones.left.y * h - 4, "#39d98a");
     label(labels.right, (zones.right.x + zones.right.w) * w, zones.right.y * h - 4, "#39d98a");
   }

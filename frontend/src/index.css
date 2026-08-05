@@ -1,27 +1,95 @@
 /* fonts + темы — verbatim from design-system.md §9 */
-@import url('https://fonts.googleapis.com/css2?family=Rubik:wght@400;500;700;800;900&family=IBM+Plex+Mono:wght@400;600&display=swap');
+@import url("https://fonts.googleapis.com/css2?family=Rubik:wght@400;500;700;800;900&family=IBM+Plex+Mono:wght@400;600&display=swap");
 
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 :root {
-  --bg:#FBF8F1; --surface:#FFFFFF; --surface-2:#F3EDE0; --line:#EDE5D6;
-  --ink:#221E17; --muted:#8A8172; --faint:#B5A893;
-  --primary:#0051BA; --primary-press:#003C8A;
-  --success:#009E60; --danger:#C41E3A; --warning:#FFCF00; --live:#FF5800;
+  --bg: #fbf8f1;
+  --surface: #ffffff;
+  --surface-2: #f3ede0;
+  --line: #ede5d6;
+  --ink: #221e17;
+  --muted: #8a8172;
+  --faint: #b5a893;
+  --primary: #0051ba;
+  --primary-press: #003c8a;
+  --success: #009e60;
+  --danger: #c41e3a;
+  --warning: #ffcf00;
+  --live: #ff5800;
 }
 .dark {
-  --bg:#232019; --surface:#2D2A22; --surface-2:#37332A; --line:#3E3A30;
-  --ink:#F6F1E6; --muted:#A9A08C; --faint:#7A7264;
-  --primary:#4D8BE8; --primary-press:#3A6FC4;
-  --success:#22C177; --danger:#F0526A; --warning:#FFD84D; --live:#FF7A3D;
+  --bg: #232019;
+  --surface: #2d2a22;
+  --surface-2: #37332a;
+  --line: #3e3a30;
+  --ink: #f6f1e6;
+  --muted: #a9a08c;
+  --faint: #7a7264;
+  --primary: #4d8be8;
+  --primary-press: #3a6fc4;
+  --success: #22c177;
+  --danger: #f0526a;
+  --warning: #ffd84d;
+  --live: #ff7a3d;
 }
-::selection { background: var(--warning); color: #221E17; }
+::selection {
+  background: var(--warning);
+  color: #221e17;
+}
 
 body {
   margin: 0;
   background: var(--bg);
   color: var(--ink);
-  font-family: 'Rubik', 'Helvetica Neue', Arial, sans-serif;
+  font-family: "Rubik", "Helvetica Neue", Arial, sans-serif;
+}
+
+/* Ползунок в языке продукта: трек — `surface-2` с обводкой `line`, ручка —
+   «наклейка» (обводка `ink`, заливка `primary`). Системный вид ползунка
+   выпадает из стиля сайта, а стилизуется он только через вендорные псевдо-
+   элементы, поэтому живёт тут, а не в утилитах Tailwind. */
+.cubr-range {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 22px;
+  background: transparent;
+  cursor: pointer;
+}
+.cubr-range::-webkit-slider-runnable-track {
+  height: 8px;
+  border-radius: 999px;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+}
+.cubr-range::-moz-range-track {
+  height: 8px;
+  border-radius: 999px;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+}
+.cubr-range::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 20px;
+  height: 20px;
+  margin-top: -7px;
+  border-radius: 6px;
+  background: var(--primary);
+  border: 2px solid var(--ink);
+  box-shadow: 2px 2px 0 var(--ink);
+}
+.cubr-range::-moz-range-thumb {
+  width: 20px;
+  height: 20px;
+  border-radius: 6px;
+  background: var(--primary);
+  border: 2px solid var(--ink);
+  box-shadow: 2px 2px 0 var(--ink);
+}
+.cubr-range:focus-visible::-webkit-slider-thumb {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
 }

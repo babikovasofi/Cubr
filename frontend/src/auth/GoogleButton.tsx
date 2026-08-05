@@ -4,8 +4,10 @@
 import { useState } from "react";
 import { googleAuthorizeUrl } from "../api/auth";
 import { ApiError } from "../api/client";
+import { useT } from "../i18n/t";
 
 export default function GoogleButton() {
+  const t = useT();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -17,7 +19,7 @@ export default function GoogleButton() {
       window.location.assign(url);
     } catch (e) {
       setBusy(false);
-      setError(e instanceof ApiError ? e.message : "Не удалось начать вход через Google.");
+      setError(e instanceof ApiError ? t(e.message) : t("Не удалось начать вход через Google."));
     }
   }
 
@@ -29,7 +31,7 @@ export default function GoogleButton() {
         disabled={busy}
         className="inline-flex h-11 items-center justify-center rounded-full border-2 border-ink bg-surface px-4.5 font-sans text-small font-extrabold text-ink transition-transform duration-150 ease-spring hover:-translate-x-0.5 hover:-translate-y-0.5 hover:shadow-sticker disabled:cursor-not-allowed disabled:text-faint"
       >
-        {busy ? "Открываю Google…" : "Войти через Google"}
+        {busy ? t("Открываю Google…") : t("Войти через Google")}
       </button>
       {error ? (
         <p role="alert" className="font-sans text-small text-danger">

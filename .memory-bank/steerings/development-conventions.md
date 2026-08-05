@@ -25,4 +25,27 @@
 - **Портфолио:** скриншоты/гифки прогресса после каждого этапа.
 - **File-size limit / decomposition rule:** 400 строк (опциональный PostToolUse size-hook,
   `--wire-size-hook`, тюнинг через `$FILE_LINE_LIMIT`).
+- **Новая строка для человека — сразу через `t()`** и сразу с ключом в `frontend/src/i18n/en.ts`
+  (ключ = сама русская строка). Числительное — фразой целиком через `i18n/plural.ts`, не словом.
+  Строка, которую возвращает хук или чистый модуль, — тоже ключ: переводит её место показа.
+  Детали и исключения — tech-details/README.md §Локализация.
 - **Секреты:** только в `.env` (git-ignored); в код/Memory Bank — никогда.
+  Настройка: скопировать `.env.example` → `.env` и заполнить (HuggingFace-токен
+  для transcribe и т.п.).
+- **Bundled skills:** проект возит свои копии в `.claude/skills/` — внешний
+  маркетплейс не нужен. Utility: memory-bank, memory-bank-defrag, transcribe,
+  design-process, anti-ai-slop-writing, anti-slop-design, mattermost, solidtime,
+  reflect. Dev-loop: plan, build, review, debug. Обновление:
+  `bash <startpoint>/scripts/bootstrap.sh --upgrade-skills . --force`.
+- **Модель саб-агентов dev-loop — фиксирована в самих skill-файлах, вручную
+  переключать не нужно:** `/plan` спавнит planner+skeptic на **opus** (самое сложное
+  рассуждение), `/build` и `/debug` — исполняющих/debugger-агентов на **sonnet**
+  (дефолт реализации), `/review` — reviewer/qa-smoke на **haiku** (дёшево/быстро;
+  ревьюер вправе поднять себя до sonnet на большом/HIGH-риск диффе). Задано через
+  параметр `model:` вызова `Task`/`Agent` — см.
+  `.claude/skills/{plan,build,review,debug}/SKILL.md`. Модель ОСНОВНОЙ сессии
+  (оркестратора) не меняется — это только про саб-агентов, которые делают
+  фактическую работу.
+- **Memory Bank index:** `index.md` — точка входа, инжектится хуком в каждую
+  сессию. Держать кратким: обзор + карта ссылок на тематические файлы; детали
+  живут в самих файлах.

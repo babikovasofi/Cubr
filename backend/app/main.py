@@ -1,3 +1,6 @@
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
@@ -6,12 +9,42 @@ from slowapi.middleware import SlowAPIMiddleware
 from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
 
 from app.config import get_settings
-from app.routers import auth, cubes, health, solves
+from app.routers import (
+    auth,
+    badges,
+    cubes,
+    daily,
+    duel,
+    funnel,
+    health,
+    scramble,
+    solves,
+    tournament,
+)
 from app.services.ratelimit import limiter
 
 settings = get_settings()
 
-app = FastAPI(title="Cubr API")
+
+@asynccontextmanager
+async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
+    # Link-invite duel rooms live entirely in this process's memory
+    # (app.services.duel_manager.ConnectionManager) — no Redis/shared-state
+    # backing them (Этап 4 MVP scope). A second worker process would run its
+    # OWN empty ConnectionManager, so e.g. a WS handshake landing on a
+    # different worker than the one that has the room registered would see
+    # the room as nonexistent. Refuse to boot rather than silently corrupt
+    # duels under multi-worker deployment.
+    if settings.WEB_CONCURRENCY > 1:
+        raise RuntimeError(
+            f"WEB_CONCURRENCY={settings.WEB_CONCURRENCY} > 1 is not supported: "
+            "app.services.duel_manager's in-memory RoomState is not shared "
+            "across worker processes. Run with a single worker."
+        )
+    yield
+
+
+app = FastAPI(title="Cubr API", lifespan=lifespan)
 
 
 async def _rate_limit_handler(request: Request, exc: Exception) -> JSONResponse:
@@ -50,3 +83,9 @@ app.include_router(auth.router)
 # Mounted at root (no `/api` prefix): the frontend proxy strips `/api`.
 app.include_router(solves.router)
 app.include_router(cubes.router)
+app.include_router(scramble.router)
+app.include_router(tournament.router)
+app.include_router(daily.router)
+app.include_router(duel.router)
+app.include_router(badges.router)
+app.include_router(funnel.router)

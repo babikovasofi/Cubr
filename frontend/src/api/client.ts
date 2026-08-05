@@ -12,12 +12,18 @@ const BASE = "/api";
 export class ApiError extends Error {
   readonly status: number;
   readonly code: string | null;
+  // Raw parsed error body (or null for 0/204/no-body failures). Most callers
+  // only need `code`/`message`, but some 409s (duel П11: "already in an
+  // active duel") carry extra fields like `existing_room_id` that don't fit
+  // the {code, reason} shape below — callers dig those out of `body`.
+  readonly body: unknown;
 
-  constructor(status: number, code: string | null, message: string) {
+  constructor(status: number, code: string | null, message: string, body: unknown = null) {
     super(message);
     this.name = "ApiError";
     this.status = status;
     this.code = code;
+    this.body = body;
   }
 }
 
@@ -30,12 +36,27 @@ const RU_BY_CODE: Record<string, string> = {
   RESET_PASSWORD_BAD_TOKEN: "Ссылка сброса недействительна или устарела. Запроси новую.",
   VERIFY_USER_BAD_TOKEN: "Ссылка подтверждения недействительна или устарела.",
   VERIFY_USER_ALREADY_VERIFIED: "Почта уже подтверждена. Можно входить.",
-  CUBE_LIMIT: "Достигнут лимит: можно хранить не больше 5 кубиков. Удали лишний, чтобы добавить новый.",
+  CUBE_LIMIT:
+    "Достигнут лимит: можно хранить не больше 5 кубиков. Удали лишний, чтобы добавить новый.",
+  // Этап 6, фильтр имён. Копия текста живёт тут, а не берётся из серверного
+  // `reason`: формулировка — часть интерфейса, бэк может её менять молча.
+  NAME_NOT_ALLOWED: "Такое имя не подходит. Выбери другое.",
+  NAME_RESERVED: "Это имя зарезервировано за сервисом. Выбери другое.",
+  NAME_INVALID_CHARS:
+    "В имени можно использовать буквы, цифры, пробел, дефис, точку и подчёркивание.",
+  NAME_TOO_SHORT: "Имя слишком короткое: минимум 2 символа.",
 };
 
 const RU_BY_STATUS: Record<number, string> = {
   429: "Слишком много попыток. Подожди немного и попробуй снова.",
   0: "Не удалось связаться с сервером. Проверь интернет.",
+  // Лежащий бэкенд не роняет fetch: dev-прокси и прод-прокси отвечают 502/503/504
+  // своей страницей, и без этих строк пользователь видел «Что-то пошло не так»
+  // — по нему не отличить «сервер лежит» от «пароль слабый».
+  500: "Ошибка на сервере. Попробуй ещё раз чуть позже.",
+  502: "Сервер сейчас недоступен. Попробуй через минуту.",
+  503: "Сервер сейчас недоступен. Попробуй через минуту.",
+  504: "Сервер не ответил вовремя. Попробуй ещё раз.",
 };
 
 const RU_FALLBACK = "Что-то пошло не так. Попробуй ещё раз.";
@@ -62,11 +83,7 @@ export function parseErrorBody(
     if (typeof d.reason === "string") reason = d.reason;
   }
 
-  const message =
-    (code && RU_BY_CODE[code]) ??
-    RU_BY_STATUS[status] ??
-    reason ??
-    RU_FALLBACK;
+  const message = (code && RU_BY_CODE[code]) ?? RU_BY_STATUS[status] ?? reason ?? RU_FALLBACK;
 
   return { code, message };
 }
@@ -115,7 +132,7 @@ export async function request<T>(path: string, opts: RequestOptions = {}): Promi
       // no/invalid JSON body (e.g. 429 from the rate limiter) — status wins
     }
     const { code, message } = parseErrorBody(res.status, parsed);
-    throw new ApiError(res.status, code, message);
+    throw new ApiError(res.status, code, message, parsed);
   }
 
   if (res.status === 204) return undefined as T;

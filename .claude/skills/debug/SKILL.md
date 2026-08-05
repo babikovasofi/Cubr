@@ -14,7 +14,8 @@ to a feature build)
 ## Steps
 1. **Gather the symptom**: the error/stack/failing-test name from the user, plus the build
    report `swarm-report/<slug>-build.md` if a slug was given.
-2. **Spawn 1 debugger** (`Task`, `general-purpose`). Prompt:
+2. **Spawn 1 debugger** (`Task`, `general-purpose`, **`model: sonnet`** — same tier as
+   `/build`; do not ask the user which model). Prompt:
    > Answer TERSE. Read `.claude/agents/debugger.md` and follow it exactly.
    > Symptom: <verbatim error / failing test>. Feature slug (if any): <slug>.
 3. **Report** the debugger's return verbatim: root cause, evidence, fix, and the

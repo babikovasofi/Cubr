@@ -20,15 +20,23 @@ main loop.
    table in `AGENTS.md` (frontend / backend / devops / mobile). Group files by agent.
    No match for a file → ask the user which agent owns it.
 4. **Spawn the matched exec agents** — one `Task` call each, in parallel when a feature
-   spans several layers (single message, N calls, `subagent_type: general-purpose`).
+   spans several layers (single message, N calls, `subagent_type: general-purpose`,
+   **`model: sonnet`** — implementation's default tier; do not ask the user which model).
    Prompt each:
    > Answer TERSE. Read `.claude/agents/<scope>.md` and follow it exactly.
    > Plan: swarm-report/<slug>-plan.md. Your scope: <the files for this agent>.
    If one agent's output changes a contract another needs (e.g. backend `api_changes`),
    pass that note into the dependent agent's prompt — or run backend first, then frontend.
-5. **Verify**: read each agent's `tests_result`. Any `status: blocked` or failing test →
-   do NOT claim success. Report the failures verbatim and stop. Offer `/build <slug>`
-   retry after the fix.
+4b. **Tests on haiku.** After the exec agents implement the feature, spawn ONE test agent
+   (`Task`, `general-purpose`, **`model: haiku`**) whose prompt is the full contents of
+   `.claude/agents/tester.md` (TERSE block + tester duties baked in) plus:
+   > Plan: swarm-report/<slug>-plan.md — implement its **Test plan** section exactly.
+   > Changed files: <list>. Stack conventions: `.claude/agents/<stack>.md`.
+   Exec agents may write a few inline tests, but full coverage is this haiku step's job.
+
+5. **Verify**: read each agent's `tests_result` (incl. the haiku test agent's run). Any
+   `status: blocked` or failing test → do NOT claim success. Report the failures verbatim and
+   stop. Offer `/build <slug>` retry after the fix.
 6. **Write** `swarm-report/<slug>-build.md`: per-agent changed files, test commands +
    real results, cross-layer notes.
 7. **Report** to user: status per scope + test results. Quote real output — no "done"

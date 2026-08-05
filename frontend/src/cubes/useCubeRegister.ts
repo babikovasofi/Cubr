@@ -18,7 +18,12 @@ import {
 } from "../vision/hooks/useCamera";
 import { useHands, HandsInitError } from "../vision/hooks/useHands";
 import { useCubeReader } from "../vision/hooks/useCubeReader";
-import { cameraDeniedRu, modelFailedRu } from "../vision/guide";
+import {
+  calibrationRejectedRu,
+  cameraDeniedRu,
+  modelFailedRu,
+  faceUnreadableRu,
+} from "../vision/guide";
 import type { ColorProfile } from "../api/cubes";
 
 const ZONES = defaultZones();
@@ -94,6 +99,13 @@ export function useCubeRegister(): CubeRegister {
       await camera.start(onFrame);
       setStarted(true);
     } catch (e) {
+      // Победила параллельная попытка: поток живой, значит ошибки нет — что бы
+      // ни вернул наш собственный вызов. Иначе на экране остаётся работающее
+      // видео с красной надписью «нет доступа к камере».
+      if (camera.isLive()) {
+        setError(null);
+        return;
+      }
       if (e instanceof HandsInitError) setError(modelFailedRu());
       else if (e instanceof CameraError) setError(cameraErrorRu(e.kind));
       else setError(cameraDeniedRu());
@@ -102,7 +114,18 @@ export function useCubeRegister(): CubeRegister {
 
   const capture = (): void => {
     const v = videoRef.current;
-    if (v) reader.captureCalibration(v);
+    if (!v) return;
+    // Reject an empty/too-dark frame instead of registering a garbage face — the
+    // "снял грань без кубика в кадре → готово" bug at cube registration.
+    if (!reader.captureCalibration(v)) {
+      setError(
+        reader.calibrationProblem
+          ? calibrationRejectedRu(reader.calibrationProblem)
+          : faceUnreadableRu(),
+      );
+      return;
+    }
+    setError(null);
   };
 
   const reset = (): void => reader.recalibrate();

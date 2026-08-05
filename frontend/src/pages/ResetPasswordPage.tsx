@@ -8,8 +8,10 @@ import Button from "../components/Button";
 import Input from "../components/Input";
 import { resetPassword } from "../api/auth";
 import { ApiError } from "../api/client";
+import { useT } from "../i18n/t";
 
 export default function ResetPasswordPage() {
+  const t = useT();
   const [params] = useSearchParams();
   const token = params.get("token");
 
@@ -23,11 +25,11 @@ export default function ResetPasswordPage() {
     e.preventDefault();
     setError(null);
     if (!token) {
-      setError("В ссылке нет токена. Открой ссылку из письма целиком.");
+      setError(t("В ссылке нет токена. Открой ссылку из письма целиком."));
       return;
     }
     if (password !== confirm) {
-      setError("Пароли не совпадают.");
+      setError(t("Пароли не совпадают."));
       return;
     }
     setBusy(true);
@@ -43,25 +45,25 @@ export default function ResetPasswordPage() {
   if (done) {
     return (
       <AuthShell
-        title="Пароль обновлён"
+        title={t("Пароль обновлён")}
         footer={
           <Link to="/login" className="font-bold text-primary">
-            Войти с новым паролем
+            {t("Войти с новым паролем")}
           </Link>
         }
       >
         <p className="font-sans text-body text-success">
-          Готово. Теперь войди с новым паролем.
+          {t("Готово. Теперь войди с новым паролем.")}
         </p>
       </AuthShell>
     );
   }
 
   return (
-    <AuthShell title="Новый пароль" subtitle="Придумай новый пароль для аккаунта.">
+    <AuthShell title={t("Новый пароль")} subtitle={t("Придумай новый пароль для аккаунта.")}>
       <form className="flex flex-col gap-4" onSubmit={onSubmit} noValidate>
         <Input
-          label="Новый пароль"
+          label={t("Новый пароль")}
           type="password"
           autoComplete="new-password"
           required
@@ -70,7 +72,7 @@ export default function ResetPasswordPage() {
           onChange={(e) => setPassword(e.target.value)}
         />
         <Input
-          label="Повтори пароль"
+          label={t("Повтори пароль")}
           type="password"
           autoComplete="new-password"
           required
@@ -80,7 +82,7 @@ export default function ResetPasswordPage() {
           error={error}
         />
         <Button type="submit" disabled={busy}>
-          {busy ? "Сохраняю…" : "Сохранить пароль"}
+          {busy ? t("Сохраняю…") : t("Сохранить пароль")}
         </Button>
       </form>
     </AuthShell>

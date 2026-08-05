@@ -8,6 +8,7 @@ import AuthShell from "../auth/AuthShell";
 import Spinner from "../components/Spinner";
 import { useAuthStore } from "../store/authStore";
 import { postLoginPath } from "../auth/onboarding";
+import { useT } from "../i18n/t";
 
 const ERROR_RU: Record<string, string> = {
   access_denied: "Доступ к Google-аккаунту не был предоставлен.",
@@ -15,6 +16,7 @@ const ERROR_RU: Record<string, string> = {
 };
 
 export default function OAuthCallbackPage() {
+  const t = useT();
   const [params] = useSearchParams();
   const navigate = useNavigate();
   const refreshMe = useAuthStore((s) => s.refreshMe);
@@ -35,16 +37,16 @@ export default function OAuthCallbackPage() {
     }
     refreshMe()
       .then(() => navigate(postLoginPath(null), { replace: true }))
-      .catch(() => setError("Вход прошёл, но не удалось загрузить профиль. Попробуй обновить."));
+      .catch(() => setError(t("Вход прошёл, но не удалось загрузить профиль. Попробуй обновить.")));
   }, [ok, errCode, refreshMe, navigate]);
 
   return (
     <AuthShell
-      title="Вход через Google"
+      title={t("Вход через Google")}
       footer={
         error ? (
           <Link to="/login" className="font-bold text-primary">
-            Вернуться ко входу
+            {t("Вернуться ко входу")}
           </Link>
         ) : undefined
       }
@@ -54,7 +56,7 @@ export default function OAuthCallbackPage() {
           {error}
         </p>
       ) : (
-        <Spinner label="Завершаю вход…" />
+        <Spinner label={t("Завершаю вход…")} />
       )}
     </AuthShell>
   );

@@ -4,9 +4,12 @@ import {
   createCube,
   updateCube,
   deleteCube,
+  profileToRefs,
+  refsToProfile,
   type ColorProfile,
   type CubeRead,
 } from "../../src/api/cubes";
+import type { Refs } from "../../src/vision/colors";
 import { ApiError } from "../../src/api/client";
 
 function res(opts: { status: number; json?: unknown; text?: string }): Response {
@@ -91,5 +94,19 @@ describe("cubes api", () => {
     const [url, init] = fetchMock.mock.calls[0];
     expect(url).toBe("/api/cubes/c1");
     expect(init.method).toBe("DELETE");
+  });
+});
+
+describe("profileToRefs / refsToProfile", () => {
+  it("round-trips a profile through refs unchanged (all 6 positional faces)", () => {
+    const refs = profileToRefs(PROFILE);
+    expect(refsToProfile(refs)).toEqual(PROFILE);
+  });
+
+  it("clones: mutating the derived refs does not touch the source profile", () => {
+    const src: ColorProfile = { ...PROFILE, U: [...PROFILE.U] };
+    const refs: Refs = profileToRefs(src);
+    refs.U[0] = 999;
+    expect(src.U[0]).toBe(PROFILE.U[0]);
   });
 });

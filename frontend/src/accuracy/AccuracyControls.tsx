@@ -7,25 +7,17 @@ import { useState } from "react";
 import Button from "../components/Button";
 import Input from "../components/Input";
 import {
-  CAPTURE_ORDER,
   MIN_READS,
   conditionVerdict,
+  condKeyString,
   gatePass,
   hotspots,
   runHotspots,
 } from "../vision/accuracyRun";
-import type { AccuracySession } from "./useAccuracySession";
+import { CAPTURE_HINTS } from "./captureHints";
 
-// Short per-step orientation hints (белый верх, зелёный к себе). The full ritual
-// lives in docs/qa/stage-0.3-vision-accuracy.md — this is just the in-frame nudge.
-const CAPTURE_HINTS: { face: string; ru: string }[] = [
-  { face: "U", ru: "Верх (белый) в камеру, зелёный — к верхнему краю рамки." },
-  { face: "R", ru: "Право (красный) в камеру, белый — вверху." },
-  { face: "F", ru: "Фронт (зелёный) в камеру, белый — вверху." },
-  { face: "D", ru: "Низ (жёлтый) в камеру, зелёный — к нижнему краю рамки." },
-  { face: "L", ru: "Лево (оранжевый) в камеру, белый — вверху." },
-  { face: "B", ru: "Тыл (синий) в камеру, белый — вверху." },
-];
+export { CAPTURE_HINTS };
+import type { AccuracySession } from "./useAccuracySession";
 
 function pct(x: number): string {
   return `${(x * 100).toFixed(1)}%`;
@@ -50,9 +42,6 @@ export default function AccuracyControls({ session }: AccuracyControlsProps) {
       setCopied(false);
     }
   }
-
-  const captureStep = session.collectingAccuracy ? session.accFacesLength : 0;
-  const hint = CAPTURE_HINTS[Math.min(captureStep, 5)];
 
   return (
     <div className="flex flex-col gap-5">
@@ -85,7 +74,9 @@ export default function AccuracyControls({ session }: AccuracyControlsProps) {
                 Скрамбл не загрузился: {session.scrambleError}
               </p>
             ) : (
-              <code className="break-words font-mono text-caption text-ink">{session.scramble}</code>
+              <code className="break-words font-mono text-caption text-ink">
+                {session.scramble}
+              </code>
             )}
             <button
               type="button"
@@ -100,6 +91,33 @@ export default function AccuracyControls({ session }: AccuracyControlsProps) {
             Эталон — собранный кубик (SOLVED). Санити-проверка, адъяцентности не тестит.
           </p>
         )}
+      </section>
+
+      {/* Grip */}
+      <section className="flex flex-col gap-2 rounded-lg border border-line bg-surface p-4">
+        <span className="font-sans text-overline uppercase text-muted">Хватка</span>
+        <div className="flex gap-2" role="radiogroup" aria-label="Хватка">
+          {(["fixed", "free"] as const).map((g) => (
+            <button
+              key={g}
+              type="button"
+              role="radio"
+              aria-checked={session.grip === g}
+              onClick={() => session.setGrip(g)}
+              className={[
+                "h-9 rounded-full border-2 border-ink px-3.5 font-sans text-small font-bold",
+                session.grip === g ? "bg-primary text-white" : "bg-surface-2 text-ink",
+              ].join(" ")}
+            >
+              {g === "fixed" ? "Строгая (ориентация фиксирована)" : "Свободная (верти как удобно)"}
+            </button>
+          ))}
+        </div>
+        <p className="font-sans text-small text-muted">
+          {session.grip === "fixed"
+            ? "Порядок и ориентация заданы протоколом; счёт позиционный по всем 54 наклейкам."
+            : "Грань опознаётся по центру, центры из счёта исключены, внутри грани сравниваются цвета без учёта поворота (48 наклеек). Цена: перестановка наклеек ВНУТРИ грани не видна — это ошибка геометрии, её ловит строгая хватка."}
+        </p>
       </section>
 
       {/* Condition tag */}
@@ -131,58 +149,6 @@ export default function AccuracyControls({ session }: AccuracyControlsProps) {
             onChange={(e) => session.setCondition({ calib: e.target.value })}
           />
         </div>
-      </section>
-
-      {/* Calibration */}
-      <section className="flex flex-col gap-2 rounded-lg border border-line bg-surface p-4">
-        <span className="font-sans text-overline uppercase text-muted">Калибровка</span>
-        <p className="font-sans text-small text-muted">
-          Собранный кубик, 6 граней в порядке {CAPTURE_ORDER.join(" ")}. Шаг{" "}
-          {Math.min(session.calibrationStep, 6)}/6.{" "}
-          {session.calibrated ? "Готово ✓" : "Не откалибровано."}
-        </p>
-        <div className="flex flex-wrap gap-2">
-          <Button onClick={session.captureCalibration} disabled={!session.cameraStarted}>
-            Снять грань калибровки
-          </Button>
-          <Button
-            onClick={session.recalibrate}
-            className="bg-surface-2 text-ink"
-            disabled={!session.cameraStarted}
-          >
-            Сбросить калибровку
-          </Button>
-        </div>
-      </section>
-
-      {/* Capture */}
-      <section className="flex flex-col gap-2 rounded-lg border border-line bg-surface p-4">
-        <span className="font-sans text-overline uppercase text-muted">Снять чтение</span>
-        <p className="font-sans text-small text-muted">
-          Фикс-порядок {CAPTURE_ORDER.join(" ")}.{" "}
-          {session.collectingAccuracy ? `Грань ${captureStep + 1}/6.` : "Нажми, чтобы начать чтение."}
-        </p>
-        {session.collectingAccuracy ? (
-          <p className="font-sans text-small font-bold text-ink">{hint.ru}</p>
-        ) : null}
-        <div className="flex flex-wrap gap-2">
-          <Button
-            onClick={session.captureFace}
-            disabled={!session.cameraStarted || !session.calibrated}
-          >
-            {session.collectingAccuracy ? `Снять грань ${captureStep + 1}/6` : "Начать чтение"}
-          </Button>
-          {session.collectingAccuracy ? (
-            <Button onClick={session.cancelCapture} className="bg-surface-2 text-ink">
-              Отменить
-            </Button>
-          ) : null}
-        </div>
-        {session.captureError ? (
-          <p role="alert" className="font-sans text-small text-danger">
-            {session.captureError}
-          </p>
-        ) : null}
       </section>
 
       {/* Gate */}
@@ -220,11 +186,12 @@ export default function AccuracyControls({ session }: AccuracyControlsProps) {
               </thead>
               <tbody>
                 {gate.conditions.map((c) => {
-                  const id = `${c.key.light}|${c.key.cube}|${c.key.person}|${c.key.calib}`;
+                  const id = condKeyString(c.key);
                   return (
                     <tr key={id} className="border-t border-line">
                       <td className="p-1 text-ink">
-                        {c.key.light || "?"}/{c.key.cube || "?"}/{c.key.person || "?"}
+                        {c.key.mode || "?"}/{c.key.grip || "?"}/{c.key.light || "?"}/
+                        {c.key.cube || "?"}/{c.key.person || "?"}
                       </td>
                       <td className="p-1 text-ink">{pct(c.fraction)}</td>
                       <td className="p-1 text-ink">{pct(c.wilsonLower)}</td>
@@ -236,10 +203,9 @@ export default function AccuracyControls({ session }: AccuracyControlsProps) {
                         {c.nDropped} ({pct(c.dropRate)})
                       </td>
                       <td
-                        className={[
-                          "p-1 font-bold",
-                          c.pass ? "text-success" : "text-danger",
-                        ].join(" ")}
+                        className={["p-1 font-bold", c.pass ? "text-success" : "text-danger"].join(
+                          " ",
+                        )}
                       >
                         {c.pass ? "PASS" : "FAIL"}
                       </td>
@@ -253,14 +219,17 @@ export default function AccuracyControls({ session }: AccuracyControlsProps) {
 
         {gate.min ? (
           <p className="font-sans text-small text-muted">
-            Худшее условие: {gate.min.key.light || "?"}/{gate.min.key.cube || "?"} — Wilson-LB{" "}
+            Худшее условие: {gate.min.key.mode || "?"}/{gate.min.key.grip || "?"}/
+            {gate.min.key.light || "?"}/{gate.min.key.cube || "?"} — Wilson-LB{" "}
             {pct(gate.min.wilsonLower)}. Всего дропов: {totalDrops}.
           </p>
         ) : null}
 
         {/* Hotspots (run-wide) */}
         <div className="flex flex-col gap-1 rounded border border-line bg-surface-2 p-2">
-          <span className="font-sans text-caption font-bold text-muted">Hotspots (весь прогон)</span>
+          <span className="font-sans text-caption font-bold text-muted">
+            Hotspots (весь прогон)
+          </span>
           <p className="font-mono text-caption text-ink">
             {runHs.redOrange.label}: {runHs.redOrange.total} из N={runHs.redOrange.n} (R→L{" "}
             {runHs.redOrange.aToB}, L→R {runHs.redOrange.bToA})
@@ -303,16 +272,24 @@ function reportPreview(session: AccuracySession): string {
   const rep = session.lastReport;
   if (!rep) return "";
   const lines = [
-    `Точность чтения: ${rep.correct}/${rep.total} = ${pct(rep.fraction)} → ${rep.pass ? "PASS" : "FAIL"}`,
+    `Сырое зрение (гейт): ${rep.correct}/${rep.total} = ${pct(rep.fraction)} → ${rep.pass ? "PASS" : "FAIL"}`,
   ];
+  // Вторая строка — то же чтение продуктовым путём. Разрыв между строками и есть
+  // вклад нормировки света и квот: видно, чинит ли зрение или подпорки.
+  const prod = session.lastProductReport;
+  if (prod) {
+    lines.push(
+      `Как в продукте (свет+квоты): ${prod.correct}/${prod.total} = ${pct(prod.fraction)}`,
+    );
+  }
   const gate = gatePass(session.run);
   for (const c of gate.conditions) {
-    const acc = session.run.get(`${c.key.light}|${c.key.cube}|${c.key.person}|${c.key.calib}`);
+    const acc = session.run.get(condKeyString(c.key));
     if (!acc) continue;
     const v = conditionVerdict(acc);
     const hs = hotspots(acc);
     lines.push(
-      `  ${c.key.light}/${c.key.cube}: Wilson-LB ${pct(v.wilsonLower)} · ` +
+      `  ${c.key.mode}/${c.key.grip}/${c.key.light}/${c.key.cube}: Wilson-LB ${pct(v.wilsonLower)} · ` +
         `R↔L ${hs.redOrange.total}/N${hs.redOrange.n} · U↔D ${hs.whiteYellow.total}/N${hs.whiteYellow.n}`,
     );
   }

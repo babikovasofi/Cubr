@@ -17,6 +17,7 @@ import {
   deleteCube,
   listCubes,
   updateCube,
+  type ColorProfile,
   type CubeCreate,
   type CubeRead,
   type CubeUpdate,
@@ -144,6 +145,17 @@ export function getSelectedCubeId(): string | null {
     return selectedCubeId;
   }
   return null;
+}
+
+/**
+ * Non-reactive read of the selected cube's colour profile, or null. Same vouching
+ * rule as getSelectedCubeId: only returns a profile for a cube actually present in
+ * the loaded list (a stale/absent localStorage id yields null → anon 6-face path).
+ */
+export function getSelectedProfile(): ColorProfile | null {
+  const { selectedCubeId, list } = useCubesStore.getState();
+  if (!selectedCubeId) return null;
+  return list.find((c) => c.id === selectedCubeId)?.color_profile ?? null;
 }
 
 /** Test-only: reset the store to its empty state. */

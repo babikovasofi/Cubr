@@ -15,7 +15,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "powershell -NoProfile -ExecutionPolicy Bypass -File .claude/hooks/inject-memory-bank.ps1"
+            "command": "bash .claude/hooks/inject-memory-bank.sh"
           }
         ]
       }

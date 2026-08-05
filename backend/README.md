@@ -33,6 +33,64 @@ is no auth bypass, just pre-made users. First account comes with a little solve 
 
 Log in via the app (which proxies `/api` to this backend).
 
+## Scheduled finalize
+
+The weekly tournament's expired `started` attempts (past `TOURNAMENT_ATTEMPT_WINDOW_SECONDS`
+without a submit) are swept to `dnf` by a standalone job, not an in-process scheduler:
+
+```bash
+cd backend && uv run python -m app.jobs.finalize
+```
+
+Wire this to an **external** trigger — system cron, a container CronJob, or your platform's
+scheduler — e.g. Monday-night per §П8 (the week has fully closed), or every N minutes for
+tighter standings freshness:
+
+```cron
+# every 5 minutes
+*/5 * * * * cd /path/to/backend && uv run python -m app.jobs.finalize >> /var/log/cubr-finalize.log 2>&1
+```
+
+**Why external, not in-process (FastAPI lifespan / APScheduler):** an in-process scheduler ties
+the "cron" to a single web worker's lifetime — N web workers means N concurrent schedulers
+double/triple-running the same job, and it stops running whenever that worker is down/scaling to
+zero. An external trigger decouples *when* the job runs from the web process, and the job itself
+is a plain idempotent command (`sweep_expired_attempts` re-guards `status == "started"` on its
+UPDATE), so any number of overlapping/duplicate external invocations is harmless — no
+distributed lock needed today.
+
+Note this doesn't leave a gap: `GET /tournament/current` independently normalizes an expired
+`started` attempt to `dnf` in its *response* the moment it's read (without writing the row), so
+the caller never sees a live-looking expired attempt regardless of when the job last ran. The job
+is what makes that `dnf` durable (and visible in `dnf_count` on the standings board).
+
+**Advisory lock:** not needed yet — the sweep only ever flips `status`/`submitted_at` and does so
+idempotently. Add a Postgres advisory lock (`pg_try_advisory_lock`) around the job's transaction
+only once finalize grows a **non-idempotent** step (e.g. awarding cups/points once per week) that
+must not run twice concurrently.
+
+## Funnel counters (operator only)
+
+`GET /admin/funnel` answers "регистрация → первая сборка → первая дуэль" with plain integers:
+how many people registered, verified their email, registered a cube, made a solve, played the
+weekly / daily challenge, played a duel, plus 7/30-day signup windows and a 7-day active count.
+
+There is **no tracker and no event table** — every number is a `COUNT(DISTINCT …)` over rows the
+product writes anyway. That keeps the promise the public landing page makes, and it means the
+answers are about *states* ("ever did X"), not *events* ("dropped off at step 3"). A real event
+stream belongs to the honesty brick, where client timestamps are needed regardless.
+
+The route is superuser-only (anonymous → 401, ordinary user → 403). Promote yourself once,
+directly in the database:
+
+```sql
+UPDATE "user" SET is_superuser = true WHERE email = 'you@example.com';
+```
+
+```bash
+curl -s --cookie "cubr_auth=<your JWT cookie>" http://127.0.0.1:8000/admin/funnel | jq
+```
+
 ## Tests
 
 ```bash

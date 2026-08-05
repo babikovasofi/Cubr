@@ -32,6 +32,7 @@ cited — testing after every feature is enforced, not optional.
 | reviewer | `.claude/agents/reviewer.md` | `/review` |
 | qa-smoke | `.claude/agents/qa-smoke.md` | `/review` (user-facing features — walks acceptance criteria as a user) |
 | debugger | `.claude/agents/debugger.md` | `/debug`  |
+| tester   | `.claude/agents/tester.md`   | `/build` step 4b (haiku) — authors/runs tests per the plan's Test plan |
 
 ### Executing (write code — matched by file scope)
 `/build` maps each plan task's affected files to an exec agent. A feature that touches
@@ -68,6 +69,34 @@ Confirm the actual stack from the repo (`package.json`, `pubspec.yaml`, `pyproje
 
 No scope matches → ask the user which exec agent should own the change. Edit these globs to
 fit each project's real layout.
+
+## Model + reasoning tiers (agreed 2026-07-17)
+
+Each loop stage runs on a fixed model tier at **medium** reasoning effort:
+
+| Loop | Model | Reasoning |
+|------|-------|-----------|
+| `/plan` (planner + skeptic) | `opus`   | medium |
+| `/build` (exec agents)      | `sonnet` | medium |
+| `/review` (reviewer + qa-smoke) | `haiku` (→ `sonnet` if diff large / HIGH-risk) | medium |
+| `/debug` (debugger)         | `sonnet` | medium |
+| test authoring + running (in `/build`) | `haiku` | medium |
+
+**Tests.** Every `/plan` output MUST include a **Test plan** section enumerating full coverage
+(happy path, edge cases, error paths, regressions) — nothing ships untested. In `/build`, the
+sonnet exec agent implements the feature, then a **haiku** agent authors/expands the tests per that
+Test plan and runs the suite (real pass/fail cited). Test code is not the exec agent's job.
+
+Model tier is enforced via the `model:` override in each SKILL. Reasoning effort is not a
+per-`Task` parameter — "medium" here is the standing default (not max); no per-subagent knob
+exists in the harness, so treat it as guidance, not an enforced setting.
+
+**Terse subagent output.** Every `.claude/agents/*.md` declaration carries a `TERSE-OUTPUT-GOVERNANCE`
+block at its top; because skills spawn subagents with "Read `.claude/agents/<x>.md` and follow it
+exactly", each subagent inherits it. When spawning any workflow subagent, ALSO prepend that block (or a
+tight paraphrase) to the top of the spawn prompt — Caveman mode does not propagate into subagents, and
+this keeps their output compact. Exception per the block itself: user-facing artifacts (plans, reports,
+commit messages, PR text) stay in normal prose.
 
 ## Working agreement (every agent respects)
 

@@ -7,11 +7,13 @@ import type { ReactNode } from "react";
 import { Navigate, useLocation } from "react-router-dom";
 import { useAuthStore } from "../store/authStore";
 import Spinner from "../components/Spinner";
+import { useT } from "../i18n/t";
 
 function FullBleedSpinner() {
+  const t = useT();
   return (
     <div className="flex min-h-[40vh] items-center justify-center" aria-live="polite">
-      <Spinner label="Загрузка…" />
+      <Spinner label={t("Загрузка…")} />
     </div>
   );
 }

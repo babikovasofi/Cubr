@@ -3,7 +3,7 @@
 // accuracy.ts scores ONE read (54 stickers) and builds a per-color confusion
 // matrix. This module is the honest-measurement layer on top: it assembles a raw
 // per-sticker read from fixed-order captured face grids, accumulates many reads
-// PER CONDITION (light × cube × person × calibration), and decides the Stage-0.3
+// PER CONDITION (mode × light × cube × person × calibration), and decides the Stage-0.3
 // gate as MIN-over-conditions of a Wilson lower bound — NOT a pooled mean, which
 // would let a good condition mask a failing one.
 //
@@ -48,20 +48,51 @@ export type DropReason =
   | "unreadable" // luma/refs gate failed
   | "drift" // a captured face center drifted from calibration
   | "illegal" // assembled read is not a legal cube
+  | "assign" // два захвата опознались одной гранью по центру (свободная хватка)
   | "ambiguous" // rotation resolve was ambiguous
   | "resolve" // rotation resolve failed
-  | "mis-scramble"; // tester applied the wrong scramble (manual exclusion)
+  | "mis-scramble" // tester applied the wrong scramble (manual exclusion)
+  // Кубик показан в другой ориентации: чтение совпадает с эталоном с точностью
+  // до поворота, значит цвета прочитаны верно, а фиксированное выравнивание
+  // протокола нарушено. Считать такое чтение по совпавшей ориентации нельзя —
+  // выравнивание, подобранное под ответ, и есть survivorship bias, ради запрета
+  // которого порядок захвата зафиксирован.
+  | "orientation";
 
 export const DROP_REASONS: readonly DropReason[] = [
   "unreadable",
   "drift",
   "illegal",
+  "assign",
   "ambiguous",
   "resolve",
   "mis-scramble",
+  "orientation",
 ];
 
 export interface ConditionKey {
+  /**
+   * Эталон, против которого считалась точность: "solved" (собранный) или
+   * "scramble" (известный скрамбл).
+   *
+   * Это ОСЬ УСЛОВИЯ, а не пометка. На собранном кубике грань однотонная: рядом
+   * нет ни красного с оранжевым, ни белого с жёлтым, и промах сетки на соседнюю
+   * наклейку того же цвета вообще не виден. Двадцать чистых санити-чтений не
+   * говорят ничего о перемешанном кубике — а гейт 0.3 нужен именно для него.
+   * Пока режим не входил в ключ, такие чтения сливались в одно число, и санити
+   * молча вытягивал средний результат.
+   */
+  mode: string;
+  /**
+   * Хватка: "fixed" — фиксированный порядок и ориентация (строгий позиционный
+   * счёт), "free" — кубик разрешено вертеть, грань определяется по центру, а
+   * внутри грани сравниваются мультимножества цветов (см. accuracy.scoreFreeGrip).
+   *
+   * Тоже ОСЬ, а не пометка, и по той же причине, что и mode: свободная хватка
+   * слепа к перестановке наклеек ВНУТРИ грани, строгая — нет. Числа двух режимов
+   * измеряют разное, поэтому смешивать их в одном условии нельзя.
+   */
+  grip: string;
   light: string; // e.g. "день", "тёплый ЛН", "холодный LED"
   cube: string; // e.g. "стикерный", "stickerless"
   person: string; // tester id/name
@@ -131,10 +162,29 @@ export function assembleRawRead(rawFaceGrids: Face[][]): Facelet {
   return out;
 }
 
+/**
+ * Похоже ли чтение на СОБРАННЫЙ кубик: каждая из шести граней прочитана одним
+ * цветом.
+ *
+ * Нужно, чтобы поймать самую дорогую ошибку тестировщика — снять кубик, не
+ * собрав на нём скрамбл. Эталон тогда скрамблированный, чтение собранное, и
+ * совпадений выходит около случайных 28%. Ни одна проверка цвета такое не
+ * заметит: цвета-то прочитаны верно, врёт не зрение, а условие замера. Занести
+ * такое в точность — значит записать зрению чужую ошибку.
+ *
+ * Порог намеренно жёсткий (ВСЕ шесть граней одноцветны): у настоящего скрамбла
+ * шансов выглядеть так нет, а у сбойного чтения — тем более, так что ложных
+ * срабатываний ждать неоткуда.
+ */
+export function looksSolvedRead(faceGrids: Face[][]): boolean {
+  if (faceGrids.length !== 6) return false;
+  return faceGrids.every((grid) => grid.length === 9 && grid.every((c) => c === grid[0]));
+}
+
 // --- Accumulator -------------------------------------------------------------
 
 export function condKeyString(k: ConditionKey): string {
-  return `${k.light}|${k.cube}|${k.person}|${k.calib}`;
+  return `${k.mode}|${k.grip}|${k.light}|${k.cube}|${k.person}|${k.calib}`;
 }
 
 function emptyConfusion(): Record<Face, Record<Face, number>> {
@@ -248,7 +298,10 @@ export function conditionVerdict(
  * EVERY condition passes. A pooled mean would let a strong condition mask a
  * failing one — forbidden.
  */
-export function gatePass(run: AccuracyRun, passFrac: number = config.ACCURACY_PASS_FRAC): GateResult {
+export function gatePass(
+  run: AccuracyRun,
+  passFrac: number = config.ACCURACY_PASS_FRAC,
+): GateResult {
   const conditions = [...run.values()].map((acc) => conditionVerdict(acc, passFrac));
   let min: ConditionVerdict | null = null;
   for (const c of conditions) {
@@ -269,7 +322,10 @@ function hotspot(acc: ConditionAcc, label: string, a: Face, b: Face): HotspotCou
 }
 
 /** The two adjacency-risk confusion pairs with their exposure N. */
-export function hotspots(acc: ConditionAcc): { redOrange: HotspotCount; whiteYellow: HotspotCount } {
+export function hotspots(acc: ConditionAcc): {
+  redOrange: HotspotCount;
+  whiteYellow: HotspotCount;
+} {
   const [ro0, ro1] = HOTSPOT_PAIRS.redOrange;
   const [wy0, wy1] = HOTSPOT_PAIRS.whiteYellow;
   return {
@@ -279,11 +335,14 @@ export function hotspots(acc: ConditionAcc): { redOrange: HotspotCount; whiteYel
 }
 
 /** Sum a run's hotspots across all conditions (for the top-line summary). */
-export function runHotspots(run: AccuracyRun): { redOrange: HotspotCount; whiteYellow: HotspotCount } {
+export function runHotspots(run: AccuracyRun): {
+  redOrange: HotspotCount;
+  whiteYellow: HotspotCount;
+} {
   const [ro0, ro1] = HOTSPOT_PAIRS.redOrange;
   const [wy0, wy1] = HOTSPOT_PAIRS.whiteYellow;
   const merged: ConditionAcc = {
-    key: { light: "", cube: "", person: "", calib: "" },
+    key: { mode: "", grip: "", light: "", cube: "", person: "", calib: "" },
     confusion: emptyConfusion(),
     correct: 0,
     total: 0,
@@ -318,21 +377,32 @@ export function formatRunSummary(
   lines.push(
     `Gate (min-over-conditions, Wilson-LB ≥ ${pct(passFrac)}): ${gate.pass ? "PASS" : "FAIL"}`,
   );
+  const dropReasonsOf = (r: AccuracyRun, key: ConditionKey): string => {
+    const acc = r.get(condKeyString(key));
+    const entries = Object.entries(acc?.dropReasons ?? {}).filter(([, n]) => n > 0);
+    if (entries.length === 0) return "";
+    return ` [${entries.map(([reason, n]) => `${reason} ${n}`).join(", ")}]`;
+  };
   if (gate.conditions.length === 0) {
     lines.push("Нет данных: ни одного условия не набрано.");
     return lines.join("\n");
   }
   lines.push("");
-  lines.push("Условия (свет | кубик | человек | калибровка):");
+  lines.push("Условия (эталон | хватка | свет | кубик | человек | калибровка):");
   for (const c of gate.conditions) {
     const k = c.key;
     const flags: string[] = [];
     if (!c.enoughReads) flags.push(`нужно ≥${MIN_READS} чтений`);
     if (c.dropRate > MAX_DROP_RATE) flags.push(`drop ${pct(c.dropRate)} > ${pct(MAX_DROP_RATE)}`);
     lines.push(
-      `  [${c.pass ? "PASS" : "FAIL"}] ${k.light} | ${k.cube} | ${k.person} | ${k.calib}: ` +
+      `  [${c.pass ? "PASS" : "FAIL"}] ${k.mode} | ${k.grip} | ${k.light} | ${k.cube} | ${k.person} | ${k.calib}: ` +
         `${pct(c.fraction)} (Wilson-LB ${pct(c.wilsonLower)}), ` +
         `n=${c.nScored}, drop=${c.nDropped} (${pct(c.dropRate)})` +
+        // Гистограмма причин копилась с первого дня и никуда не печаталась.
+        // «drop=3» без причин — это «что-то пошло не так»: протокол требует
+        // видеть, чего именно, потому что нечитаемая грань и несобранный скрамбл
+        // говорят о разном (первое — про зрение, второе — про тестировщика).
+        dropReasonsOf(run, c.key) +
         (flags.length ? ` — ${flags.join("; ")}` : ""),
     );
   }
@@ -340,7 +410,8 @@ export function formatRunSummary(
     const m = gate.min;
     lines.push("");
     lines.push(
-      `Худшее условие: ${m.key.light} | ${m.key.cube} | ${m.key.person} — Wilson-LB ${pct(m.wilsonLower)}`,
+      `Худшее условие: ${m.key.mode} | ${m.key.grip} | ${m.key.light} | ${m.key.cube} | ${m.key.person} — ` +
+        `Wilson-LB ${pct(m.wilsonLower)}`,
     );
   }
   const hs = runHotspots(run);

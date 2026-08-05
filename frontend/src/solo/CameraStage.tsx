@@ -5,6 +5,7 @@
 // the right lands in the right-hand zone.
 
 import type { RefObject } from "react";
+import { useT } from "../i18n/t";
 
 interface CameraStageProps {
   videoRef: RefObject<HTMLVideoElement | null>;
@@ -21,9 +22,10 @@ export default function CameraStage({
   error,
   onRetry,
 }: CameraStageProps) {
+  const t = useT();
   return (
     <div className="flex flex-col gap-3">
-      <div className="relative aspect-video w-full overflow-hidden rounded-lg border-2 border-ink bg-surface-2">
+      <div className="relative aspect-video min-h-[16rem] w-full overflow-hidden rounded-lg border-2 border-ink bg-surface-2">
         <video
           ref={videoRef}
           className="absolute inset-0 h-full w-full -scale-x-100 object-cover"
@@ -39,14 +41,14 @@ export default function CameraStage({
             role="alert"
             className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-bg/90 p-6 text-center"
           >
-            <p className="max-w-prose font-sans text-body text-danger">{error}</p>
+            <p className="max-w-prose font-sans text-body text-danger">{t(error)}</p>
             {onRetry ? (
               <button
                 type="button"
                 onClick={onRetry}
                 className="inline-flex h-10 items-center rounded-full border-2 border-ink bg-primary px-4 font-sans text-small font-extrabold text-white"
               >
-                Попробовать снова
+                {t("Попробовать снова")}
               </button>
             ) : null}
           </div>

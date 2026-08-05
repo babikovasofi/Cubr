@@ -11,8 +11,10 @@ import CubeRegisterWizard from "./CubeRegisterWizard";
 import { useCubesStore } from "../store/cubesStore";
 import { CUBE_LIMIT } from "../api/cubes";
 import { toast } from "../components/Toast";
+import { useT } from "../i18n/t";
 
 export default function CubeList() {
+  const t = useT();
   const list = useCubesStore((s) => s.list);
   const status = useCubesStore((s) => s.status);
   const error = useCubesStore((s) => s.error);
@@ -31,10 +33,10 @@ export default function CubeList() {
     <section className="flex flex-col gap-4" aria-labelledby="cubes-heading">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h2 id="cubes-heading" className="font-sans text-h3 text-ink">
-          Мои кубики
+          {t("Мои кубики")}
         </h2>
         {!adding && !atLimit ? (
-          <Button onClick={() => setAdding(true)}>Добавить кубик</Button>
+          <Button onClick={() => setAdding(true)}>{t("Добавить кубик")}</Button>
         ) : null}
       </div>
 
@@ -50,25 +52,25 @@ export default function CubeList() {
             defaultPrimary={list.length === 0}
             onDone={() => {
               setAdding(false);
-              toast("Кубик добавлен.", "success");
+              toast(t("Кубик добавлен."), "success");
             }}
             onCancel={() => setAdding(false)}
           />
         </div>
       ) : null}
 
-      {status === "loading" ? <Spinner label="Загружаю кубики…" /> : null}
+      {status === "loading" ? <Spinner label={t("Загружаю кубики…")} /> : null}
 
       {status === "error" ? (
         <div role="alert" className="flex flex-col items-start gap-3">
           <p className="font-sans text-small text-danger">{error}</p>
-          <Button onClick={() => void load()}>Повторить</Button>
+          <Button onClick={() => void load()}>{t("Повторить")}</Button>
         </div>
       ) : null}
 
       {status === "ready" && list.length === 0 && !adding ? (
         <p className="font-sans text-body text-muted">
-          Пока нет кубиков. Зарегистрируй свой, чтобы Cubr узнавал его цвета.
+          {t("Пока нет кубиков. Зарегистрируй свой, чтобы Cubr узнавал его цвета.")}
         </p>
       ) : null}
 

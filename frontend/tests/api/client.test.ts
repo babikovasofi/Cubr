@@ -60,6 +60,18 @@ describe("parseErrorBody — fastapi-users detail shapes", () => {
     expect(out.message).not.toMatch(/object Object|undefined/);
   });
 
+  // Этап 6, фильтр имён: бэк отдаёт 400 c `detail: {code, reason}` (НЕ pydantic-422,
+  // тот схлопнулся бы в общее «что-то пошло не так»). Текст берём свой, не серверный.
+  it.each([
+    ["NAME_NOT_ALLOWED", "Такое имя не подходит. Выбери другое."],
+    ["NAME_RESERVED", "Это имя зарезервировано за сервисом. Выбери другое."],
+    ["NAME_TOO_SHORT", "Имя слишком короткое: минимум 2 символа."],
+  ])("объясняет отказ фильтра имён: %s", (code, message) => {
+    const out = parseErrorBody(400, { detail: { code, reason: "server copy" } });
+    expect(out.code).toBe(code);
+    expect(out.message).toBe(message);
+  });
+
   it("maps 429 by status when there is no usable detail", () => {
     const out = parseErrorBody(429, null);
     expect(out.message).toBe("Слишком много попыток. Подожди немного и попробуй снова.");
@@ -67,13 +79,29 @@ describe("parseErrorBody — fastapi-users detail shapes", () => {
 
   it("falls back to a reason string, then to a generic RU message", () => {
     expect(parseErrorBody(400, { detail: { reason: "тест" } }).message).toBe("тест");
-    expect(parseErrorBody(500, {}).message).toBe("Что-то пошло не так. Попробуй ещё раз.");
+    expect(parseErrorBody(418, {}).message).toBe("Что-то пошло не так. Попробуй ещё раз.");
+  });
+
+  // Живой прогон: бэкенд не запущен → dev-прокси отвечает 502, fetch НЕ падает,
+  // и пользователь видел общее «Что-то пошло не так» — неотличимо от «пароль
+  // слишком простой». Статусы недоступности объясняются отдельно.
+  it("explains an unreachable/broken server instead of the generic message", () => {
+    expect(parseErrorBody(502, null).message).toBe(
+      "Сервер сейчас недоступен. Попробуй через минуту.",
+    );
+    expect(parseErrorBody(503, null).message).toBe(
+      "Сервер сейчас недоступен. Попробуй через минуту.",
+    );
+    expect(parseErrorBody(504, null).message).toBe("Сервер не ответил вовремя. Попробуй ещё раз.");
+    expect(parseErrorBody(500, {}).message).toBe("Ошибка на сервере. Попробуй ещё раз чуть позже.");
   });
 });
 
 describe("request()", () => {
   it("throws ApiError with mapped code+message on non-2xx", async () => {
-    fetchMock.mockResolvedValueOnce(res({ status: 400, json: { detail: "LOGIN_BAD_CREDENTIALS" } }));
+    fetchMock.mockResolvedValueOnce(
+      res({ status: 400, json: { detail: "LOGIN_BAD_CREDENTIALS" } }),
+    );
     await expect(request("/auth/login", { json: {} })).rejects.toMatchObject({
       status: 400,
       code: "LOGIN_BAD_CREDENTIALS",

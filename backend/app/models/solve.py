@@ -33,6 +33,15 @@ class Solve(Base):
         nullable=True,
         index=True,
     )
+    # SET NULL: a solve survives deletion/expiry of the scramble row it
+    # referenced. NULL when the client had no signed token (offline/anon
+    # local-fallback scramble) — the ritual still saves.
+    scramble_id: Mapped[uuid.UUID | None] = mapped_column(
+        GUID,
+        ForeignKey("scrambles.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
 
     scramble: Mapped[str] = mapped_column(String(length=512))
     time_ms: Mapped[int] = mapped_column(Integer)

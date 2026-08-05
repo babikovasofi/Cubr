@@ -25,12 +25,7 @@ export interface FrameInfo {
 export type FrameCallback = (info: FrameInfo) => void;
 
 export type CameraErrorKind =
-  | "denied"
-  | "not-found"
-  | "in-use"
-  | "unsupported"
-  | "insecure"
-  | "unknown";
+  "denied" | "not-found" | "in-use" | "unsupported" | "insecure" | "unknown";
 
 export class CameraError extends Error {
   kind: CameraErrorKind;
@@ -46,13 +41,19 @@ type VideoWithRvfc = HTMLVideoElement & {
   cancelVideoFrameCallback?: (id: number) => void;
 };
 
-class Camera {
+export class Camera {
   private video: HTMLVideoElement;
   private stream: MediaStream | null = null;
   private rafHandle: number | null = null;
   private rvfcHandle: number | null = null;
   private running = false;
   private onLost?: () => void;
+  // Идущий запуск. Без него два параллельных вызова start() (StrictMode-двойной
+  // эффект, эффект + клик по кнопке) дерутся за устройство: второй сносит
+  // ЖИВОЙ поток первого (stop() ниже) и заново просит getUserMedia — в Safari
+  // такой повторный запрос отклоняется, и на экране остаётся работающее видео
+  // с красной надписью «нет доступа к камере». Реальный багрепорт.
+  private starting: Promise<void> | null = null;
 
   constructor(video: HTMLVideoElement, onLost?: () => void) {
     this.video = video;
@@ -66,6 +67,17 @@ class Camera {
   }
 
   async start(cb: FrameCallback): Promise<void> {
+    // Уже идёт запуск — ждём его, а не начинаем второй.
+    if (this.starting) return this.starting;
+    // Уже живём — ничего не трогаем: повторный getUserMedia только всё сломает.
+    if (this.isLive()) return;
+    this.starting = this.acquire(cb).finally(() => {
+      this.starting = null;
+    });
+    return this.starting;
+  }
+
+  private async acquire(cb: FrameCallback): Promise<void> {
     if (!window.isSecureContext) {
       throw new CameraError("insecure", "getUserMedia needs a secure (https) context");
     }
@@ -92,6 +104,12 @@ class Camera {
     this.video.playsInline = true;
     this.video.muted = true;
     await this.video.play();
+
+    // Best-effort: pin exposure + white balance so a seeded colour profile / quick
+    // adjust isn't chased by the camera's auto-WB drifting the observed white after
+    // calibration. Unsupported constraints reject or no-op on most devices — we
+    // swallow every failure (never crash the camera over a nice-to-have lock).
+    void lockExposureAndWhiteBalance(this.stream);
 
     this.running = true;
 
@@ -157,6 +175,29 @@ class Camera {
     this.stream?.getTracks().forEach((t) => t.stop());
     this.stream = null;
     this.video.srcObject = null;
+  }
+}
+
+// Best-effort manual exposure/WB lock. These are non-standard MediaTrack
+// constraints (ImageCapture spec, partial Chromium support). We probe the track
+// capabilities and only request modes it advertises, then swallow any rejection —
+// on Safari/Firefox/most cameras this is simply a no-op.
+async function lockExposureAndWhiteBalance(stream: MediaStream): Promise<void> {
+  const track = stream.getVideoTracks()[0];
+  if (!track || typeof track.applyConstraints !== "function") return;
+  try {
+    const caps = (track.getCapabilities?.() ?? {}) as Record<string, unknown>;
+    const advanced: Record<string, unknown>[] = [];
+    if (Array.isArray(caps.exposureMode) && caps.exposureMode.includes("manual")) {
+      advanced.push({ exposureMode: "manual" });
+    }
+    if (Array.isArray(caps.whiteBalanceMode) && caps.whiteBalanceMode.includes("manual")) {
+      advanced.push({ whiteBalanceMode: "manual" });
+    }
+    if (advanced.length === 0) return;
+    await track.applyConstraints({ advanced } as MediaTrackConstraints);
+  } catch {
+    /* unsupported / overconstrained — auto mode stays; not fatal. */
   }
 }
 

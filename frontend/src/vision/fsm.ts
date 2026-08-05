@@ -15,18 +15,9 @@
 
 import { config } from "./config";
 
-export type FsmState =
-  | "NO_HANDS"
-  | "HANDS_IN_ZONE"
-  | "READY"
-  | "SOLVING"
-  | "STOPPED";
+export type FsmState = "NO_HANDS" | "HANDS_IN_ZONE" | "READY" | "SOLVING" | "STOPPED";
 
-export type FsmEvent =
-  | "solve_start"
-  | "solve_stop"
-  | "abort"
-  | null;
+export type FsmEvent = "solve_start" | "solve_stop" | "abort" | null;
 
 // One observation per processed frame.
 export interface Observation {
@@ -122,11 +113,7 @@ export class HandsFsm {
         }
 
         // Progress to READY on sustained stillness.
-        const stillFor = this.track(
-          this.stillEnough,
-          o.bothInZone && o.still,
-          o.t,
-        );
+        const stillFor = this.track(this.stillEnough, o.bothInZone && o.still, o.t);
         if (stillFor >= this.cfg.STILL_MS) {
           this.state = "READY";
           this.stillEnough.since = null;

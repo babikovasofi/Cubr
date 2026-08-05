@@ -18,7 +18,8 @@ and merge their output. No code edits here.
    if it exists. If it does not, tell the user: "No Memory Bank found — plan will rest
    only on your description." and continue.
 3. **Spawn 2 subagents in parallel** — one message, two `Task` calls,
-   `subagent_type: general-purpose`. Prefix EACH prompt with:
+   `subagent_type: general-purpose`, **`model: opus`** (planning needs the strongest
+   reasoning; do not ask the user which model — always opus here). Prefix EACH prompt with:
    > Answer TERSE: terse, drop filler, keep all technical substance.
 
    - **planner** — "Read `.claude/agents/planner.md` and follow it exactly. Feature: <verbatim>."
@@ -35,6 +36,9 @@ and merge their output. No code edits here.
    ## TL;DR
    ## Acceptance criteria  — observable "done" conditions; /review checks these
    ## Plan                 — merged steps + affected files + tests
+   ## Test plan            — REQUIRED. Full coverage: happy path, edge cases, error paths,
+   #                         regressions. List each test (file + what it asserts). /build's
+   #                         haiku test agent authors exactly these. Nothing ships untested.
    ## Blockers             — skeptic HIGH not yet resolved (human decides)
    ## Out of scope
    ## Assumptions

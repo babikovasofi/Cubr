@@ -3,6 +3,7 @@
 
 import { lab2rgb } from "../vision/colors";
 import { CUBE_FACES, type ColorProfile } from "../api/cubes";
+import { useT } from "../i18n/t";
 
 const FACE_LABEL: Record<string, string> = {
   U: "Верх",
@@ -24,9 +25,10 @@ export default function ColorPalette({
   profile: ColorProfile;
   size?: "sm" | "md";
 }) {
+  const t = useT();
   const dim = size === "md" ? "h-8 w-8" : "h-5 w-5";
   return (
-    <ul className="flex gap-1" aria-label="Цвет-профиль кубика">
+    <ul className="flex gap-1" aria-label={t("Цвет-профиль кубика")}>
       {CUBE_FACES.map((face) => {
         const lab = profile[face];
         const label = `${FACE_LABEL[face] ?? face}`;
@@ -35,7 +37,7 @@ export default function ColorPalette({
             key={face}
             title={label}
             aria-label={label}
-            className={`${dim} rounded-sm border-2 border-ink`}
+            className={`${dim} cursor-default rounded-sm border-2 border-ink`}
             style={{ backgroundColor: lab ? css(lab2rgb(lab)) : "transparent" }}
           />
         );
