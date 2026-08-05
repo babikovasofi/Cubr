@@ -281,16 +281,28 @@ export function scorePictureGrip(
     const slot = slotOf[face];
     const exp = expected.slice(slot * 9, slot * 9 + 9).split("") as Face[];
     const rotated = rotateGrid(faceGrids[cap], pin.rotations[cap]);
+    // Куда уехала каждая ячейка при повороте: sourceOf[j] — номер ячейки в
+    // ИСХОДНОЙ съёмке, попавшей на место j после поворота.
+    //
+    // Без этого `index` считался по повёрнутой позиции и по слоту URFDLB, а
+    // диагностика ячеек (`cellDiagnostics`) лежит в порядке СЪЁМОК и БЕЗ
+    // поворота. Отчёт зипует их по `index` — и печатал RGB одной ячейки рядом с
+    // «прочитано/ожидалось» совсем другой. Живой прогон дал строку
+    // «read U, expected D … ΔE D 6.4»: победитель D, а прочитано якобы U, чего
+    // быть не может. Счёт верных при этом был верен всегда — расходилась только
+    // диагностика, то есть врало именно то, по чему чинят зрение.
+    const sourceOf = rotateGrid([0, 1, 2, 3, 4, 5, 6, 7, 8], pin.rotations[cap]);
     for (let j = 0; j < 9; j++) {
       if (j === 4) continue; // центр — ключ выравнивания, в счёт не идёт
       total += 1;
       const read = rotated[j];
       const isCorrect = read === exp[j];
       if (isCorrect) correct += 1;
+      const src = sourceOf[j];
       stickers.push({
-        index: slot * 9 + j,
+        index: cap * 9 + src,
         face,
-        cellInFace: j,
+        cellInFace: src,
         read,
         expected: exp[j],
         correct: isCorrect,

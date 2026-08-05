@@ -104,6 +104,26 @@ describe("scorePictureGrip", () => {
     expect(res.violations).toBe(0);
   });
 
+  it("index указывает на ячейку СЪЁМКИ, а не на повёрнутую позицию", () => {
+    // Диагностика ячеек (cellDiagnostics) лежит в порядке съёмок и без поворота,
+    // а отчёт зипует её со стикерами по index. Если index считать по повёрнутой
+    // позиции, к «прочитано/ожидалось» приклеится RGB чужой ячейки — и отчёт
+    // начнёт печатать невозможное («read U … ΔE D 6.4»).
+    const turns = [1, 2, 3, 1, 2, 3];
+    const spun = gridsOf(truth).map((g, i) => rotateGrid(g, turns[i]));
+    const res = scorePictureGrip(spun, truth, FACES);
+    expect(res.kind).toBe("ok");
+    if (res.kind !== "ok") return;
+
+    for (const s of res.report.stickers) {
+      const cap = Math.floor(s.index / 9);
+      const cell = s.index % 9;
+      expect(cell).toBe(s.cellInFace);
+      // Цвет по этому адресу в СЫРОЙ съёмке обязан совпасть с прочитанным.
+      expect(spun[cap][cell]).toBe(s.read);
+    }
+  });
+
   it("центры в счёт не идут", () => {
     const res = scorePictureGrip(gridsOf(truth), truth, FACES);
     expect(res.kind).toBe("ok");
