@@ -22,6 +22,7 @@
 import { config } from "./config";
 import { pinRotationsByPhysics, rotateGrid } from "./cubeGrid";
 import { SOLVED, FACE_ORDER, type Face, type Facelet } from "./cubeState";
+import { deltaE, rgb2lab } from "./colors";
 
 export interface StickerResult {
   index: number;
@@ -380,6 +381,22 @@ export interface FaceFitDiag {
   used: boolean;
   /** Средний по 9 ячейкам контраст окантовки, единицы яркости 0..255. */
   gap: number;
+  /**
+   * Средний по 9 ячейкам контраст ВНУТРЕННИХ границ (ΔE, см. vision/faceFit
+   * edgeContrast) — признак ДЛЯ STICKERLESS, у которого физического зазора нет.
+   *
+   * НЕОБЯЗАТЕЛЬНОЕ поле, а не задуманно-обязательное (как исходно намечал план
+   * этой задачи): продюсер телеметрии — `useCubeReader.ts`, а он вне рамок этой
+   * правки (заблокирован пользователем отдельно, вместе с машинерией отказа).
+   * Поле объявлено здесь и покрыто тестами заранее, но реально заполнится
+   * только когда `useCubeReader.ts` начнёт передавать `edgeContrast(...)` —
+   * отдельная задача. До тех пор `formatReport` печатает то, что есть.
+   */
+  edge?: number;
+  /** См. `FitResult.margin` (vision/faceFit). Тот же комментарий про `edge`. */
+  margin?: number;
+  /** См. `FitResult.decided` (vision/faceFit). Тот же комментарий про `edge`. */
+  decided?: boolean;
 }
 
 /** Human-readable multi-line report string for printing to the page. */
@@ -438,6 +455,14 @@ export function formatReport(
     lines.push(`  без отрыва от второго кандидата (< ${config.STICKER_MARGIN_MIN}): ${tight}`);
     lines.push(`  не похожих ни на один цвет кубика (ΔE > ${config.STICKER_MAX_DELTA_E}): ${far}`);
     lines.push(`  медианный ΔE до ближайшего эталона: ${medianDE.toFixed(1)}`);
+    // Скептик (LOW): «кожа в ячейках — следствие съехавшей сетки» была
+    // недоказанной посылкой. Число вместо декларации: сколько из 54 ячеек
+    // реально ближе к телесному тону, чем к любому из шести эталонов кубика —
+    // палец/ладонь в кадре даёт именно такой промах, и его нельзя чинить
+    // порогом STICKER_MAX_DELTA_E (out of scope, см. план).
+    const skinLab = rgb2lab(config.FACE_FIT_SKIN_RGB);
+    const skinLike = diags.filter((d) => deltaE(rgb2lab(d.rgb), skinLab) < d.bestDE).length;
+    lines.push(`  ближе к телесному тону, чем к эталону кубика: ${skinLike}`);
   }
   if (fits?.length) {
     const fellBack = fits.filter((f) => !f.used).length;
@@ -445,13 +470,30 @@ export function formatReport(
     lines.push("Подгонка сетки (по граням в порядке URFDLB):");
     for (let i = 0; i < fits.length; i++) {
       const f = fits[i];
+      const edge =
+        f.edge !== undefined
+          ? `, контраст границ ${f.edge.toFixed(1)} (цель ${config.FACE_FIT_EDGE_TARGET})`
+          : "";
+      const decided =
+        f.decided !== undefined
+          ? `, ${f.decided ? "фаза сетки определена" : "фаза сетки НЕ определена"}`
+          : "";
       lines.push(
         `  ${FACE_ORDER[i] ?? i}: выигрыш ${f.gain.toFixed(2)} (порог ${config.FACE_FIT_MIN_GAIN})` +
           `, ${f.used ? "ПОДОГНАНА" : "ОТКАТ НА РАМКУ"}` +
-          `, контраст щелей ${f.gap.toFixed(1)} (цель ${config.FACE_FIT_GAP_TARGET})`,
+          `, контраст щелей ${f.gap.toFixed(1)} (цель ${config.FACE_FIT_GAP_TARGET})` +
+          edge +
+          decided,
       );
     }
     lines.push(`  откатов на рамку: ${fellBack} из ${fits.length}`);
+    // Печатается только когда ХОТЬ ОДНА грань несёт decided: без этого поле
+    // необязательное (useCubeReader.ts его пока не заполняет, см. FaceFitDiag),
+    // и строка "0 из 6" читалась бы как «все решены», хотя на деле неизвестно.
+    if (fits.some((f) => f.decided !== undefined)) {
+      const undecidedCount = fits.filter((f) => f.decided === false).length;
+      lines.push(`  граней без определённой подгонки: ${undecidedCount} из ${fits.length}`);
+    }
   }
   return lines.join("\n");
 }

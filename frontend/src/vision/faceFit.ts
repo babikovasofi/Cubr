@@ -39,6 +39,14 @@ export interface FitResult {
   cost: number;
   /** Оценка исходной (рамочной) области — для сравнения «стало/было». */
   baselineCost: number;
+  /**
+   * Отрыв от ближайшего НЕСОГЛАСНОГО соперника в окрестности победителя
+   * (см. {@link fitFaceRegion}), в тех же единицах, что и `cost`. `Infinity`,
+   * если такого соперника не нашлось. ТЕЛЕМЕТРИЯ: на выбор `region` не влияет.
+   */
+  margin: number;
+  /** `margin >= FACE_FIT_MIN_MARGIN`. ТЕЛЕМЕТРИЯ: не гейт, только отчёт. */
+  decided: boolean;
 }
 
 /** Патч: RGBA-пиксели квадратной области кадра. */
@@ -162,6 +170,122 @@ function cellGapContrast(
 }
 
 /**
+ * Медианный ЦВЕТ узкой полосы патча — тот же принцип прореживания, что у
+ * {@link cellGapContrast}, но полоса отдаёт RGB, а не яркость: контраст щели
+ * ищет тёмный корпус кубика (яркость), а контраст границы ищет РАЗНЫЙ ЦВЕТ
+ * двух соседних наклеек, которого на stickerless-кубике без корпуса между
+ * ними никакая яркость не увидит.
+ */
+function bandColorMedian(
+  patch: Patch,
+  bx: number,
+  by: number,
+  bw: number,
+  bh: number,
+  samples = 0,
+): RGB | null {
+  const sx = samples > 0 ? strideFor(bw, bw >= bh ? samples : 3) : 1;
+  const sy = samples > 0 ? strideFor(bh, bh > bw ? samples : 3) : 1;
+  const rs: number[] = [];
+  const gs: number[] = [];
+  const bs: number[] = [];
+  for (let y = by; y < by + bh; y += sy) {
+    if (y < 0 || y >= patch.size) continue;
+    for (let x = bx; x < bx + bw; x += sx) {
+      if (x < 0 || x >= patch.size) continue;
+      const i = (y * patch.size + x) * 4;
+      rs.push(patch.data[i]);
+      gs.push(patch.data[i + 1]);
+      bs.push(patch.data[i + 2]);
+    }
+  }
+  return rs.length === 0 ? null : [median(rs), median(gs), median(bs)];
+}
+
+/**
+ * Насколько ОДНА ячейка отличается ЦВЕТОМ от своих соседей через ВНУТРЕННИЕ
+ * границы сетки (со стороной грани — периметр — не считается ВООБЩЕ).
+ *
+ * Зачем отдельно от `cellGapContrast`. У stickerless-кубика между наклейками
+ * нет тёмного корпуса — только едва заметная тень или вообще ничего, поэтому
+ * контраст щели там равен нулю на любой фазе сетки, выровненной или нет:
+ * признак немой. Но ЦВЕТ по разные стороны настоящей границы двух наклеек
+ * почти всегда разный (кроме двух одноцветных соседей), а сетка, съехавшая на
+ * целую ячейку, меряет цвет не поперёк границы, а ВНУТРИ одной наклейки — там
+ * разницы нет. Это и есть сигнал фазы, которого не даёт контраст щели.
+ *
+ * Почему периметр исключён (это НЕ то же самое отличие, что у `cellGapContrast`,
+ * который periметр не исключает). Периметр грани — это граница «грань/фон»:
+ * контраст там огромен при ЛЮБОЙ фазе сетки (сдвинутая на ячейку сетка всё
+ * равно смотрит на фон с одной стороны), и признак фазы держался бы всего на
+ * одной центральной ячейке из девяти. Внутренние границы так не подделать:
+ * обе стороны — это ткань самого кубика.
+ *
+ * Полосы смещены ВГЛУБЬ от шва на `bandFrac/2` ячейки в каждую сторону, а не
+ * садятся на сам шов: на шве может быть блик, тень или остаток физического
+ * зазора, и его цвет — не цвет ни одной из двух наклеек.
+ *
+ * Статистика — как у `cellGapContrast`, тем же приёмом (см. комментарий там):
+ * не среднее (один блик на одной стороне тянет вниз ВСЮ ячейку) и не худшая
+ * (одна совпадающая по цвету пара соседей — например, два белых — обнулила бы
+ * ячейку, у которой остальные стороны прекрасно контрастны). Берём ВТОРОЕ
+ * значение от начала отсортированного по возрастанию списка: это «худшая из
+ * оставшихся после того, как одну (любую) сторону простили». Прощаем ровно
+ * одну, потому что измерено: `MAX` (берём лучшую из четырёх) не различает
+ * выровненную сетку и сдвинутую на целую ячейку — обе давали deficit 0.00,
+ * потому что хватало одной случайно контрастной стороны из четырёх
+ * (`swarm-report/stickerless-face-fit-plan.md`, шаг 0).
+ */
+function cellEdgeContrast(
+  patch: Patch,
+  x0: number,
+  y0: number,
+  w: number,
+  h: number,
+  hasTop: boolean,
+  hasBottom: boolean,
+  hasLeft: boolean,
+  hasRight: boolean,
+  bandFrac: number,
+  samples = 0,
+): number {
+  const halfW = Math.max(1, Math.round((w * bandFrac) / 2));
+  const halfH = Math.max(1, Math.round((h * bandFrac) / 2));
+
+  const sideContrast = (inner: RGB | null, outer: RGB | null): number | null =>
+    inner === null || outer === null ? null : deltaE(rgb2lab(inner), rgb2lab(outer));
+
+  const values: number[] = [];
+  if (hasTop) {
+    const inner = bandColorMedian(patch, x0, y0 + halfH, w, 2 * halfH, samples);
+    const outer = bandColorMedian(patch, x0, y0 - 3 * halfH, w, 2 * halfH, samples);
+    const v = sideContrast(inner, outer);
+    if (v !== null) values.push(v);
+  }
+  if (hasBottom) {
+    const inner = bandColorMedian(patch, x0, y0 + h - 3 * halfH, w, 2 * halfH, samples);
+    const outer = bandColorMedian(patch, x0, y0 + h + halfH, w, 2 * halfH, samples);
+    const v = sideContrast(inner, outer);
+    if (v !== null) values.push(v);
+  }
+  if (hasLeft) {
+    const inner = bandColorMedian(patch, x0 + halfW, y0, 2 * halfW, h, samples);
+    const outer = bandColorMedian(patch, x0 - 3 * halfW, y0, 2 * halfW, h, samples);
+    const v = sideContrast(inner, outer);
+    if (v !== null) values.push(v);
+  }
+  if (hasRight) {
+    const inner = bandColorMedian(patch, x0 + w - 3 * halfW, y0, 2 * halfW, h, samples);
+    const outer = bandColorMedian(patch, x0 + w + halfW, y0, 2 * halfW, h, samples);
+    const v = sideContrast(inner, outer);
+    if (v !== null) values.push(v);
+  }
+  if (values.length === 0) return 0;
+  values.sort((a, b) => a - b);
+  return values[Math.min(1, values.length - 1)];
+}
+
+/**
  * Средний по 9 ячейкам контраст окантовки — диагностическая свёртка того же
  * признака, которым штрафуется кандидат в regionCost.
  */
@@ -186,6 +310,30 @@ export function gapContrast(
   return total / 9;
 }
 
+/**
+ * Средний по 9 ячейкам контраст границ — диагностическая свёртка-близнец
+ * `gapContrast`, только для stickerless-признака (цвет через внутреннюю
+ * границу, а не яркость щели). Для отчёта: живые числа, а не декларация.
+ */
+export function edgeContrast(
+  patch: Patch,
+  region: FitRegion,
+  bandFrac: number = config.FACE_FIT_GAP_BAND_FRAC,
+): number {
+  const cw = region.side / 3;
+  let total = 0;
+  for (let row = 0; row < 3; row++) {
+    for (let col = 0; col < 3; col++) {
+      const x0 = Math.round(region.x + col * cw);
+      const y0 = Math.round(region.y + row * cw);
+      const w = Math.round(region.x + (col + 1) * cw) - x0;
+      const h = Math.round(region.y + (row + 1) * cw) - y0;
+      total += cellEdgeContrast(patch, x0, y0, w, h, row > 0, row < 2, col > 0, col < 2, bandFrac);
+    }
+  }
+  return total / 9;
+}
+
 /** Стоимость кандидата: чем меньше, тем лучше сетка легла на наклейки. */
 export function regionCost(
   patch: Patch,
@@ -197,6 +345,15 @@ export function regionCost(
   bandFrac: number = config.FACE_FIT_GAP_BAND_FRAC,
   /** Сколько отсчётов вдоль стороны ячейки брать; 0 — все пиксели. */
   samples = 0,
+  // Признак границ (см. cellEdgeContrast) для stickerless-кубика — щели у
+  // которого нет. НЕЗАВИСИМОЕ слагаемое, а не max(gapC, edgeC*k): max умеет
+  // только СНИЖАТЬ штраф (он берёт лучшее из двух), а значит ослабляет
+  // структурный сигнал ВЕЗДЕ, включая стикерный путь — измерено, marginWith
+  // проседал с 4.97 до 1.12 при тесте, требующем > 3.00 (faceFit.test.ts).
+  // EDGE_WEIGHT стартует с нуля (config.ts): «стикерный не изменился» —
+  // доказанное тождество (тест ниже), а не расчёт на то, что слагаемое мало.
+  edgeTarget: number = config.FACE_FIT_EDGE_TARGET,
+  edgeWeight: number = config.FACE_FIT_EDGE_WEIGHT,
 ): number {
   const cw = region.side / 3;
   let total = 0;
@@ -216,9 +373,30 @@ export function regionCost(
         0,
         gapTarget - cellGapContrast(patch, x0, y0, w, h, luma(rgb), bandFrac, samples),
       );
+      // Недобор контраста границ — тот же приём, что и у щели, но по цвету.
+      const deficitEdge = Math.max(
+        0,
+        edgeTarget -
+          cellEdgeContrast(
+            patch,
+            x0,
+            y0,
+            w,
+            h,
+            row > 0,
+            row < 2,
+            col > 0,
+            col < 2,
+            bandFrac,
+            samples,
+          ),
+      );
       // ΔE до ближайшего эталона — основная часть; разброс внутри ячейки —
-      // добавка, которая штрафует сетку, севшую на щели.
-      total += best + spread * 0.35 + deficit * gapWeight;
+      // добавка, которая штрафует сетку, севшую на щели. Два структурных
+      // слагаемых НЕЗАВИСИМЫ (см. комментарий у edgeTarget выше): щель — сигнал
+      // стикерного кубика, граница — stickerless, и ослаблять один ради
+      // другого нельзя.
+      total += best + spread * 0.35 + deficit * gapWeight + deficitEdge * edgeWeight;
     }
   }
   return total / 9;
@@ -288,6 +466,66 @@ export function refineRegions(patchSize: number, around: FitRegion): FitRegion[]
   return out;
 }
 
+const CANDIDATE_SCALES = [0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0];
+
+/** Индекс масштаба кандидата в {@link CANDIDATE_SCALES} (по ближайшему side). */
+function scaleIndexOf(side: number, patchSize: number): number {
+  let idx = 0;
+  let bestDiff = Infinity;
+  for (let i = 0; i < CANDIDATE_SCALES.length; i++) {
+    const diff = Math.abs(side - patchSize * CANDIDATE_SCALES[i]);
+    if (diff < bestDiff) {
+      bestDiff = diff;
+      idx = i;
+    }
+  }
+  return idx;
+}
+
+/** Argmin-метка каждой из 9 ячеек кандидата — то же чтение, что даёт продукт. */
+function regionLabels(
+  patch: Patch,
+  region: FitRegion,
+  refs: Refs,
+  centerFrac: number,
+  samples: number,
+): string[] {
+  const cw = region.side / 3;
+  const labels: string[] = [];
+  for (let row = 0; row < 3; row++) {
+    for (let col = 0; col < 3; col++) {
+      const x0 = Math.round(region.x + col * cw);
+      const y0 = Math.round(region.y + row * cw);
+      const w = Math.round(region.x + (col + 1) * cw) - x0;
+      const h = Math.round(region.y + (row + 1) * cw) - y0;
+      const { rgb } = cellStats(patch, x0, y0, w, h, centerFrac, samples);
+      const lab = rgb2lab(rgb);
+      let best = COLOR_NAMES[0];
+      let bestD = Infinity;
+      for (const name of COLOR_NAMES) {
+        const d = deltaE(lab, refs[name]);
+        if (d < bestD) {
+          bestD = d;
+          best = name;
+        }
+      }
+      labels.push(best);
+    }
+  }
+  return labels;
+}
+
+function labelsDiffer(a: readonly string[], b: readonly string[]): boolean {
+  return a.some((v, i) => v !== b[i]);
+}
+
+// Сколько кандидатов грубого прохода пере-оцениваем точной мерой ради `margin`.
+// Без этой границы честно сравнивать пришлось бы КАЖДОГО из ~70 кандидатов, то
+// есть точных оценок стало бы ~600 вместо нынешних ~76 (план, шаг 5, A10:
+// бюджет времени патча — не дороже вдвое). 8 — с запасом больше числа
+// кандидатов, реально живущих в окрестности ±1 шаг масштаба / 1 ячейка сдвига.
+const MARGIN_TOP_K = 8;
+
 /**
  * Найти квадрат грани внутри патча.
  *
@@ -295,29 +533,66 @@ export function refineRegions(patchSize: number, around: FitRegion): FitRegion[]
  * есть предполагаемая грань). Возвращается вместе с оценкой, чтобы вызывающий
  * мог решить, доверять ли подгонке: если выигрыш крошечный, дешевле остаться на
  * прежней геометрии, чем дёргать сетку от кадра к кадру.
+ *
+ * `margin`/`decided` — ТЕЛЕМЕТРИЯ (не влияет на выбор `region`). Сравнивать
+ * стоимость победителя есть смысл только с соперниками из его ОКРЕСТНОСТИ:
+ * кандидат другого масштаба меряет другую площадь (у крупного кандидата ячейка
+ * шире, `best` растёт по причине, не связанной с тем, там ли грань), поэтому
+ * сравнение ограничено ±1 шагом масштаба и ≤1 ячейкой сдвига. И только с теми,
+ * чьи 9 меток-аргминов ОТЛИЧАЮТСЯ от меток победителя — совпадающий по ответу
+ * кандидат не соперник, а тот же самый вывод другими координатами.
  */
 export function fitFaceRegion(patch: Patch, refs: Refs, centerFrac = 0.5): FitResult {
-  const { GAP_TARGET, GAP_WEIGHT, BAND } = fitParams();
+  const { GAP_TARGET, GAP_WEIGHT, BAND, EDGE_TARGET, EDGE_WEIGHT, MIN_MARGIN } = fitParams();
   // Перебор идёт по ПРОРЕЖЕННЫМ отсчётам: медиана ячейки от этого не меняется, а
   // семь сотен кандидатов на полном разрешении стоили секунды на каждую грань.
   const coarse = (r: FitRegion): number =>
-    regionCost(patch, r, refs, centerFrac, GAP_TARGET, GAP_WEIGHT, BAND, 10);
+    regionCost(
+      patch,
+      r,
+      refs,
+      centerFrac,
+      GAP_TARGET,
+      GAP_WEIGHT,
+      BAND,
+      10,
+      EDGE_TARGET,
+      EDGE_WEIGHT,
+    );
   const fine = (r: FitRegion): number =>
-    regionCost(patch, r, refs, centerFrac, GAP_TARGET, GAP_WEIGHT, BAND, 20);
+    regionCost(
+      patch,
+      r,
+      refs,
+      centerFrac,
+      GAP_TARGET,
+      GAP_WEIGHT,
+      BAND,
+      20,
+      EDGE_TARGET,
+      EDGE_WEIGHT,
+    );
 
   const baseline: FitRegion = { x: 0, y: 0, side: patch.size };
   let best = baseline;
   let bestCoarse = coarse(baseline);
+  const coarseRanked: { region: FitRegion; cost: number }[] = [
+    { region: baseline, cost: bestCoarse },
+  ];
   // Грубый проход: где примерно сидит грань.
   for (const cand of candidateRegions(patch.size)) {
     const cost = coarse(cand);
+    coarseRanked.push({ region: cand, cost });
     if (cost < bestCoarse) {
       bestCoarse = cost;
       best = cand;
     }
   }
+  const coarseWinner = best;
   // Уточнение: где именно. Без него шаг грубой сетки (четверть ячейки) остаётся
   // в остатке, а четверть ячейки — это уже полоса чужой наклейки в выборке.
+  // Уточнение гоняется ТОЛЬКО вокруг грубого победителя — топ-K ниже пере-
+  // оценивается точной мерой БЕЗ дальнейшего уточнения (план, шаг 5).
   let bestCost = fine(best);
   for (const cand of refineRegions(patch.size, best)) {
     const cost = fine(cand);
@@ -326,15 +601,46 @@ export function fitFaceRegion(patch: Patch, refs: Refs, centerFrac = 0.5): FitRe
       best = cand;
     }
   }
+
+  coarseRanked.sort((a, b) => a.cost - b.cost);
+  const winnerLabels = regionLabels(patch, best, refs, centerFrac, 20);
+  const winnerScaleIdx = scaleIndexOf(coarseWinner.side, patch.size);
+  const winnerCell = coarseWinner.side / 3;
+  let margin = Infinity;
+  for (const cand of coarseRanked.slice(0, MARGIN_TOP_K)) {
+    if (cand.region === coarseWinner) continue;
+    if (Math.abs(scaleIndexOf(cand.region.side, patch.size) - winnerScaleIdx) > 1) continue;
+    if (
+      Math.abs(cand.region.x - coarseWinner.x) > winnerCell ||
+      Math.abs(cand.region.y - coarseWinner.y) > winnerCell
+    ) {
+      continue;
+    }
+    const labels = regionLabels(patch, cand.region, refs, centerFrac, 20);
+    if (!labelsDiffer(labels, winnerLabels)) continue;
+    margin = Math.min(margin, fine(cand.region) - bestCost);
+  }
+  const decided = margin >= MIN_MARGIN;
+
   // Итоговые числа — на общей мерке с базовой рамкой, иначе «выигрыш» сравнивал
   // бы стоимости, посчитанные с разной плотностью выборки.
-  return { region: best, cost: fine(best), baselineCost: fine(baseline) };
+  return { region: best, cost: fine(best), baselineCost: fine(baseline), margin, decided };
 }
 
-function fitParams(): { GAP_TARGET: number; GAP_WEIGHT: number; BAND: number } {
+function fitParams(): {
+  GAP_TARGET: number;
+  GAP_WEIGHT: number;
+  BAND: number;
+  EDGE_TARGET: number;
+  EDGE_WEIGHT: number;
+  MIN_MARGIN: number;
+} {
   return {
     GAP_TARGET: config.FACE_FIT_GAP_TARGET,
     GAP_WEIGHT: config.FACE_FIT_GAP_WEIGHT,
     BAND: config.FACE_FIT_GAP_BAND_FRAC,
+    EDGE_TARGET: config.FACE_FIT_EDGE_TARGET,
+    EDGE_WEIGHT: config.FACE_FIT_EDGE_WEIGHT,
+    MIN_MARGIN: config.FACE_FIT_MIN_MARGIN,
   };
 }
