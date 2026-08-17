@@ -11,7 +11,7 @@ import {
   edgeContrast,
   type Patch,
 } from "../../src/vision/faceFit";
-import { deltaE, rgb2lab, type Refs, type RGB } from "../../src/vision/colors";
+import { deltaE, rgb2lab, type ColorName, type Refs, type RGB } from "../../src/vision/colors";
 import { config } from "../../src/vision/config";
 
 const REF_RGB: Record<string, RGB> = {
@@ -23,7 +23,7 @@ const REF_RGB: Record<string, RGB> = {
   B: [30, 110, 200],
 };
 const REFS = Object.fromEntries(Object.entries(REF_RGB).map(([k, v]) => [k, rgb2lab(v)])) as Refs;
-const NAMES = Object.keys(REF_RGB);
+const NAMES = Object.keys(REF_RGB) as ColorName[];
 
 const WALL: RGB = [150, 130, 160]; // сиреневая стена, как на живом кадре
 // Светлый фон кафе: стол/засвеченное окно. Похож на белый эталон, поэтому по

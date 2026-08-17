@@ -46,6 +46,7 @@ import {
   lab2rgb,
   anchorDistances,
   minSeparation,
+  nearestNeighbours,
   checkCalibration,
 } from "../vision/colors";
 
@@ -503,18 +504,24 @@ export function useAccuracySession(): AccuracySession {
     if (refs) {
       const sep = minSeparation(refs);
       const anchors = anchorDistances(refs);
+      const near = nearestNeighbours(refs);
       const lines = ["", "=== Эталоны калибровки (что камера сняла как цвета) ==="];
       for (const n of COLOR_NAMES) {
         const lab = refs[n];
         const [r, g, b] = lab2rgb(lab);
         lines.push(
           `  ${n}: RGB(${r},${g},${b})  Lab(${lab.map((x) => x.toFixed(0)).join(",")})` +
-            `  ΔE до анкора ${anchors[n].toFixed(1)}`,
+            `  ΔE до анкора ${anchors[n].toFixed(1)}` +
+            `  ближайший сосед ${near[n].name} ${near[n].de.toFixed(1)}`,
         );
       }
+      // Порог берётся из конфига, а не пишется числом в текст: подпись «~<20»
+      // расходилась с вердиктом (CALIB_MIN_SEPARATION_DE=10) — на 12.7 текст
+      // пугал, вердикт пропускал, и человек не знал, какому числу верить.
       lines.push(
         `  min попарный ΔE: ${sep.de.toFixed(1)} (${sep.a}–${sep.b}) ` +
-          `(если мало ~<20 — эталоны слиплись, камера не различает цвета)`,
+          `(порог вердикта ${config.CALIB_MIN_SEPARATION_DE} — ниже него эталоны слиплись, ` +
+          `камера не различает цвета)`,
       );
       // Расстояние до анкора само по себе НЕ повод отказать: на живой камере
       // рабочие синий/зелёный уходили от анкора дальше, чем испорченный белый.
