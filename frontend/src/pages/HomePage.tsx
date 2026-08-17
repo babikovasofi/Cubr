@@ -28,6 +28,11 @@ const MODE_ICON = {
   duel: { accent: "var(--primary)", cells: [X, O, X, O, X, O, X, O, X] },
   week: { accent: "var(--warning)", cells: [X, X, X, O, X, O, O, X, O] },
   daily: { accent: "var(--live)", cells: [O, X, O, X, X, X, O, X, O] },
+  // Ring pattern (everything but the center) — reads as "the last layer",
+  // the one thing this mode drills. danger/red is otherwise unclaimed among
+  // the mode-card accents (solo/duel/week/daily already hold the other three
+  // bright roles); there's no error context here to clash with.
+  trainer: { accent: "var(--danger)", cells: [X, X, X, X, O, X, X, X, X] },
 } as const;
 
 type ModeKey = keyof typeof MODE_ICON;
@@ -187,6 +192,15 @@ function Landing() {
             text={t("Общий скрамбл на сутки, одна попытка.")}
             live
           />
+          {/* Практика без аккаунта: анониму — сразу на /trainer, не на
+              /register (§П5: тренажёр не пишет попыток, гейтить его
+              регистрацией было бы платой за то, чего нет). */}
+          <ModeCard
+            to="/trainer"
+            mode="trainer"
+            title={t("Тренажёр PLL")}
+            text={t("21 случай последнего слоя, скрамбл под конкретный случай — без аккаунта.")}
+          />
         </div>
       </section>
 
@@ -284,6 +298,12 @@ function Dashboard() {
         title={t("Скрамбл дня")}
         text={t("Общий скрамбл на сутки, одна попытка — без турнирной таблицы.")}
         live
+      />
+      <ModeCard
+        to="/trainer"
+        mode="trainer"
+        title={t("Тренажёр PLL")}
+        text={t("21 случай последнего слоя, скрамбл под конкретный случай — без аккаунта.")}
       />
 
       {/* Этап 4: дуэль по ссылке — create-room + invite, без матчмейкинга. */}

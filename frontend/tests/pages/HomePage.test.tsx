@@ -68,6 +68,14 @@ describe("HomePage", () => {
     );
   });
 
+  it("тренажёр PLL — анониму сразу на /trainer, не на /register (§П5)", () => {
+    renderHome();
+
+    expect(screen.getByRole("link", { name: /Тренажёр PLL/ }).getAttribute("href")).toBe(
+      "/trainer",
+    );
+  });
+
   it("статус loading показывает лендинг, а не дашборд", () => {
     useAuthStore.setState({ user: null, status: "loading" });
     renderHome();
@@ -91,8 +99,17 @@ describe("HomePage", () => {
     useAuthStore.setState({ status: "authed" });
     renderHome();
 
-    // Челлендж, скрамбл дня, дуэль.
-    expect(screen.getAllByTestId("mini-grid")).toHaveLength(3);
+    // Челлендж, скрамбл дня, дуэль, тренажёр PLL.
+    expect(screen.getAllByTestId("mini-grid")).toHaveLength(4);
+  });
+
+  it("дашборд предлагает тренажёр PLL без гейта по регистрации", () => {
+    useAuthStore.setState({ status: "authed" });
+    renderHome();
+
+    expect(screen.getByRole("link", { name: /Тренажёр PLL/ }).getAttribute("href")).toBe(
+      "/trainer",
+    );
   });
 
   it("с телефона лендинг честно предупреждает про компьютер (R8)", () => {

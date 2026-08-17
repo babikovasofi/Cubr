@@ -14,6 +14,13 @@ declare module "cubejs" {
     eo: number[]; // edge orientations
     cornerParity(): number; // corner permutation parity (0|1)
     edgeParity(): number; // edge permutation parity (0|1)
+    // Raw permutation arrays (Kociemba indexing: corners URF,UFL,ULB,UBR,DFR,
+    // DLF,DBL,DRB; edges UR,UF,UL,UB,DR,DF,DL,DB,FR,FL,BL,BR). cp[i]/ep[i] is
+    // the piece now sitting at position i. Test-oracle use only (PLL trainer's
+    // independent-spec check derives cycles from these) — nothing in `src/`
+    // outside `vision/` reads them.
+    cp: number[];
+    ep: number[];
   }
   export default Cube;
 }

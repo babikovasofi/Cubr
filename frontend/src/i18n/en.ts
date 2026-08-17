@@ -645,4 +645,25 @@ export const EN: Record<string, string> = {
     "The white came out dim (lightness {l}, expected at least {min}): the scene is underlit or the cube is too far. Add light or bring the cube closer and calibrate again — otherwise the table and the wall will read as a white face.",
   "Съёмка {n} не опознана: её центр в {de} от цвета {face} (допустимо {max}). Либо одна и та же грань показана дважды, либо в рамку попал не кубик. Покажи шесть РАЗНЫХ граней, каждую — центром в рамку.":
     "Capture {n} was not recognised: its centre is {de} away from the colour {face} (at most {max} is allowed). Either the same face was shown twice, or what got into the frame was not the cube. Show six DIFFERENT faces, each with its centre in the frame.",
+
+  // --- тренажёр PLL (plan: ll-trainer) — case ids (Aa, Ub, G-perm, …) are
+  // international notation and are NOT translated here on purpose. ---
+  "Тренажёр PLL": "PLL trainer",
+  "21 случай последнего слоя, скрамбл под конкретный случай — без аккаунта.":
+    "All 21 last-layer cases, a scramble for the exact case you pick — no account needed.",
+  "Выбери один или несколько случаев — получишь скрамбл, который гарантированно ставит кубик именно в этот случай. Без сборки, без камеры: собери скрамбл руками и сверься с ответом.":
+    "Pick one or several cases and get a scramble guaranteed to land the cube in exactly that case. No camera, no solving here — apply the scramble by hand and check yourself against the answer.",
+  "Все 21": "All 21",
+  "Только рёбра": "Edges only",
+  "Только углы": "Corners only",
+  "Соседняя пара": "Adjacent swap",
+  "По диагонали": "Diagonal swap",
+  "G-перестановки": "G-perms",
+  "Хват кубика": "Grip",
+  "Обычный хват": "Fixed grip",
+  "Любой хват": "Any grip",
+  Скрамбл: "Scramble",
+  "Следующий случай": "Next case",
+  "Показать ответ": "Show answer",
+  "Случай {id}": "Case {id}",
 };
