@@ -6,8 +6,7 @@
  */
 
 import { describe, it, expect } from "vitest";
-import type { Lab, RGB, Refs, ColorName } from "../src/vision/colors";
-import { deltaE, rgb2lab, cellWeight, COLOR_NAMES } from "../src/vision/colors";
+import { deltaE, rgb2lab, cellWeight } from "../src/vision/colors";
 import { config } from "../src/vision/config";
 
 // --- Assignment edge cases (boundary values) --------------------------------

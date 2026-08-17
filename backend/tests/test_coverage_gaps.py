@@ -5,14 +5,14 @@ edge states, and boundary conditions in moderation.
 """
 
 import uuid
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 
 import pytest
 from httpx import AsyncClient
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from app.models import Cube, DailyAttempt, DailyChallenge, TournamentAttempt, User
+from app.models import Cube, DailyAttempt, DailyChallenge, User
 from tests.conftest import EmailSpy
 
 PASSWORD = "sup3r-secret-pw"
@@ -59,11 +59,22 @@ async def test_create_solve_with_other_users_cube_id_404(
     await _register_and_login(client, "owner@example.com")
     # Create a cube for this user (simplified — no front-end flow).
     async with session_maker() as session:
-        user = (await session.execute(select(User).where(User.email == "owner@example.com"))).unique().scalar_one()
+        user = (
+            (await session.execute(select(User).where(User.email == "owner@example.com")))
+            .unique()
+            .scalar_one()
+        )
         cube = Cube(
             user_id=user.id,
             name="Owner's Cube",
-            color_profile={"U": "white", "R": "red", "F": "green", "D": "yellow", "L": "orange", "B": "blue"}
+            color_profile={
+                "U": "white",
+                "R": "red",
+                "F": "green",
+                "D": "yellow",
+                "L": "orange",
+                "B": "blue",
+            },
         )
         session.add(cube)
         await session.flush()
@@ -71,9 +82,13 @@ async def test_create_solve_with_other_users_cube_id_404(
 
     # Switch to a different user and try to use the first user's cube.
     client.cookies.clear()
-    resp = await client.post("/auth/register", json={"email": "thief@example.com", "password": PASSWORD})
+    resp = await client.post(
+        "/auth/register", json={"email": "thief@example.com", "password": PASSWORD}
+    )
     assert resp.status_code == 201, resp.text
-    resp = await client.post("/auth/login", data={"username": "thief@example.com", "password": PASSWORD})
+    resp = await client.post(
+        "/auth/login", data={"username": "thief@example.com", "password": PASSWORD}
+    )
     assert resp.status_code == 204, resp.text
 
     resp = await client.post(
@@ -160,12 +175,10 @@ async def test_daily_get_current_attempt_status_matches_reality(
 ) -> None:
     """GET /daily/current reflects the real attempt status after start/submit."""
     await _register_and_login(client, "daily-status@example.com")
-    user_id = (await client.get("/users/me")).json()["id"]
 
     # Start a daily attempt.
     resp = await client.post("/daily/current/attempt/start")
     assert resp.status_code == 200, resp.text
-    start_body = resp.json()
 
     # GET /current should show "started".
     resp = await client.get("/daily/current")
@@ -173,7 +186,6 @@ async def test_daily_get_current_attempt_status_matches_reality(
     assert resp.json()["attempt_status"] == "started"
 
     # Submit it.
-    daily_id = start_body["daily_id"]
     resp = await client.post(
         "/daily/current/attempt/submit",
         json={"time_ms": 5000, "status": "valid"},
@@ -203,9 +215,7 @@ async def test_moderation_single_character_name_too_short_400(
     assert resp.json()["detail"]["code"] == "NAME_TOO_SHORT"
 
 
-async def test_moderation_max_length_name_allowed(
-    client: AsyncClient, email_spy: EmailSpy
-) -> None:
+async def test_moderation_max_length_name_allowed(client: AsyncClient, email_spy: EmailSpy) -> None:
     """Very long but clean nickname within limits should be accepted."""
     long_name = "A" * 64  # Likely within the max length.
     resp = await client.post(
@@ -214,12 +224,18 @@ async def test_moderation_max_length_name_allowed(
     )
     # Should succeed or fail with a specific length error, not a generic one.
     if resp.status_code == 400:
-        assert resp.json()["detail"]["code"] in ("NAME_TOO_SHORT", "NAME_INVALID_CHARS", "NAME_NOT_ALLOWED")
+        assert resp.json()["detail"]["code"] in (
+            "NAME_TOO_SHORT",
+            "NAME_INVALID_CHARS",
+            "NAME_NOT_ALLOWED",
+        )
     else:
         assert resp.status_code == 201, resp.text
 
 
-@pytest.mark.xfail(reason="Whitespace-only nickname accepted instead of rejected: check_display_name() normalizes whitespace to empty, but doesn't reject empty after normalization")
+@pytest.mark.xfail(
+    reason="Whitespace-only nickname accepted instead of rejected: check_display_name() normalizes whitespace to empty, but doesn't reject empty after normalization"
+)
 async def test_moderation_whitespace_only_name_rejected(
     client: AsyncClient, email_spy: EmailSpy
 ) -> None:
@@ -251,12 +267,16 @@ async def test_tournament_with_two_users_both_count_toward_board(
     """Two users submitting -> both appear on leaderboard."""
     await _register_and_login(client, "user1@example.com")
     await client.post("/tournament/current/attempt/start")
-    await client.post("/tournament/current/attempt/submit", json={"time_ms": 5000, "status": "valid"})
+    await client.post(
+        "/tournament/current/attempt/submit", json={"time_ms": 5000, "status": "valid"}
+    )
 
     client.cookies.clear()
     await _register_and_login(client, "user2@example.com")
     await client.post("/tournament/current/attempt/start")
-    await client.post("/tournament/current/attempt/submit", json={"time_ms": 6000, "status": "valid"})
+    await client.post(
+        "/tournament/current/attempt/submit", json={"time_ms": 6000, "status": "valid"}
+    )
 
     resp = await client.get("/tournament/current/standings")
     assert resp.status_code == 200, resp.text
