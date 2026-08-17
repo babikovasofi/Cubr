@@ -42,6 +42,7 @@ from app.schemas.duel import (
     DuelJoinRead,
     DuelRoomCreateRead,
     DuelRoomRead,
+    DuelSeriesRead,
     PlayerSlot,
     WsFinishIn,
     WsStatusUpdateIn,
@@ -247,6 +248,35 @@ async def get_h2h(
         opponent_wins=counts.opponent_wins,
         draws=counts.draws,
         opponent_user_id=opponent_id,
+    )
+
+
+@router.get("/rooms/{room_id}/series", response_model=DuelSeriesRead)
+async def get_series(
+    room_id: uuid.UUID,
+    user: User = Depends(current_active_user),
+    session: AsyncSession = Depends(get_session),
+) -> DuelSeriesRead:
+    """Running score of the CURRENT SITTING of rematches containing
+    `room_id` — as opposed to `/h2h`'s lifetime record. Derived live from
+    the `parent_room_id` chain (plan: rematch-series), gap-cut at
+    `settings.DUEL_SERIES_GAP_SECONDS`. Guards mirror `get_h2h` exactly
+    (participant-or-404; a room with no `player_b_id` yet also 404s — no
+    opponent to build a series against).
+    """
+    room = await session.get(DuelRoom, room_id)
+    if room is None or user.id not in (room.player_a_id, room.player_b_id):
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Duel room not found")
+    if room.player_b_id is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Duel room not found")
+    counts = await duel_service.series_record(
+        session, room, user.id, gap_seconds=settings.DUEL_SERIES_GAP_SECONDS
+    )
+    return DuelSeriesRead(
+        played=counts.played,
+        your_wins=counts.your_wins,
+        opponent_wins=counts.opponent_wins,
+        draws=counts.draws,
     )
 
 

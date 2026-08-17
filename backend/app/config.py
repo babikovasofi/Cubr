@@ -111,6 +111,11 @@ class Settings(BaseSettings):
     DUEL_HEARTBEAT_INTERVAL_SECONDS: int = 5
     DUEL_HEARTBEAT_TIMEOUT_SECONDS: int = 15
     DUEL_COUNTDOWN_SECONDS: int = 3
+    # Pause between a game's finish and the next rematch's creation beyond
+    # which the running "series" score (GET /duel/rooms/{id}/series) treats
+    # the rematch as the start of a NEW series rather than a continuation of
+    # the current one — see app.services.duel.series_chain.
+    DUEL_SERIES_GAP_SECONDS: int = 3600
 
     # --- Process topology ---
     # Duel rooms live in one process's memory (app.services.duel_manager) — no

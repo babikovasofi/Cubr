@@ -111,16 +111,21 @@ async def create_room(session: AsyncSession, user_id: uuid.UUID) -> DuelRoom:
     return room
 
 
+def _as_utc(value: datetime) -> datetime:
+    """Normalize to an aware UTC datetime: sqlite hands back naive datetimes
+    after flush, Postgres hands back aware ones. Shared by `_invite_expired`
+    and `series_chain` — same trap, same fix.
+    """
+    if value.tzinfo is None:
+        return value.replace(tzinfo=timezone.utc)
+    return value
+
+
 def _invite_expired(room: DuelRoom, now: datetime, ttl_seconds: int) -> bool:
     """Mirrors `tournament.is_past_deadline`'s tz-normalization: sqlite hands
     back naive datetimes after flush, Postgres hands back aware ones.
     """
-    created_at = room.created_at
-    if created_at.tzinfo is None:
-        created_at = created_at.replace(tzinfo=timezone.utc)
-    if now.tzinfo is None:
-        now = now.replace(tzinfo=timezone.utc)
-    return now > created_at + timedelta(seconds=ttl_seconds)
+    return _as_utc(now) > _as_utc(room.created_at) + timedelta(seconds=ttl_seconds)
 
 
 async def join_room(
@@ -197,6 +202,18 @@ async def rematch(session: AsyncSession, parent: DuelRoom, user_id: uuid.UUID) -
     if user_id not in (parent.player_a_id, parent.player_b_id):
         raise DuelNotFoundError()
     if parent.player_b_id is None:
+        raise DuelNotFoundError()
+    if parent.status != "finished":
+        # Real flow only ever offers "Реванш" from a finished room's result
+        # screen. A parent that is still open/full/active has BOTH its
+        # participants already `active=True`; inserting the child's two
+        # `DuelParticipant` rows below would collide with the partial-UNIQUE
+        # (user_id WHERE active) index and previously surfaced as a bare
+        # IntegrityError -> 500. Reject cleanly (404, same as an unknown
+        # room — the router's DuelNotFoundError handler) instead (skeptic
+        # HIGH fix, plan: rematch-series) — this also keeps every non-final
+        # link in a series chain guaranteed `finished` for
+        # `series_chain`/`tally_series`.
         raise DuelNotFoundError()
 
     result = await session.execute(select(DuelRoom).where(DuelRoom.parent_room_id == parent.id))
@@ -420,6 +437,123 @@ async def h2h_record(session: AsyncSession, me_id: uuid.UUID, opponent_id: uuid.
         opponent_wins=int(row.opponent_wins or 0),
         draws=int(row.draws or 0),
     )
+
+
+@dataclass(frozen=True)
+class SeriesCounts:
+    """Read-only running-series aggregate — see `series_record`. Same shape
+    as `H2HCounts`; kept as a separate type since the two are NOT
+    interchangeable (series is chain-scoped and gap-cut, h2h is lifetime).
+    """
+
+    played: int
+    your_wins: int
+    opponent_wins: int
+    draws: int
+
+
+def series_chain(
+    rooms_by_id: dict[uuid.UUID, DuelRoom], room_id: uuid.UUID, gap_seconds: int
+) -> list[DuelRoom]:
+    """Pure: the current-sitting series chain containing `room_id` — that
+    room plus every ancestor reachable by ascending `parent_room_id`,
+    oldest first. `rooms_by_id` must already contain every room that could
+    possibly be an ancestor (see `series_record`, one SELECT for the whole
+    pair) — a parent missing from it is treated the same as "no parent"
+    (chain stops there, defensively, rather than raising).
+
+    Descendants (future rematches) are NEVER included (plan D2): the score
+    for an old result screen must not change retroactively when a later
+    game is played.
+
+    The walk stops — dropping the link to that ancestor and everything
+    beyond it — at the first of:
+      - a missing parent row,
+      - a `parent_room_id` cycle (guarded by a `seen` set; should be
+        structurally impossible given the UNIQUE column, but a chain walk
+        must never spin forever on bad data),
+      - an ancestor whose player pair differs from `room_id`'s (defensive;
+        today's `rematch()` always carries the same pair forward),
+      - a gap since the ancestor's game ended (`parent.finished_at`,
+        falling back to `parent.created_at` for an abandoned parent with no
+        `finished_at`) larger than `gap_seconds` — plan D3, "one sitting".
+    """
+    room = rooms_by_id.get(room_id)
+    if room is None:
+        return []
+
+    pair = frozenset({room.player_a_id, room.player_b_id})
+    chain = [room]
+    seen = {room.id}
+    node = room
+    while node.parent_room_id is not None:
+        parent = rooms_by_id.get(node.parent_room_id)
+        if parent is None or parent.id in seen:
+            break
+        if frozenset({parent.player_a_id, parent.player_b_id}) != pair:
+            break
+        parent_end = parent.finished_at if parent.finished_at is not None else parent.created_at
+        if _as_utc(node.created_at) - _as_utc(parent_end) > timedelta(seconds=gap_seconds):
+            break
+        chain.append(parent)
+        seen.add(parent.id)
+        node = parent
+
+    chain.reverse()  # oldest -> newest
+    return chain
+
+
+def tally_series(chain: list[DuelRoom], me_id: uuid.UUID, opponent_id: uuid.UUID) -> SeriesCounts:
+    """Pure: tally a chain (as returned by `series_chain`) from `me_id`'s
+    point of view. Mirrors `h2h_record`'s counting rule exactly (draws are
+    `winner_id IS NULL` counted on their own, never `played - wins`), with
+    one addition: only `status == "finished"` rooms count toward `played` —
+    an `abandoned` link inside the chain does not break the chain (the
+    parent->child link still holds through it) but is not a game.
+    """
+    played = your_wins = opponent_wins = draws = 0
+    for room in chain:
+        if room.status != "finished":
+            continue
+        played += 1
+        if room.winner_id is None:
+            draws += 1
+        elif room.winner_id == me_id:
+            your_wins += 1
+        elif room.winner_id == opponent_id:
+            opponent_wins += 1
+        # else: winner_id matches neither pair member (defensive) — counted
+        # in `played`, folded into no one's win count.
+    return SeriesCounts(
+        played=played, your_wins=your_wins, opponent_wins=opponent_wins, draws=draws
+    )
+
+
+async def series_record(
+    session: AsyncSession, room: DuelRoom, me_id: uuid.UUID, *, gap_seconds: int
+) -> SeriesCounts:
+    """Current-sitting series score for `room`'s player pair, from `me_id`'s
+    point of view — `room` plus its ancestors up to the first `gap_seconds`
+    pause (plan: rematch-series, D1: derived, never stored). Read only —
+    no `session.add`, no commit.
+
+    ONE SELECT for the whole pair (every room either slot order, any
+    status — a chain walk needs abandoned/non-finished ancestors too, just
+    not counted toward `played`), not a round trip per chain hop.
+    """
+    opponent_id = room.player_b_id if me_id == room.player_a_id else room.player_a_id
+    assert opponent_id is not None, "series_record requires a fully joined room"
+
+    pair = or_(
+        and_(DuelRoom.player_a_id == me_id, DuelRoom.player_b_id == opponent_id),
+        and_(DuelRoom.player_a_id == opponent_id, DuelRoom.player_b_id == me_id),
+    )
+    result = await session.execute(select(DuelRoom).where(pair))
+    rooms_by_id = {r.id: r for r in result.scalars().all()}
+    rooms_by_id.setdefault(room.id, room)  # defensive: room always in its own chain
+
+    chain = series_chain(rooms_by_id, room.id, gap_seconds)
+    return tally_series(chain, me_id, opponent_id)
 
 
 @dataclass(frozen=True)
