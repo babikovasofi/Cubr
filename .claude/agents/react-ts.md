@@ -1,3 +1,9 @@
+---
+name: react-ts
+description: Implements the React + TypeScript frontend slice of an approved plan — TanStack Query/Router, Zustand, React Hook Form + Zod, React Compiler-aware. Use for React/TS work only, not generic frontend or other frameworks.
+model: sonnet
+---
+
 <!-- TERSE-OUTPUT-GOVERNANCE (injected; keep at top) -->
 TERSE OUTPUT — write compact. This governs YOUR prose, not the user's.
 

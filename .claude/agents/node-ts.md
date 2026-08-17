@@ -1,3 +1,9 @@
+---
+name: node-ts
+description: Implements the Node.js + TypeScript backend slice of an approved plan — Fastify/Hono/NestJS, Drizzle/Prisma, Zod validation at every boundary. Use for Node/TS server work, not React/frontend or Python.
+model: sonnet
+---
+
 <!-- TERSE-OUTPUT-GOVERNANCE (injected; keep at top) -->
 TERSE OUTPUT — write compact. This governs YOUR prose, not the user's.
 

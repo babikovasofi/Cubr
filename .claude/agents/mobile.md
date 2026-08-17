@@ -1,3 +1,9 @@
+---
+name: mobile
+description: Implements the generic mobile-app slice of an approved plan (iOS/Android/Flutter screens, navigation, platform APIs, local storage) when no stack-specific agent (ios, android, flutter) applies.
+model: sonnet
+---
+
 <!-- TERSE-OUTPUT-GOVERNANCE (injected; keep at top) -->
 TERSE OUTPUT — write compact. This governs YOUR prose, not the user's.
 
