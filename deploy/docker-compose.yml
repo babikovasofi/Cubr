@@ -1,0 +1,77 @@
+# Cubr production stack: db + api + caddy on one VPS, one docker network.
+#
+# Postgres is never published to the host — only `api` reaches it, over the
+# `cubr` network. `api` itself is not published either; Caddy is the only
+# container with a host port, and it terminates TLS and reverse-proxies
+# /api/* to `api:8000`.
+#
+# `caddy` gets a static IP (172.28.0.10) because app/main.py trusts
+# TRUSTED_PROXIES by IP for both X-Forwarded-For and rate limiting — without a
+# fixed address that list would go stale on every container recreate.
+
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: cubr
+      POSTGRES_DB: cubr
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    # Defaults (shared_buffers=128MB-ish via 25% heuristic, max_connections=100)
+    # assume much more RAM than this 2 GB box has. 50 connections is already
+    # more than one single-worker API process will ever open.
+    command:
+      - postgres
+      - -c
+      - shared_buffers=256MB
+      - -c
+      - max_connections=50
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    networks:
+      - cubr
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U cubr -d cubr"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  api:
+    build:
+      context: ../backend
+    restart: unless-stopped
+    env_file:
+      - .env
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - cubr
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    env_file:
+      - .env
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./www:/srv/www:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    networks:
+      cubr:
+        ipv4_address: 172.28.0.10
+
+networks:
+  cubr:
+    ipam:
+      config:
+        - subnet: 172.28.0.0/16
+
+volumes:
+  pgdata:
+  caddy_data:
+  caddy_config:
