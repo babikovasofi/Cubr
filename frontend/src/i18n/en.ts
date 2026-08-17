@@ -415,6 +415,17 @@ export const EN: Record<string, string> = {
   "Соперник отключился": "The opponent disconnected",
   Реванш: "Rematch",
   "Готовлю реванш…": "Preparing the rematch…",
+  // h2h (lifetime) + series (current sitting, plan: rematch-series) lines on
+  // the result panel. "раз"/"раз" collapse to one RU key (see DuelResult.tsx)
+  // — English covers both with "time(s)".
+  "Вы играли {n} раз, счёт {you}:{opp}": "You played {n} time(s), score {you}:{opp}",
+  "Вы играли {n} раза, счёт {you}:{opp}": "You played {n} time(s), score {you}:{opp}",
+  "В этой серии {n} игра, счёт {you}:{opp}": "This series: {n} game, score {you}:{opp}",
+  "В этой серии {n} игры, счёт {you}:{opp}": "This series: {n} games, score {you}:{opp}",
+  "В этой серии {n} игр, счёт {you}:{opp}": "This series: {n} games, score {you}:{opp}",
+  "(+{n} ничья)": "(+{n} draw)",
+  "(+{n} ничьи)": "(+{n} draws)",
+  "(+{n} ничьих)": "(+{n} draws)",
   "Не удалось создать реванш. Попробуй ещё раз.": "Could not create the rematch. Try again.",
   "Ссылка на дуэль недействительна или устарела.": "The duel link is invalid or expired.",
   "Такой дуэли не существует — ссылка неверна или комната закрыта.":

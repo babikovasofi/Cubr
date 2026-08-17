@@ -229,7 +229,21 @@
     «Вы играли N раз, счёт X:Y (+Z ничьих)» на экране результата (fetch на result-фазе, AbortController).
     Без миграции/записи. Review = **ship** (0), qa-smoke pass. backend 218 (+12), frontend 382 (+24).
     [swarm-report/h2h-duel-history-*]. Коммит `42cfd40`.
-  - ⏳ Two-browser live: инвайт→старт→сборка камерой→результат→реванш + h2h-панель.
+  - ✅ **Реванш-серии** (V2, read-only): `GET /duel/rooms/{room_id}/series` → счёт ТЕКУЩЕГО сидения
+    рематчей (played/your_wins/opponent_wins/draws), в отличие от лайфтайм-h2h. Выводится (без БД,
+    приём `GET /daily/streak`) подъёмом по цепочке `parent_room_id` (UNIQUE ⇒ односвязный список) до
+    паузы `DUEL_SERIES_GAP_SECONDS` (дефолт 3600с — «одно сидение»); считаются только `finished`-звенья,
+    `abandoned` не рвёт цепочку, но не засчитывается игрой. Отдельная ручка (не поле в `DuelH2HRead`) —
+    контракт h2h не трогаем, оба фетча best-effort/независимы. Вторая строка на панели результата
+    «В этой серии N игр, счёт X:Y» под h2h-строкой, порог показа `played>=2`. Заодно чинена
+    предсуществовавшая 500-ка: `rematch()` на нефинализированном родителе теперь чистый 404 (партиал-
+    UNIQUE участников больше не бьётся сырым IntegrityError). **Известные, намеренно не закрытые
+    пробелы** (см. `swarm-report/rematch-series-plan.md` → Known limitations): соперник не получает
+    push-приглашение на реванш (серия растёт только если оба нажали «Реванш» сами); брошенные
+    `open`/`full` комнаты реванша никто не подметает (нет sweep-джобы). backend pytest 391 (+24),
+    frontend vitest 796 (+9), ruff/ruff-format/mypy/tsc/eslint/prettier чисто.
+    [swarm-report/rematch-series-*]. Коммиты `79f0440`, `63ff7a5`.
+  - ⏳ Two-browser live: инвайт→старт→сборка камерой→результат→реванш + h2h/серия-панель.
 
 - **V2 — ачивки и бейджи** ✅ код + тесты + live-миграция — `backend/` + `frontend/`.
   - ✅ Event-driven award-движок в СЕССИИ вызывающего (POST /solves / tournament submit / duel

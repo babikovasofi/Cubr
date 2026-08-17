@@ -11,9 +11,11 @@ import { getBadges } from "../api/badges";
 import { ApiError } from "../api/client";
 import {
   type DuelH2HRead,
+  type DuelSeriesRead,
   existingRoomIdFrom,
   getH2H,
   getRoom,
+  getSeries,
   loadDuelSessionToken,
   rematch,
   saveDuelSessionToken,
@@ -39,6 +41,7 @@ export default function DuelPage() {
   const [rematchBusy, setRematchBusy] = useState(false);
   const [rematchError, setRematchError] = useState<string | null>(null);
   const [h2h, setH2h] = useState<DuelH2HRead | null>(null);
+  const [series, setSeries] = useState<DuelSeriesRead | null>(null);
 
   // Only present right after HomePage's createRoom / DuelPage's own onRematch
   // navigate() — a bookmarked/reloaded /duel/:roomId simply won't show the
@@ -132,11 +135,14 @@ export default function DuelPage() {
       });
   }, [state.phase]);
 
-  // H2H record (plan: h2h-duel-history). Best-effort, cosmetic — reset on
-  // room change, fetched once the result phase is entered, AbortController-
-  // guarded against StrictMode's double-invoke and unmount mid-flight.
+  // H2H record (plan: h2h-duel-history) + series score (plan: rematch-series).
+  // Both best-effort, cosmetic — reset on room change, fetched once the
+  // result phase is entered, AbortController-guarded against StrictMode's
+  // double-invoke and unmount mid-flight. Independent failures: a broken
+  // series fetch must not hide the h2h line and vice versa.
   useEffect(() => {
     setH2h(null);
+    setSeries(null);
   }, [roomId]);
 
   useEffect(() => {
@@ -146,6 +152,11 @@ export default function DuelPage() {
       .then((record) => setH2h(record))
       .catch(() => {
         // best-effort — panel just stays hidden (ApiError, network, or abort)
+      });
+    getSeries(state.roomId, controller.signal)
+      .then((record) => setSeries(record))
+      .catch(() => {
+        // best-effort — line just stays hidden (ApiError, network, or abort)
       });
     return () => {
       controller.abort();
@@ -186,6 +197,7 @@ export default function DuelPage() {
           rematchBusy={rematchBusy}
           rematchError={rematchError}
           h2h={h2h}
+          series={series}
           scramble={state.scramble}
         />
       ) : (

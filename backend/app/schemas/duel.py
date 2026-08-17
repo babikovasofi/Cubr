@@ -62,6 +62,24 @@ class DuelH2HRead(BaseModel):
     opponent_user_id: UUID
 
 
+class DuelSeriesRead(BaseModel):
+    """Response for `GET /duel/rooms/{id}/series` — the running score of the
+    CURRENT SITTING of rematches containing this room (plan: rematch-series),
+    as opposed to `DuelH2HRead`'s lifetime record. Derived live from the
+    `parent_room_id` chain (`duel_service.series_record`) — no table, no
+    migration.
+
+    Deliberately has NO `opponent_user_id` (unlike `DuelH2HRead`): this
+    surface never needed the opponent's identity in the first place, so it
+    was never added (§П10) — four counters, nothing else.
+    """
+
+    played: int
+    your_wins: int
+    opponent_wins: int
+    draws: int
+
+
 class DuelJoinRead(BaseModel):
     """Response for `POST /duel/join/{invite_token}`."""
 

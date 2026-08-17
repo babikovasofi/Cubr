@@ -78,6 +78,22 @@ export function getH2H(roomId: string, signal?: AbortSignal): Promise<DuelH2HRea
   return request<DuelH2HRead>(`/duel/rooms/${encodeURIComponent(roomId)}/h2h`, { signal });
 }
 
+// GET /duel/rooms/{id}/series — running score of the CURRENT SITTING of
+// rematches containing this room (plan: rematch-series), as opposed to
+// `DuelH2HRead`'s lifetime record. Derived server-side from the
+// `parent_room_id` chain; no identifier of any kind on the wire (§П10) —
+// unlike `DuelH2HRead` there is deliberately no `opponent_user_id` here.
+export interface DuelSeriesRead {
+  played: number;
+  your_wins: number;
+  opponent_wins: number;
+  draws: number;
+}
+
+export function getSeries(roomId: string, signal?: AbortSignal): Promise<DuelSeriesRead> {
+  return request<DuelSeriesRead>(`/duel/rooms/${encodeURIComponent(roomId)}/series`, { signal });
+}
+
 // Same-origin, relative WS URL — the httpOnly `cubr_auth` cookie rides the
 // handshake automatically same as REST (see client.ts). Dev goes through the
 // Vite proxy (vite.config.ts proxy["/api"].ws = true); prod through whatever
