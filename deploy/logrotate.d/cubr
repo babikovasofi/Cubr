@@ -1,0 +1,21 @@
+# Install as /etc/logrotate.d/cubr (root:root, mode 644).
+#
+# Covers the host-cron log files under /var/log/cubr-*.log: finalize,
+# nightly backup, and the liveness prober. Docker's own container logs are
+# capped separately via `logging.options.max-size` in docker-compose.yml —
+# this file only rotates what host-side cron scripts append to.
+#
+# copytruncate because these logs are held open by long-running cron jobs
+# (or reopened every 5 minutes) rather than by one process that reopens on
+# SIGHUP — simplest thing that avoids the file growing between rotations.
+
+/var/log/cubr-*.log {
+    weekly
+    rotate 4
+    compress
+    delaycompress
+    missingok
+    notifempty
+    copytruncate
+    su deploy deploy
+}
