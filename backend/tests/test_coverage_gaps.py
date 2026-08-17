@@ -7,7 +7,6 @@ edge states, and boundary conditions in moderation.
 import uuid
 from datetime import datetime, timezone
 
-import pytest
 from httpx import AsyncClient
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
@@ -233,9 +232,6 @@ async def test_moderation_max_length_name_allowed(client: AsyncClient, email_spy
         assert resp.status_code == 201, resp.text
 
 
-@pytest.mark.xfail(
-    reason="Whitespace-only nickname accepted instead of rejected: check_display_name() normalizes whitespace to empty, but doesn't reject empty after normalization"
-)
 async def test_moderation_whitespace_only_name_rejected(
     client: AsyncClient, email_spy: EmailSpy
 ) -> None:

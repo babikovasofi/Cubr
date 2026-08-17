@@ -2,6 +2,14 @@
 # handshakes check Origin (DUEL_ALLOWED_WS_ORIGINS) — a second origin for the
 # API would break both, so Caddy is the single front door.
 
+# The bare domain is canonical; www redirects to it rather than serving a
+# second copy. Two equal origins would mean the auth cookie (SameSite=Lax) and
+# the duel WebSocket Origin check work on whichever host the user happened to
+# type, and fail silently on the other.
+www.{$SITE_DOMAIN} {
+    redir https://{$SITE_DOMAIN}{uri} permanent
+}
+
 {$SITE_DOMAIN} {
     encode zstd gzip
 
