@@ -27,9 +27,11 @@ vi.mock("react-router-dom", async (importOriginal) => {
 vi.mock("../../src/api/duel", () => {
   const getRoom = vi.fn();
   const getH2H = vi.fn();
+  const getSeries = vi.fn();
   return {
     getRoom,
     getH2H,
+    getSeries,
     rematch: vi.fn(),
     loadDuelSessionToken: vi.fn(() => "test-session-token"),
     saveDuelSessionToken: vi.fn(),

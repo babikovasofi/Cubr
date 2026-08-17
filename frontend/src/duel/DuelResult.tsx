@@ -5,14 +5,15 @@
 
 import Button from "../components/Button";
 import Timer from "../components/Timer";
-import type { DuelH2HRead } from "../api/duel";
+import type { DuelH2HRead, DuelSeriesRead } from "../api/duel";
 import type { CardData } from "../share/resultCard";
 import ShareCardButton from "../share/ShareCardButton";
 import { useAuthStore } from "../store/authStore";
 import { useSettingsStore } from "../store/settingsStore";
 import { formatSolveMs, type TimeFormat } from "../lib/formatTime";
 import type { DuelResultPayload, PlayerSlot } from "./duelMachine";
-import { useT } from "../i18n/t";
+import { useT, type T } from "../i18n/t";
+import { pluralRu } from "../i18n/plural";
 
 export interface DuelResultProps {
   result: DuelResultPayload;
@@ -21,6 +22,10 @@ export interface DuelResultProps {
   rematchBusy: boolean;
   rematchError: string | null;
   h2h: DuelH2HRead | null;
+  // Running score of the CURRENT SITTING of rematches (plan: rematch-series)
+  // — as opposed to `h2h`'s lifetime record. `null` on a still-loading or
+  // failed best-effort fetch — the line is simply absent, same as `h2h`.
+  series: DuelSeriesRead | null;
   // Absent on a bootstrap-only reload with no live scramble in state — the
   // share card is skipped rather than drawn without it (plan: result-share-card).
   scramble: string | null;
@@ -35,24 +40,45 @@ function formatTime(
   return formatSolveMs(timeMs, format);
 }
 
-// Standard Russian plural-form picker: [one, few, many] e.g. 1 → forms[0],
-// 2-4 → forms[1], 0/5-20/25.. → forms[2] — 11-14 fall into "many" (mod-100
-// check), not the mod-10 "few" bucket they'd otherwise hit.
-function pluralizeRu(n: number, forms: [string, string, string]): string {
-  const mod100 = Math.abs(n) % 100;
-  const mod10 = mod100 % 10;
-  if (mod100 >= 11 && mod100 <= 14) return forms[2];
-  if (mod10 === 1) return forms[0];
-  if (mod10 >= 2 && mod10 <= 4) return forms[1];
-  return forms[2];
+// Whole-phrase-is-the-key plural forms (see i18n/plural.ts) — [one, few,
+// many]. "раз" is grammatically identical for the "one" and "many" buckets
+// (1 раз, 5 раз), so those two forms collapse to the same dictionary key;
+// English covers both with the same "time(s)" template (see en.ts).
+const H2H_PHRASES = [
+  "Вы играли {n} раз, счёт {you}:{opp}",
+  "Вы играли {n} раза, счёт {you}:{opp}",
+  "Вы играли {n} раз, счёт {you}:{opp}",
+] as const;
+
+// Series line (plan: rematch-series) — current-sitting score, distinct from
+// h2h's lifetime one. "игра" declines fully (игра/игры/игр), no collision.
+const SERIES_PHRASES = [
+  "В этой серии {n} игра, счёт {you}:{opp}",
+  "В этой серии {n} игры, счёт {you}:{opp}",
+  "В этой серии {n} игр, счёт {you}:{opp}",
+] as const;
+
+const DRAW_PHRASES = ["(+{n} ничья)", "(+{n} ничьи)", "(+{n} ничьих)"] as const;
+
+interface RecordCounts {
+  played: number;
+  your_wins: number;
+  opponent_wins: number;
+  draws: number;
 }
 
-function h2hLabel(h2h: DuelH2HRead): string {
-  const times = pluralizeRu(h2h.played, ["раз", "раза", "раз"]);
-  let label = `Вы играли ${h2h.played} ${times}, счёт ${h2h.your_wins}:${h2h.opponent_wins}`;
-  if (h2h.draws > 0) {
-    const draws = pluralizeRu(h2h.draws, ["ничья", "ничьи", "ничьих"]);
-    label += ` (+${h2h.draws} ${draws})`;
+function recordLabel(
+  t: T,
+  phrases: readonly [string, string, string],
+  counts: RecordCounts,
+): string {
+  let label = t(pluralRu(counts.played, phrases), {
+    n: counts.played,
+    you: counts.your_wins,
+    opp: counts.opponent_wins,
+  });
+  if (counts.draws > 0) {
+    label += ` ${t(pluralRu(counts.draws, DRAW_PHRASES), { n: counts.draws })}`;
   }
   return label;
 }
@@ -64,6 +90,7 @@ export default function DuelResult({
   rematchBusy,
   rematchError,
   h2h,
+  series,
   scramble,
 }: DuelResultProps) {
   const t = useT();
@@ -106,7 +133,14 @@ export default function DuelResult({
       <div className="px-7 text-center">
         <h3 className="font-sans text-h3 text-ink">{outcomeLabel}</h3>
         {h2h && h2h.played > 0 ? (
-          <p className="mt-1 font-sans text-caption text-muted">{h2hLabel(h2h)}</p>
+          <p className="mt-1 font-sans text-caption text-muted">
+            {recordLabel(t, H2H_PHRASES, h2h)}
+          </p>
+        ) : null}
+        {series && series.played >= 2 ? (
+          <p className="mt-1 font-sans text-caption text-muted">
+            {recordLabel(t, SERIES_PHRASES, series)}
+          </p>
         ) : null}
       </div>
 

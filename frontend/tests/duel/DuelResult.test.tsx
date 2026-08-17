@@ -1,11 +1,12 @@
 // @vitest-environment jsdom
 
-import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { act, render, screen } from "@testing-library/react";
 import DuelResult from "../../src/duel/DuelResult";
 import type { DuelResultProps } from "../../src/duel/DuelResult";
 import type { DuelResultPayload } from "../../src/duel/duelMachine";
-import type { DuelH2HRead } from "../../src/api/duel";
+import type { DuelH2HRead, DuelSeriesRead } from "../../src/api/duel";
+import { useLangStore } from "../../src/store/langStore";
 
 // Mock useAuthStore
 vi.mock("../../src/store/authStore", () => ({
@@ -47,6 +48,7 @@ const defaultProps: DuelResultProps = {
   rematchBusy: false,
   rematchError: null,
   h2h: null,
+  series: null,
   scramble: null,
 };
 
@@ -237,5 +239,65 @@ describe("DuelResult", () => {
   it("does not render the share/download button when scramble is null", () => {
     render(<DuelResult {...defaultProps} scramble={null} />);
     expect(screen.queryByRole("button", { name: "Скачать PNG" })).toBeNull();
+  });
+});
+
+describe("DuelResult series line (plan: rematch-series)", () => {
+  const SERIES: DuelSeriesRead = { played: 2, your_wins: 2, opponent_wins: 0, draws: 0 };
+
+  afterEach(() => {
+    act(() => useLangStore.setState({ lang: "ru" })); // reset for other test files
+  });
+
+  it("renders the series line when played >= 2", () => {
+    render(<DuelResult {...defaultProps} series={SERIES} />);
+    expect(screen.getByText("В этой серии 2 игры, счёт 2:0")).toBeTruthy();
+  });
+
+  it("does not render the series line when played === 1 (D7 threshold)", () => {
+    const series: DuelSeriesRead = { played: 1, your_wins: 1, opponent_wins: 0, draws: 0 };
+    render(<DuelResult {...defaultProps} series={series} />);
+    expect(screen.queryByText(/В этой серии/)).toBeNull();
+  });
+
+  it("does not render the series line when series is null, but h2h still renders", () => {
+    render(<DuelResult {...defaultProps} series={null} h2h={DEFAULT_H2H} />);
+    expect(screen.queryByText(/В этой серии/)).toBeNull();
+    expect(screen.getByText("Вы играли 3 раза, счёт 2:1")).toBeTruthy();
+  });
+
+  it("shows a singular draw suffix", () => {
+    const series: DuelSeriesRead = { played: 3, your_wins: 1, opponent_wins: 1, draws: 1 };
+    render(<DuelResult {...defaultProps} series={series} />);
+    expect(screen.getByText("В этой серии 3 игры, счёт 1:1 (+1 ничья)")).toBeTruthy();
+  });
+
+  it("shows a few-form draw suffix", () => {
+    const series: DuelSeriesRead = { played: 6, your_wins: 2, opponent_wins: 2, draws: 2 };
+    render(<DuelResult {...defaultProps} series={series} />);
+    expect(screen.getByText("В этой серии 6 игр, счёт 2:2 (+2 ничьи)")).toBeTruthy();
+  });
+
+  it("shows a many-form draw suffix", () => {
+    const series: DuelSeriesRead = { played: 10, your_wins: 3, opponent_wins: 2, draws: 5 };
+    render(<DuelResult {...defaultProps} series={series} />);
+    expect(screen.getByText("В этой серии 10 игр, счёт 3:2 (+5 ничьих)")).toBeTruthy();
+  });
+
+  it("uses игра singular form for played === 2 vs игры for the few-bucket", () => {
+    const series: DuelSeriesRead = { played: 4, your_wins: 2, opponent_wins: 2, draws: 0 };
+    render(<DuelResult {...defaultProps} series={series} />);
+    expect(screen.getByText("В этой серии 4 игры, счёт 2:2")).toBeTruthy();
+  });
+
+  it("renders the series line in English when lang=en", () => {
+    act(() => useLangStore.setState({ lang: "en" }));
+    render(<DuelResult {...defaultProps} series={SERIES} />);
+    expect(screen.getByText("This series: 2 games, score 2:0")).toBeTruthy();
+  });
+
+  it("existing h2h assertions stay byte-identical after moving onto t()", () => {
+    render(<DuelResult {...defaultProps} h2h={DEFAULT_H2H} />);
+    expect(screen.getByText("Вы играли 3 раза, счёт 2:1")).toBeTruthy();
   });
 });
