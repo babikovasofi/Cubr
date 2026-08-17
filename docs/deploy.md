@@ -87,6 +87,15 @@ python3 -c "import secrets; print(secrets.token_urlsafe(48))"
 Проверка: `docker compose -f deploy/docker-compose.yml config` разбирает файл
 без ошибок.
 
+Все три сервиса делят один `logging`-профиль (`x-logging` в верху файла):
+json-file, `max-size: 10m`, `max-file: 3`. Без этого лог растёт неограниченно —
+на диске 25 ГБ, столько отдавать одним контейнерам не с руки. Применяется
+через `docker compose up -d` (пересоздаёт контейнеры — данные не трогает,
+`pgdata` живёт в отдельном volume).
+
+Проверка: `docker inspect <контейнер> --format '{{json .HostConfig.LogConfig}}'`
+показывает `max-size: 10m`, `max-file: 3`.
+
 ## 2. Сборка фронта — локально, не на сервере
 
 ```bash
@@ -217,16 +226,82 @@ Redirect URL в консоли Google должен совпадать с `GOOGLE
 30 4 * * * cd /srv/cubr && docker compose exec -T db pg_dump -U cubr cubr | gzip > backups/cubr-$(date +\%F).sql.gz && find backups -name 'cubr-*.sql.gz' -mtime +14 -delete
 ```
 
-Ротация логов — `/etc/logrotate.d/cubr` на `/var/log/cubr-*.log`, иначе за
-месяц логи съедят диск.
-
 Проверка: запустить finalize руками — отрабатывает и печатает, сколько
 попыток подмёл (на пустой базе ноль, это нормально); `pg_dump` создаёт
 непустой архив; `gunzip -t` подтверждает целостность.
 
+### Проверка восстановления бэкапа
+
 Бэкап, из которого никто ни разу не разворачивался, — это не бэкап, а
-надежда: время от времени разворачивать копию во временную базу и смотреть,
-что таблицы на месте.
+надежда. Разворачивать в **отдельную, одноразовую** базу внутри того же
+контейнера `db`, никогда не поверх боевой `cubr`:
+
+```bash
+cd /srv/cubr
+DUMP=$(ls -t backups/cubr-*.sql.gz | head -1)
+docker compose exec -T db psql -U cubr -d cubr -c "CREATE DATABASE cubr_restore_test;"
+gunzip -c "$DUMP" | docker compose exec -T db psql -U cubr -d cubr_restore_test -v ON_ERROR_STOP=1 -q
+docker compose exec -T db psql -U cubr -d cubr_restore_test -c "\dt"
+docker compose exec -T db psql -U cubr -d cubr_restore_test -c "select version_num from alembic_version;"
+docker compose exec -T db psql -U cubr -d cubr -c "DROP DATABASE cubr_restore_test;"
+```
+
+Проверка: все таблицы из `\dt` совпадают со списком в живой `cubr`;
+`version_num` в `alembic_version` совпадает с именем последнего файла в
+`backend/migrations/versions/` (текущая голова — там нет ветвления, файлы
+пронумерованы по порядку, у головы никто не указывает её в своём
+`down_revision`). После проверки — обязательно `DROP DATABASE
+cubr_restore_test`, живую `cubr` не трогать.
+
+### Ротация логов
+
+`/etc/logrotate.d/cubr` — источник в репозитории, `deploy/logrotate.d/cubr`.
+Ставится вручную (logrotate не читает `/srv/cubr`):
+
+```bash
+sudo cp deploy/logrotate.d/cubr /etc/logrotate.d/cubr
+sudo chown root:root /etc/logrotate.d/cubr && sudo chmod 644 /etc/logrotate.d/cubr
+```
+
+Ротирует `/var/log/cubr-*.log` (finalize, бэкап, liveness — все host-cron
+логи разом), еженедельно, 4 копии, `copytruncate`. Логи самих контейнеров
+Docker ротирует отдельно — `logging.options.max-size`/`max-file` в
+`deploy/docker-compose.yml` (см. § 1).
+
+Проверка: `sudo logrotate -d /etc/logrotate.d/cubr` разбирает конфиг без
+ошибок (debug-режим ничего не ротирует, только проверяет).
+
+### Liveness-проверка
+
+`deploy/scripts/liveness-check.sh`, на сервере — `/srv/cubr/scripts/`, cron
+каждые 5 минут:
+
+```cron
+*/5 * * * * /srv/cubr/scripts/liveness-check.sh
+```
+
+Дергает `/` и `/api/health` по публичному HTTPS, пишет каждый прогон (успех
+и неудачу) в `/var/log/cubr-liveness.log`. Перезапускает соответствующий
+контейнер (`caddy` или `api`) только после **трёх подряд** неудач — не по
+одному сбою, разовый таймаут это шум, а не авария. После перезапуска не
+трогает тот же пробник ещё 30 минут (`COOLDOWN`), даже если он продолжает
+падать — иначе получился бы дребезжащий авто-рестарт, который хуже, чем его
+отсутствие; после cooldown дальше разбирается человек, не cron. Состояние
+(счётчики подряд-идущих неудач, метки времени последнего рестарта) — простые
+файлы в `/var/lib/cubr-liveness/`.
+
+Проверка: `/srv/cubr/scripts/liveness-check.sh` руками — пишет `site OK` /
+`api OK` в лог при здоровом стеке; при остановленном `api`
+(`docker compose stop api`) три запуска подряд пишут `FAIL,
+consecutive=1/2/3`, на третьем — `restarting container: api`, `api` вновь
+`Up`, `/api/health` снова 200.
+
+### Restart-политики
+
+Все три сервиса — `restart: unless-stopped`. Проверка не чтением файла, а
+живым перезапуском демона: `sudo systemctl restart docker`, затем `docker
+compose ps` — все три контейнера должны подняться сами, без ручного `docker
+compose up`.
 
 ---
 
