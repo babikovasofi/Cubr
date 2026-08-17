@@ -43,6 +43,11 @@ const ProfilePage = lazy(() => import("./pages/ProfilePage"));
 const RulesPage = lazy(() => import("./pages/RulesPage"));
 const PrivacyPage = lazy(() => import("./pages/PrivacyPage"));
 
+// PLL trainer (plan: ll-trainer): text + a diagram + a button, no camera, no
+// timer, no socket — public like /rules and /privacy, no ProtectedRoute, no
+// DesktopOnlyGate (it's more usable on a phone than most ritual modes).
+const TrainerPage = lazy(() => import("./pages/TrainerPage"));
+
 function AuthMenu() {
   const t = useT();
   const user = useAuthStore((s) => s.user);
@@ -257,6 +262,9 @@ export default function App() {
               {/* Этап 6: публичные текстовые страницы — читаются ДО регистрации. */}
               <Route path="/rules" element={<RulesPage />} />
               <Route path="/privacy" element={<PrivacyPage />} />
+              {/* Public, same tier as /rules and /privacy — see the comment
+              above TrainerPage's lazy import. */}
+              <Route path="/trainer" element={<TrainerPage />} />
 
               {AccuracyPage ? <Route path="/accuracy" element={<AccuracyPage />} /> : null}
 
