@@ -109,6 +109,19 @@ rsync -az --delete frontend/dist/ deploy@<сервер>:/srv/cubr/www/
 
 ## 3. База данных и API на сервере
 
+`deploy/docker-compose.yml` собирает `api` из `../backend`
+(`build: context: ../backend`) — это относительный путь от самого
+`docker-compose.yml`, так что раскладка на сервере обязана быть такой же, как
+в репозитории: `docker-compose.yml`/`Caddyfile`/`.env` лежат в `/srv/cubr`,
+исходники бэкенда — в `/srv/backend` (владелец `deploy` у обоих). Залить их
+можно так же, как фронт — `rsync` списком отслеженных git-файлов
+(`git -C backend ls-files`), чтобы не утащить `.venv`/`.env`/тесты:
+
+```bash
+cd backend && git ls-files > /tmp/backend-files.txt
+rsync -az -e ssh --files-from=/tmp/backend-files.txt . deploy@<сервер>:/srv/backend/
+```
+
 На сервере в `/srv/cubr` (владелец `deploy`) лежат `docker-compose.yml`,
 `Caddyfile` и `.env` (см. `deploy/.env.example` — там же список, какие значения
 обязаны отличаться от `backend/.env.example`; главное отличие — `DATABASE_URL`
