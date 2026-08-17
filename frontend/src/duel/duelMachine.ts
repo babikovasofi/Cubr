@@ -167,7 +167,11 @@ export function duelReducer(s: DuelMachineState, a: DuelAction): DuelMachineStat
       return { ...initialDuelState, phase: "room_not_found" };
 
     case "duel_already_active":
-      return { ...initialDuelState, phase: "duel_already_active", existingRoomId: a.existingRoomId };
+      return {
+        ...initialDuelState,
+        phase: "duel_already_active",
+        existingRoomId: a.existingRoomId,
+      };
 
     case "ws_room_state":
       return {
@@ -215,7 +219,9 @@ export function duelReducer(s: DuelMachineState, a: DuelAction): DuelMachineStat
       return { ...s, phase: "result", result: a.payload };
 
     case "opponent_left":
-      return s.phase === "result" ? s : { ...s, phase: "opponent_left", graceSeconds: a.graceSeconds };
+      return s.phase === "result"
+        ? s
+        : { ...s, phase: "opponent_left", graceSeconds: a.graceSeconds };
 
     case "disconnected":
       return s.phase === "result" ? s : { ...s, phase: "disconnected" };

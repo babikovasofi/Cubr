@@ -51,7 +51,10 @@ describe("shareOrDownload", () => {
   it("resolves without throwing when the user cancels (AbortError)", async () => {
     const abort = Object.assign(new Error("cancelled"), { name: "AbortError" });
     Object.defineProperty(navigator, "canShare", { value: () => true, configurable: true });
-    Object.defineProperty(navigator, "share", { value: vi.fn().mockRejectedValue(abort), configurable: true });
+    Object.defineProperty(navigator, "share", {
+      value: vi.fn().mockRejectedValue(abort),
+      configurable: true,
+    });
 
     await expect(shareOrDownload(new Blob(["x"]), "f.png", meta)).resolves.toBe("shared");
   });
@@ -59,7 +62,10 @@ describe("shareOrDownload", () => {
   it("rethrows a non-AbortError from navigator.share", async () => {
     const other = new Error("boom");
     Object.defineProperty(navigator, "canShare", { value: () => true, configurable: true });
-    Object.defineProperty(navigator, "share", { value: vi.fn().mockRejectedValue(other), configurable: true });
+    Object.defineProperty(navigator, "share", {
+      value: vi.fn().mockRejectedValue(other),
+      configurable: true,
+    });
 
     await expect(shareOrDownload(new Blob(["x"]), "f.png", meta)).rejects.toThrow("boom");
   });

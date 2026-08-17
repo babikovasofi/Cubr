@@ -110,7 +110,9 @@ describe("DailyBoard", () => {
 
   it("shows error state with retry button", () => {
     const mockReload = vi.fn();
-    render(<DailyBoard data={null} loading={false} error="Failed to load board" reload={mockReload} />);
+    render(
+      <DailyBoard data={null} loading={false} error="Failed to load board" reload={mockReload} />,
+    );
 
     expect(screen.getByText("Failed to load board")).toBeTruthy();
     const retryButton = screen.getByRole("button", { name: "Повторить" });

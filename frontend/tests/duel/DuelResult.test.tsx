@@ -11,8 +11,8 @@ import type { DuelH2HRead } from "../../src/api/duel";
 vi.mock("../../src/store/authStore", () => ({
   useAuthStore: vi.fn((selector) =>
     selector({
-      user: { id: "user-a-id" },  // Match the winner_id in DEFAULT_RESULT
-    })
+      user: { id: "user-a-id" }, // Match the winner_id in DEFAULT_RESULT
+    }),
   ),
 }));
 

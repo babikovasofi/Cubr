@@ -108,7 +108,13 @@ export class Hands {
   /** Detect on the RAW video frame at time `nowTs` (performance.now domain). */
   detect(video: HTMLVideoElement, nowTs: number): HandObservation {
     if (!this.landmarker) {
-      return { handsDetected: false, bothInZone: false, still: false, handsOutOfZone: 0, hands: [] };
+      return {
+        handsDetected: false,
+        bothInZone: false,
+        still: false,
+        handsOutOfZone: 0,
+        hands: [],
+      };
     }
     const res: HandLandmarkerResult = this.landmarker.detectForVideo(video, nowTs);
     const hands = res.landmarks.map((lms, i) => {

@@ -61,7 +61,12 @@ const GO_DUR_S = 0.15;
 // currentTime check below).
 const MAX_TICKS = 10;
 
-function playTone(ctx: AudioContext, when: number, freq: number, dur: number): {
+function playTone(
+  ctx: AudioContext,
+  when: number,
+  freq: number,
+  dur: number,
+): {
   osc: OscillatorNode;
   gain: GainNode;
 } {

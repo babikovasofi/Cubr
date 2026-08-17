@@ -27,7 +27,9 @@ async def _insert_user(session: AsyncSession, email: str) -> User:
     return user
 
 
-async def _insert_daily(session: AsyncSession, on: date, scramble: str = "R U' D2") -> DailyChallenge:
+async def _insert_daily(
+    session: AsyncSession, on: date, scramble: str = "R U' D2"
+) -> DailyChallenge:
     daily = DailyChallenge(date=on, event="333", scramble=scramble)
     session.add(daily)
     await session.flush()

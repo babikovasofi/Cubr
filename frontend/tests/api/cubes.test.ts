@@ -72,7 +72,9 @@ describe("cubes api", () => {
 
   it("maps the 6th-cube 409 CUBE_LIMIT to a RU ApiError", async () => {
     fetchMock.mockResolvedValueOnce(res({ status: 409, json: { detail: { code: "CUBE_LIMIT" } } }));
-    const err = (await createCube({ name: "x", color_profile: PROFILE }).catch((e) => e)) as ApiError;
+    const err = (await createCube({ name: "x", color_profile: PROFILE }).catch(
+      (e) => e,
+    )) as ApiError;
     expect(err).toBeInstanceOf(ApiError);
     expect(err.status).toBe(409);
     expect(err.code).toBe("CUBE_LIMIT");

@@ -112,7 +112,9 @@ async def main() -> None:
         logger.info("Created %d seed account(s): %s", len(created), ", ".join(created))
     else:
         logger.info("Seed accounts already present — nothing to do.")
-    logger.info("Log in with any of %s using password %r", [u["email"] for u in SEED_USERS], SEED_PASSWORD)
+    logger.info(
+        "Log in with any of %s using password %r", [u["email"] for u in SEED_USERS], SEED_PASSWORD
+    )
 
 
 if __name__ == "__main__":

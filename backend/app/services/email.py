@@ -58,9 +58,7 @@ async def _send(to: str, subject: str, html: str) -> None:
 async def send_verification_email(to: str, token: str) -> None:
     settings = get_settings()
     link = f"{settings.FRONTEND_URL}/verify?token={token}"
-    html = (
-        f'<p>Welcome to Cubr! Confirm your email:</p><p><a href="{link}">{link}</a></p>'
-    )
+    html = f'<p>Welcome to Cubr! Confirm your email:</p><p><a href="{link}">{link}</a></p>'
     await _send(to, "Confirm your Cubr email", html)
 
 

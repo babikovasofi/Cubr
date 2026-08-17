@@ -38,8 +38,10 @@ async def test_register_hashes_argon2_and_unverified(
 
     async with session_maker() as session:
         user = (
-            await session.execute(select(User).where(User.email == "a@example.com"))
-        ).unique().scalar_one()
+            (await session.execute(select(User).where(User.email == "a@example.com")))
+            .unique()
+            .scalar_one()
+        )
     assert user.hashed_password.startswith("$argon2")
     assert user.is_verified is False
 
@@ -136,8 +138,10 @@ async def test_verify_flow_marks_verified(
 
     async with session_maker() as session:
         user = (
-            await session.execute(select(User).where(User.email == "vf@example.com"))
-        ).unique().scalar_one()
+            (await session.execute(select(User).where(User.email == "vf@example.com")))
+            .unique()
+            .scalar_one()
+        )
     assert user.is_verified is True
 
 

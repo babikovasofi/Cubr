@@ -26,7 +26,9 @@ def test_verify_rejects_tampered_signature() -> None:
     token = duel_token.sign(uuid.uuid4(), uuid.uuid4(), _SECRET, ttl_seconds=60)
     payload, _sig = token.split(".", 1)
     # Re-sign the same payload under a different secret -> signature mismatch.
-    forged = f"{payload}.{duel_token.sign(uuid.uuid4(), uuid.uuid4(), 'other', 60).split('.', 1)[1]}"
+    forged = (
+        f"{payload}.{duel_token.sign(uuid.uuid4(), uuid.uuid4(), 'other', 60).split('.', 1)[1]}"
+    )
 
     with pytest.raises(DuelTokenError):
         duel_token.verify(forged, _SECRET)

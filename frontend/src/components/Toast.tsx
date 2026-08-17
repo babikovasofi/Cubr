@@ -23,8 +23,7 @@ let nextId = 1;
 
 const useToastStore = create<ToastState>((set) => ({
   items: [],
-  push: (message, kind) =>
-    set((s) => ({ items: [...s.items, { id: nextId++, message, kind }] })),
+  push: (message, kind) => set((s) => ({ items: [...s.items, { id: nextId++, message, kind }] })),
   dismiss: (id) => set((s) => ({ items: s.items.filter((t) => t.id !== id) })),
 }));
 
