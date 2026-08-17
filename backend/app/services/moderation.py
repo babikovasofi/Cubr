@@ -303,14 +303,20 @@ def _tokens(value: str, alphabet: str) -> list[str]:
 def check_display_name(value: str | None) -> NameRejection | None:
     """Return why ``value`` is unacceptable as a nickname / public handle.
 
-    ``None`` means "fine". An empty/absent name is fine too — both fields are
-    optional; clearing them is a legitimate action.
+    ``None`` means "fine". ``None`` or ``""`` (nothing typed) is fine too —
+    both fields are optional; clearing them is a legitimate action. A value
+    that is *non-empty but whitespace-only* is not a clear: it is rejected as
+    ``NAME_TOO_SHORT``, same as any other name below ``MIN_LENGTH``.
     """
     if value is None:
         return None
-    name = value.strip()
-    if not name:
+    # "" is the legitimate way to clear an optional field. Anything that
+    # *becomes* "" only after stripping (spaces, tabs, NBSP, …) is not a
+    # clear — it is content the user typed — so it must fall through to the
+    # length check below and come back NAME_TOO_SHORT, not a silent pass.
+    if value == "":
         return None
+    name = value.strip()
 
     if len(name) < MIN_LENGTH:
         return NameRejection(CODE_TOO_SHORT, "Имя слишком короткое: минимум 2 символа.")

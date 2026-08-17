@@ -119,6 +119,11 @@ def test_reserved_names_rejected(name: str) -> None:
         "‮cuber",  # RTL override — impersonation
         "1234",  # ни одной буквы
         "$$$$",
+        "😀😀",  # только эмодзи
+        "​​​",  # только zero-width space (не whitespace для str.strip — не отсекается длиной)
+        "...",  # только пунктуация — точки разрешены символьно, но без единой буквы
+        "---",  # только дефисы
+        "___",  # только подчёркивания
     ],
 )
 def test_charset_rejected(name: str) -> None:
@@ -131,10 +136,30 @@ def test_too_short() -> None:
     assert rejection is not None and rejection.code == CODE_TOO_SHORT
 
 
-@pytest.mark.parametrize("name", [None, "", "   "])
+@pytest.mark.parametrize("name", [None, ""])
 def test_empty_is_allowed(name: str | None) -> None:
     # Ник и публичное имя необязательны; очистка поля — легальное действие.
     assert check_display_name(name) is None
+
+
+@pytest.mark.parametrize(
+    "name",
+    [
+        "   ",  # обычные пробелы
+        " ",
+        "\t\t",  # табы
+        "\n\n",  # переводы строк
+        "\xa0\xa0\xa0",  # неразрывный пробел (NBSP) — тоже whitespace для str.strip()
+        "  \t \xa0 ",  # смесь
+    ],
+)
+def test_whitespace_only_name_rejected(name: str) -> None:
+    # В отличие от "" (явная очистка поля), непустая строка, состоящая
+    # только из пробельных символов, — это ввод пользователя, а не очистка:
+    # после normalize она короче MIN_LENGTH, так что код тот же, что и у
+    # любого другого слишком короткого имени.
+    rejection = check_display_name(name)
+    assert rejection is not None and rejection.code == CODE_TOO_SHORT
 
 
 def test_sanitize_derived_nickname_falls_back_instead_of_failing() -> None:
