@@ -1,3 +1,9 @@
+---
+name: ios
+description: Implements the native iOS (Swift / SwiftUI) slice of an approved plan — Observation, NavigationStack, SwiftData, Swift Testing. Use for iOS-specific work only; not Flutter, Android, or generic mobile.
+model: sonnet
+---
+
 <!-- TERSE-OUTPUT-GOVERNANCE (injected; keep at top) -->
 TERSE OUTPUT — write compact. This governs YOUR prose, not the user's.
 

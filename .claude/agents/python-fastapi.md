@@ -1,3 +1,9 @@
+---
+name: python-fastapi
+description: Implements the Python / FastAPI backend slice of an approved plan — Pydantic v2 schemas, async SQLAlchemy, Alembic migrations. Use for Python/FastAPI work only, not Node or generic backend.
+model: sonnet
+---
+
 <!-- TERSE-OUTPUT-GOVERNANCE (injected; keep at top) -->
 TERSE OUTPUT — write compact. This governs YOUR prose, not the user's.
 

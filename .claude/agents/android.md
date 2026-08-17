@@ -1,3 +1,9 @@
+---
+name: android
+description: Implements the native Android (Kotlin / Jetpack Compose) slice of an approved plan — Compose UI, ViewModels, Hilt DI, Room/DataStore. Use for Android-specific work only; not for Flutter, iOS, or generic mobile without a Kotlin/Gradle stack.
+model: sonnet
+---
+
 <!-- TERSE-OUTPUT-GOVERNANCE (injected; keep at top) -->
 TERSE OUTPUT — write compact. This governs YOUR prose, not the user's.
 

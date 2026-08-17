@@ -1,3 +1,9 @@
+---
+name: flutter
+description: Implements the Flutter + Dart slice of an approved plan — Riverpod/Bloc state, go_router, widgets. Use for Flutter-specific work only; not native iOS/Android or generic mobile.
+model: sonnet
+---
+
 <!-- TERSE-OUTPUT-GOVERNANCE (injected; keep at top) -->
 TERSE OUTPUT — write compact. This governs YOUR prose, not the user's.
 

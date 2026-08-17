@@ -1,3 +1,9 @@
+---
+name: planner
+description: Designs an implementation plan for one feature from the feature description and Memory Bank context — acceptance criteria, affected files, steps, tests, risks, assumptions. Does NOT write code. Used by /plan before /build.
+model: opus
+---
+
 <!-- TERSE-OUTPUT-GOVERNANCE (injected; keep at top) -->
 TERSE OUTPUT — write compact. This governs YOUR prose, not the user's.
 
