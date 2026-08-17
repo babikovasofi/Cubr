@@ -8,11 +8,22 @@
 # `caddy` gets a static IP (172.28.0.10) because app/main.py trusts
 # TRUSTED_PROXIES by IP for both X-Forwarded-For and rate limiting — without a
 # fixed address that list would go stale on every container recreate.
+#
+# All three services share one logging cap: the default json-file driver
+# grows without bound otherwise, and this box only has 25 GB total. 10 MB *
+# 3 files per service is well inside that, generously.
+
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
 
 services:
   db:
     image: postgres:16-alpine
     restart: unless-stopped
+    logging: *default-logging
     environment:
       POSTGRES_USER: cubr
       POSTGRES_DB: cubr
@@ -40,6 +51,7 @@ services:
     build:
       context: ../backend
     restart: unless-stopped
+    logging: *default-logging
     env_file:
       - .env
     depends_on:
@@ -51,6 +63,7 @@ services:
   caddy:
     image: caddy:2-alpine
     restart: unless-stopped
+    logging: *default-logging
     ports:
       - "80:80"
       - "443:443"
