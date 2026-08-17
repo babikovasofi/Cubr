@@ -1,7 +1,12 @@
 // @vitest-environment jsdom
 
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { getCurrentDaily, startDailyAttempt, submitDailyAttempt, getDailyBoard } from "../../src/api/daily";
+import {
+  getCurrentDaily,
+  startDailyAttempt,
+  submitDailyAttempt,
+  getDailyBoard,
+} from "../../src/api/daily";
 import { ApiError } from "../../src/api/client";
 
 function res(opts: { status: number; json?: unknown; text?: string }): Response {
@@ -82,7 +87,9 @@ describe("daily api", () => {
   });
 
   it("POST /daily/current/attempt/submit sends {time_ms,status} as JSON", async () => {
-    fetchMock.mockResolvedValueOnce(res({ status: 200, json: { ...ATTEMPT, status: "valid", time_ms: 12345 } }));
+    fetchMock.mockResolvedValueOnce(
+      res({ status: 200, json: { ...ATTEMPT, status: "valid", time_ms: 12345 } }),
+    );
     await submitDailyAttempt({ time_ms: 12345, status: "valid" });
     const [url, init] = fetchMock.mock.calls[0];
     expect(url).toBe("/api/daily/current/attempt/submit");
@@ -92,15 +99,21 @@ describe("daily api", () => {
   });
 
   it("409 on submit (already terminal) surfaces as ApiError with status 409", async () => {
-    fetchMock.mockResolvedValueOnce(res({ status: 409, json: { detail: "Attempt already submitted" } }));
-    const err = (await submitDailyAttempt({ time_ms: 1, status: "dnf" }).catch((e) => e)) as ApiError;
+    fetchMock.mockResolvedValueOnce(
+      res({ status: 409, json: { detail: "Attempt already submitted" } }),
+    );
+    const err = (await submitDailyAttempt({ time_ms: 1, status: "dnf" }).catch(
+      (e) => e,
+    )) as ApiError;
     expect(err).toBeInstanceOf(ApiError);
     expect(err.status).toBe(409);
   });
 
   it("network failure on submit surfaces as ApiError status 0 (retryable)", async () => {
     fetchMock.mockRejectedValueOnce(new TypeError("Failed to fetch"));
-    const err = (await submitDailyAttempt({ time_ms: 1, status: "valid" }).catch((e) => e)) as ApiError;
+    const err = (await submitDailyAttempt({ time_ms: 1, status: "valid" }).catch(
+      (e) => e,
+    )) as ApiError;
     expect(err).toBeInstanceOf(ApiError);
     expect(err.status).toBe(0);
   });

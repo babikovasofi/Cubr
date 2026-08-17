@@ -82,7 +82,9 @@ describe("tournament api", () => {
   });
 
   it("POST /tournament/current/attempt/submit sends {time_ms,status} as JSON", async () => {
-    fetchMock.mockResolvedValueOnce(res({ status: 200, json: { ...ATTEMPT, status: "valid", time_ms: 12345 } }));
+    fetchMock.mockResolvedValueOnce(
+      res({ status: 200, json: { ...ATTEMPT, status: "valid", time_ms: 12345 } }),
+    );
     await submitAttempt({ time_ms: 12345, status: "valid" });
     const [url, init] = fetchMock.mock.calls[0];
     expect(url).toBe("/api/tournament/current/attempt/submit");
@@ -92,7 +94,9 @@ describe("tournament api", () => {
   });
 
   it("409 on submit (already terminal) surfaces as ApiError with status 409", async () => {
-    fetchMock.mockResolvedValueOnce(res({ status: 409, json: { detail: "Attempt already submitted" } }));
+    fetchMock.mockResolvedValueOnce(
+      res({ status: 409, json: { detail: "Attempt already submitted" } }),
+    );
     const err = (await submitAttempt({ time_ms: 1, status: "dnf" }).catch((e) => e)) as ApiError;
     expect(err).toBeInstanceOf(ApiError);
     expect(err.status).toBe(409);

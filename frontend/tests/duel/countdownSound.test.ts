@@ -47,9 +47,11 @@ beforeEach(() => {
   (globalThis as unknown as { window: unknown }).window = globalThis;
   // `new Ctor()` requires a real constructible function — an arrow-based
   // vi.fn() throws "is not a constructor", so use a function expression.
-  (globalThis as unknown as { AudioContext: unknown }).AudioContext = vi.fn(function AudioContextCtor() {
-    return fakeCtx;
-  });
+  (globalThis as unknown as { AudioContext: unknown }).AudioContext = vi.fn(
+    function AudioContextCtor() {
+      return fakeCtx;
+    },
+  );
   vi.setSystemTime(new Date("2026-07-19T10:00:00.000Z"));
 });
 
@@ -90,9 +92,8 @@ describe("scheduleCountdownBeeps", () => {
   });
 
   it("returns a noop and schedules nothing when muted", async () => {
-    const { scheduleCountdownBeeps, setCountdownMuted } = await import(
-      "../../src/duel/countdownSound"
-    );
+    const { scheduleCountdownBeeps, setCountdownMuted } =
+      await import("../../src/duel/countdownSound");
     setCountdownMuted(true);
     const serverStartAt = new Date(Date.now() + 3_000).toISOString();
 
@@ -122,9 +123,8 @@ describe("scheduleCountdownBeeps", () => {
 
   it("no-ops without throwing when window has no AudioContext", async () => {
     delete (globalThis as { AudioContext?: unknown }).AudioContext;
-    const { scheduleCountdownBeeps, getAudioContext } = await import(
-      "../../src/duel/countdownSound"
-    );
+    const { scheduleCountdownBeeps, getAudioContext } =
+      await import("../../src/duel/countdownSound");
 
     expect(getAudioContext()).toBeNull();
     expect(() => scheduleCountdownBeeps(new Date(Date.now() + 3_000).toISOString())).not.toThrow();
@@ -174,7 +174,7 @@ describe("installAudioUnlock", () => {
     (globalThis as unknown as { document: unknown }).document = globalThis;
     const listeners = new Map<string, () => void>();
     (globalThis as unknown as { addEventListener: unknown }).addEventListener = vi.fn(
-      (type: string, listener: () => void) => listeners.set(type, listener)
+      (type: string, listener: () => void) => listeners.set(type, listener),
     );
     fakeCtx.state = "suspended";
     const resume = vi.fn(() => Promise.resolve());

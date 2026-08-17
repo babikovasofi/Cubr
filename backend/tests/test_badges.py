@@ -4,7 +4,6 @@ Covers registry well-formed, grant idempotency, evaluate_* boundaries,
 best-effort wrapping, PB-invariant (honesty field unused, solves unmodified).
 """
 
-
 import pytest
 from httpx import AsyncClient
 from sqlalchemy import func, select
@@ -79,7 +78,9 @@ def test_registry_entry_maps_code_to_badgereaddict() -> None:
 # --------------------------------------------------------------------------- #
 
 
-async def test_grant_first_call_returns_true(session_maker: async_sessionmaker[AsyncSession]) -> None:
+async def test_grant_first_call_returns_true(
+    session_maker: async_sessionmaker[AsyncSession],
+) -> None:
     async with session_maker() as session:
         user = User(email="grant1@example.com", hashed_password="x")
         session.add(user)
@@ -116,7 +117,9 @@ async def test_grant_duplicate_returns_false(
 
         # Only one row for this (user, code)
         result = await session.execute(
-            select(func.count()).select_from(UserBadge).where(
+            select(func.count())
+            .select_from(UserBadge)
+            .where(
                 UserBadge.user_id == user.id,
                 UserBadge.code == "sub_30",
             )
@@ -512,7 +515,9 @@ async def test_evaluate_duel_finalized_ten_duels_on_tenth_only(
 
         # No ten_duels yet
         result = await session.execute(
-            select(func.count()).select_from(DuelRoom).where(
+            select(func.count())
+            .select_from(DuelRoom)
+            .where(
                 DuelRoom.status == "finished",
                 (DuelRoom.player_a_id == a.id) | (DuelRoom.player_b_id == a.id),
             )
@@ -623,12 +628,8 @@ async def test_evaluate_duel_finalized_giant_slayer_loser_faster(
 ) -> None:
     """giant_slayer when loser's best_single_ms < winner's."""
     async with session_maker() as session:
-        winner = User(
-            email="giant_winner1@example.com", hashed_password="x", best_single_ms=8000
-        )
-        loser = User(
-            email="giant_loser1@example.com", hashed_password="x", best_single_ms=3000
-        )
+        winner = User(email="giant_winner1@example.com", hashed_password="x", best_single_ms=8000)
+        loser = User(email="giant_loser1@example.com", hashed_password="x", best_single_ms=3000)
         session.add_all([winner, loser])
         await session.flush()
 
@@ -665,9 +666,7 @@ async def test_evaluate_duel_finalized_giant_slayer_loser_no_pb(
 ) -> None:
     """giant_slayer NOT granted when loser has no best_single_ms."""
     async with session_maker() as session:
-        winner = User(
-            email="giant_winner2@example.com", hashed_password="x", best_single_ms=8000
-        )
+        winner = User(email="giant_winner2@example.com", hashed_password="x", best_single_ms=8000)
         loser = User(email="giant_loser2@example.com", hashed_password="x", best_single_ms=None)
         session.add_all([winner, loser])
         await session.flush()
@@ -705,12 +704,8 @@ async def test_evaluate_duel_finalized_giant_slayer_loser_not_faster(
 ) -> None:
     """giant_slayer NOT granted when loser's PB is >= winner's."""
     async with session_maker() as session:
-        winner = User(
-            email="giant_winner3@example.com", hashed_password="x", best_single_ms=5000
-        )
-        loser = User(
-            email="giant_loser3@example.com", hashed_password="x", best_single_ms=6000
-        )
+        winner = User(email="giant_winner3@example.com", hashed_password="x", best_single_ms=5000)
+        loser = User(email="giant_loser3@example.com", hashed_password="x", best_single_ms=6000)
         session.add_all([winner, loser])
         await session.flush()
 
@@ -747,12 +742,8 @@ async def test_evaluate_duel_finalized_giant_slayer_winner_no_pb_vs_loser_with(
 ) -> None:
     """giant_slayer granted when winner's PB is None but loser has one."""
     async with session_maker() as session:
-        winner = User(
-            email="giant_winner4@example.com", hashed_password="x", best_single_ms=None
-        )
-        loser = User(
-            email="giant_loser4@example.com", hashed_password="x", best_single_ms=5000
-        )
+        winner = User(email="giant_winner4@example.com", hashed_password="x", best_single_ms=None)
+        loser = User(email="giant_loser4@example.com", hashed_password="x", best_single_ms=5000)
         session.add_all([winner, loser])
         await session.flush()
 
@@ -793,6 +784,7 @@ async def test_best_effort_wrapping_solve(
     client: AsyncClient, email_spy: EmailSpy, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """Badge evaluator raises => solve still commits, new_badges=[]."""
+
     async def _boom(*args: object, **kwargs: object) -> list[str]:
         raise RuntimeError("badge engine exploded")
 
@@ -810,12 +802,11 @@ async def test_best_effort_wrapping_tournament(
     client: AsyncClient, email_spy: EmailSpy, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """Badge evaluator raises on tournament => submit still commits."""
+
     async def _boom(*args: object, **kwargs: object) -> list[str]:
         raise RuntimeError("badge engine exploded")
 
-    monkeypatch.setattr(
-        "app.routers.tournament.badges_service.evaluate_tournament_submit", _boom
-    )
+    monkeypatch.setattr("app.routers.tournament.badges_service.evaluate_tournament_submit", _boom)
 
     await _register_and_login(client, "best_effort_tour@example.com")
     # Start a tournament attempt
@@ -835,9 +826,7 @@ async def test_best_effort_wrapping_tournament(
 # --------------------------------------------------------------------------- #
 
 
-async def test_post_solves_sub_30_grants_badge(
-    client: AsyncClient, email_spy: EmailSpy
-) -> None:
+async def test_post_solves_sub_30_grants_badge(client: AsyncClient, email_spy: EmailSpy) -> None:
     """POST /solves with sub-30 time => new_badges has sub_30."""
     await _register_and_login(client, "integration_solve1@example.com")
 
@@ -894,9 +883,7 @@ async def test_get_badges_anonymous_401(client: AsyncClient) -> None:
     assert resp.status_code == 401, resp.text
 
 
-async def test_get_badges_authed_full_registry(
-    client: AsyncClient, email_spy: EmailSpy
-) -> None:
+async def test_get_badges_authed_full_registry(client: AsyncClient, email_spy: EmailSpy) -> None:
     """GET /badges returns full registry, all locked for new user."""
     await _register_and_login(client, "integration_badges1@example.com")
 
@@ -913,7 +900,9 @@ async def test_get_badges_earned_locked_flags(client: AsyncClient, email_spy: Em
     await _register_and_login(client, "integration_badges2@example.com")
 
     # Earn one badge
-    await client.post("/solves", json={"scramble": "R U R' U'", "time_ms": 29999, "status": "valid"})
+    await client.post(
+        "/solves", json={"scramble": "R U R' U'", "time_ms": 29999, "status": "valid"}
+    )
 
     resp = await client.get("/badges")
     assert resp.status_code == 200, resp.text

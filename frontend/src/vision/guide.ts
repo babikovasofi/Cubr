@@ -152,27 +152,109 @@ export function dimWhiteWarningRu(whiteL: number, min: number, t: T = ruT): stri
   );
 }
 
+/** Центр грани, названный цветом: человек не обязан знать нотацию U/R/F/D/L/B. */
+const CENTRE_COLOUR_RU: Record<string, string> = {
+  U: "белым",
+  R: "красным",
+  F: "зелёным",
+  D: "жёлтым",
+  L: "оранжевым",
+  B: "синим",
+};
+
 /**
  * Раскладка шести съёмок по шести цветам не сошлась.
  *
  * Одиночный argmin в этом месте говорил «центр U встретился 2 раза» — фраза
  * описывает свой внутренний конфликт, а не то, что человеку делать. Раскладка
- * целиком таких конфликтов не создаёт, поэтому отказ у неё ровно один и
- * конкретный: вот эта съёмка по счёту, вот цвет, который ей достался, вот
- * насколько её центр от него далёк. Дальше человек сам видит — показал грань
- * дважды или поймал в рамку стол.
+ * целиком таких конфликтов не создаёт, поэтому отказ у неё конкретный: вот эта
+ * съёмка по счёту, вот цвет, который ей достался, вот насколько её центр далёк.
+ *
+ * Живой прогон 2026-08-05 показал, чего тексту не хватало.
+ *
+ *  1. Печатался порог АБСОЛЮТНОГО замка, когда срабатывал относительный, и
+ *     сообщение опровергало само себя: «в 30.0 от цвета, допустимо 34». Теперь
+ *     печатается тот порог, который реально сработал.
+ *  2. Назывался ПЕРВЫЙ нарушитель, а не худший: человеку показали съёмку 5 с
+ *     ΔE 30, пока настоящая беда сидела в шестой с ΔE 55.
+ *  3. Главное: раскладка — бижекция, она обязана раздать все шесть цветов.
+ *     Значит цвета, доставшиеся нарушителям, — ровно те центры, которых она
+ *     не увидела. Это и есть готовый ответ «какие грани ты не показала»,
+ *     и раньше он вычислялся, но выбрасывался.
  */
 export function centerAssignFailedRu(
-  capture: number,
-  face: string,
-  de: number,
-  max: number,
+  offenders: {
+    capture: number;
+    face: string;
+    de: number;
+    relative: boolean;
+    own?: string;
+    ownDE?: number;
+    duplicateOf?: number;
+  }[],
+  medianDE: number,
+  maxAbs: number,
+  maxRel: number,
   t: T = ruT,
 ): string {
-  return t(
-    "Съёмка {n} не опознана: её центр в {de} от цвета {face} (допустимо {max}). Либо одна и та же грань показана дважды, либо в рамку попал не кубик. Покажи шесть РАЗНЫХ граней, каждую — центром в рамку.",
-    { n: String(capture + 1), de: de.toFixed(1), face, max: String(max) },
-  );
+  if (offenders.length === 0) return t("Грани не опознаны по центрам.");
+  const worst = offenders.reduce((a, b) => (b.de > a.de ? b : a));
+  const head = worst.relative
+    ? t(
+        "Съёмка {n} не опознана: её центр в {de} от цвета {face}, тогда как остальные съёмки держатся около {med} (отрыв больше {rel} — брак).",
+        {
+          n: String(worst.capture + 1),
+          de: worst.de.toFixed(1),
+          face: worst.face,
+          med: medianDE.toFixed(1),
+          rel: String(maxRel),
+        },
+      )
+    : t("Съёмка {n} не опознана: её центр в {de} от цвета {face} (допустимо {max}).", {
+        n: String(worst.capture + 1),
+        de: worst.de.toFixed(1),
+        face: worst.face,
+        max: String(maxAbs),
+      });
+
+  // Дубликат и плохо прочитанный центр выглядят для раскладки одинаково, а
+  // лечатся по-разному, поэтому и говорим о них РАЗНОЕ. Признак дубликата —
+  // съёмка тянется к цвету, который уже занят другой, севшей на него лучше.
+  const dupes = offenders.filter((o) => o.duplicateOf !== undefined);
+  const misread = offenders.filter((o) => o.duplicateOf === undefined);
+
+  const parts: string[] = [];
+  if (dupes.length > 0) {
+    const colours = dupes
+      .map((o) => CENTRE_COLOUR_RU[o.face] ?? o.face)
+      .filter((v, i, a) => a.indexOf(v) === i);
+    parts.push(
+      t("Похоже, ты не показала грань с {colours} центром — а показала что-то дважды.", {
+        colours: colours.join(" и "),
+      }),
+    );
+  }
+  for (const o of misread) {
+    parts.push(
+      t(
+        "Центр съёмки {n} не похож и на свой ближайший цвет ({own}, {ownDE}) — значит дело не в порядке граней: центр прочитан плохо. Кубик мог стоять наискось, центр — уехать из ячейки, или свет ушёл от калибровки.",
+        {
+          n: String(o.capture + 1),
+          own: CENTRE_COLOUR_RU[o.own ?? ""] ?? o.own ?? "?",
+          ownDE: (o.ownDE ?? 0).toFixed(1),
+        },
+      ),
+    );
+  }
+  if (parts.length === 0) {
+    parts.push(t("Либо одна и та же грань показана дважды, либо в рамку попал не кубик."));
+  }
+  const tail =
+    dupes.length > 0
+      ? t("Покажи шесть РАЗНЫХ граней, каждую — центром в рамку.")
+      : t("Переснимай: держи грань ровно к камере и целиком в рамке.");
+
+  return `${head} ${parts.join(" ")} ${tail}`;
 }
 
 /**
@@ -184,9 +266,37 @@ export function centerAssignFailedRu(
  * съёмка торчит над остальными, во втором далеки все шесть. Диагностика, не
  * замер: в гейт эта строка не идёт.
  */
-export function centerSpreadRu(faces: string[], des: number[], medianDE: number): string {
-  const parts = faces.map((f, i) => `${i + 1}:${f} ${(des[i] ?? 0).toFixed(0)}`);
-  return `Центры съёмок (номер:цвет ΔE): ${parts.join(", ")}. Медиана ${medianDE.toFixed(1)}.`;
+export function centerSpreadRu(
+  faces: string[],
+  des: number[],
+  medianDE: number,
+  /**
+   * К какому цвету центр тянется САМ, вне бижекции, и его сырой RGB.
+   *
+   * Назначенного цвета мало. Живой прогон 2026-08-05 (stickerless, LED) дал
+   * «1:L 37 … 5:U 1»: выглядит как «первая съёмка — плохая оранжевая», а на деле
+   * камера увидела ДВА белых центра, и раскладка отдала белый лучшему, а первой
+   * достался никем не занятый оранжевый. Понять это по назначенным цветам
+   * нельзя в принципе — они и есть результат раздачи, а не то, что видела камера.
+   */
+  own?: string[],
+  ownDes?: number[],
+  rgb?: [number, number, number][],
+): string {
+  const parts = faces.map((f, i) => {
+    const assigned = `${i + 1}:${f} ${(des[i] ?? 0).toFixed(0)}`;
+    const ownPart =
+      own?.[i] !== undefined ? ` (сам ${own[i]} ${(ownDes?.[i] ?? 0).toFixed(0)})` : "";
+    const rgbPart = rgb?.[i] ? ` RGB(${rgb[i].map((v) => Math.round(v)).join(",")})` : "";
+    return assigned + ownPart + rgbPart;
+  });
+  // Заголовок описывает РОВНО те поля, что напечатаны: обещать RGB, которого в
+  // строке нет, — тот же сорт вранья, что «допустимо 34» при сработавшем
+  // относительном замке.
+  const header = own
+    ? "Центры съёмок (номер:назначено ΔE (сам ΔE)" + (rgb ? " RGB" : "") + ")"
+    : "Центры съёмок (номер:цвет ΔE)";
+  return `${header}: ${parts.join(", ")}. Медиана ${medianDE.toFixed(1)}.`;
 }
 
 /**

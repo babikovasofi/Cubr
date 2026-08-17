@@ -88,8 +88,11 @@ describe("renderCardBlob", () => {
     vi.spyOn(document, "createElement").mockImplementation((tag: string) => {
       const el = realCreateElement(tag);
       if (tag === "canvas") {
-        (el as HTMLCanvasElement).getContext = vi.fn(() => fakeCtx()) as unknown as HTMLCanvasElement["getContext"];
-        (el as HTMLCanvasElement).toBlob = (cb: BlobCallback) => cb(new Blob(["x"], { type: "image/png" }));
+        (el as HTMLCanvasElement).getContext = vi.fn(() =>
+          fakeCtx(),
+        ) as unknown as HTMLCanvasElement["getContext"];
+        (el as HTMLCanvasElement).toBlob = (cb: BlobCallback) =>
+          cb(new Blob(["x"], { type: "image/png" }));
       }
       return el;
     });
@@ -102,7 +105,9 @@ describe("renderCardBlob", () => {
     vi.spyOn(document, "createElement").mockImplementation((tag: string) => {
       const el = realCreateElement(tag);
       if (tag === "canvas") {
-        (el as HTMLCanvasElement).getContext = vi.fn(() => fakeCtx()) as unknown as HTMLCanvasElement["getContext"];
+        (el as HTMLCanvasElement).getContext = vi.fn(() =>
+          fakeCtx(),
+        ) as unknown as HTMLCanvasElement["getContext"];
         (el as HTMLCanvasElement).toBlob = (cb: BlobCallback) => cb(null);
       }
       return el;
@@ -115,7 +120,9 @@ describe("renderCardBlob", () => {
     vi.spyOn(document, "createElement").mockImplementation((tag: string) => {
       const el = realCreateElement(tag);
       if (tag === "canvas") {
-        (el as HTMLCanvasElement).getContext = vi.fn(() => null) as unknown as HTMLCanvasElement["getContext"];
+        (el as HTMLCanvasElement).getContext = vi.fn(
+          () => null,
+        ) as unknown as HTMLCanvasElement["getContext"];
       }
       return el;
     });

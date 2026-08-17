@@ -405,6 +405,32 @@ export function minSeparation(
   return best;
 }
 
+/**
+ * Ближайший СОСЕД каждого эталона среди пяти остальных.
+ *
+ * `minSeparation` называет одну самую тесную пару и молчит про остальные — а
+ * живой отказ 2026-08-05 выглядел так: центр оранжевой грани прочитан белым,
+ * при этом самой тесной парой могла быть совсем другая пара, и вопрос «слиплись
+ * ли L и U ещё на калибровке» оставался без ответа. Сосед на каждый цвет
+ * отвечает на него прямо, ценой шести строк в отчёте.
+ */
+export function nearestNeighbours(
+  refs: Refs,
+  mode: DeltaEMode = config.DELTA_E_MODE,
+): Record<ColorName, { name: ColorName; de: number }> {
+  const out = {} as Record<ColorName, { name: ColorName; de: number }>;
+  for (const name of COLOR_NAMES) {
+    let best = { name: COLOR_NAMES[0], de: Infinity };
+    for (const other of COLOR_NAMES) {
+      if (other === name) continue;
+      const de = deltaE(refs[name], refs[other], mode);
+      if (de < best.de) best = { name: other, de };
+    }
+    out[name] = best;
+  }
+  return out;
+}
+
 export type CalibrationProblem =
   | { kind: "white-not-lightest"; whiteL: number; lightest: ColorName; lightestL: number }
   | { kind: "collapsed"; a: ColorName; b: ColorName; de: number };

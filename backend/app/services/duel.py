@@ -386,9 +386,7 @@ class H2HCounts:
     draws: int
 
 
-async def h2h_record(
-    session: AsyncSession, me_id: uuid.UUID, opponent_id: uuid.UUID
-) -> H2HCounts:
+async def h2h_record(session: AsyncSession, me_id: uuid.UUID, opponent_id: uuid.UUID) -> H2HCounts:
     """Head-to-head record between `me_id` and `opponent_id`, across every
     `finished` room where they played each other (either slot order; a
     rematch child room counts as its own game, never deduped by
@@ -411,9 +409,7 @@ async def h2h_record(
         select(
             func.count().label("played"),
             func.sum(case((DuelRoom.winner_id == me_id, 1), else_=0)).label("your_wins"),
-            func.sum(case((DuelRoom.winner_id == opponent_id, 1), else_=0)).label(
-                "opponent_wins"
-            ),
+            func.sum(case((DuelRoom.winner_id == opponent_id, 1), else_=0)).label("opponent_wins"),
             func.sum(case((DuelRoom.winner_id.is_(None), 1), else_=0)).label("draws"),
         ).where(pair)
     )

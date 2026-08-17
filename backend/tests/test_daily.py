@@ -40,7 +40,9 @@ async def test_endpoints_require_auth(client: AsyncClient) -> None:
     assert (await client.get("/daily/current/board")).status_code == 401
     assert (await client.post("/daily/current/attempt/start")).status_code == 401
     assert (
-        await client.post("/daily/current/attempt/submit", json={"time_ms": 5000, "status": "valid"})
+        await client.post(
+            "/daily/current/attempt/submit", json={"time_ms": 5000, "status": "valid"}
+        )
     ).status_code == 401
 
 
@@ -122,9 +124,7 @@ async def test_board_has_no_scramble(client: AsyncClient, email_spy: EmailSpy) -
 # --- submit ---
 
 
-async def test_submit_valid_records_result(
-    client: AsyncClient, email_spy: EmailSpy
-) -> None:
+async def test_submit_valid_records_result(client: AsyncClient, email_spy: EmailSpy) -> None:
     await _register_and_login(client, "d-submit@example.com")
     await client.post("/daily/current/attempt/start")
     resp = await client.post(
@@ -181,8 +181,10 @@ async def test_submit_past_deadline_forced_dnf(
     monkeypatch.setattr("app.services.daily.current_day", lambda now=None: challenge_date)
     monkeypatch.setattr(
         "app.services.daily.now_utc",
-        lambda: datetime.now(timezone.utc)
-        + timedelta(seconds=settings.DAILY_ATTEMPT_WINDOW_SECONDS + 60),
+        lambda: (
+            datetime.now(timezone.utc)
+            + timedelta(seconds=settings.DAILY_ATTEMPT_WINDOW_SECONDS + 60)
+        ),
     )
     resp = await client.post(
         "/daily/current/attempt/submit", json={"time_ms": 4200, "status": "valid"}
@@ -204,9 +206,7 @@ async def test_board_empty_day(client: AsyncClient, email_spy: EmailSpy) -> None
     assert body["your_entry"] is None
 
 
-async def test_board_valid_entry_deranked_no_pii(
-    client: AsyncClient, email_spy: EmailSpy
-) -> None:
+async def test_board_valid_entry_deranked_no_pii(client: AsyncClient, email_spy: EmailSpy) -> None:
     await _register_and_login(client, "d-board@example.com")
     await client.post("/daily/current/attempt/start")
     await client.post("/daily/current/attempt/submit", json={"time_ms": 3000, "status": "valid"})

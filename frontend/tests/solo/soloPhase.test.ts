@@ -1,9 +1,5 @@
 import { describe, it, expect } from "vitest";
-import {
-  initialSoloState,
-  soloReducer,
-  type SoloState,
-} from "../../src/solo/soloPhase";
+import { initialSoloState, soloReducer, type SoloState } from "../../src/solo/soloPhase";
 
 const run = (state: SoloState, ...actions: Parameters<typeof soloReducer>[1][]): SoloState =>
   actions.reduce((s, a) => soloReducer(s, a), state);
@@ -62,7 +58,11 @@ describe("soloReducer — reordered ritual (calibrate-first, honest finish)", ()
   });
 
   it("solve_verify_ok reaches result; accepted from stopped directly too", () => {
-    const stopped = run(toArmed(), { type: "solve_start", t: 100 }, { type: "solve_stop", t: 4100 });
+    const stopped = run(
+      toArmed(),
+      { type: "solve_start", t: 100 },
+      { type: "solve_stop", t: 4100 },
+    );
     expect(soloReducer(stopped, { type: "solve_verify_ok" }).phase).toBe("result");
   });
 

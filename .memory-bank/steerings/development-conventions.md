@@ -37,6 +37,14 @@
   design-process, anti-ai-slop-writing, anti-slop-design, mattermost, solidtime,
   reflect. Dev-loop: plan, build, review, debug. Обновление:
   `bash <startpoint>/scripts/bootstrap.sh --upgrade-skills . --force`.
+- **Ночной режим (`night-runner`):** автономный автопилот на время сна — сам берёт
+  задачи из Memory Bank и работает задача-за-задачей, без вопросов. Пишет ТОЛЬКО в
+  изолированную ветку `night/<slug>-<timestamp>` от `main`; в `main` не коммитит, не
+  мержит и никогда не пушит. Каждая задача = отдельный коммит и только после зелёных
+  build+тестов, иначе откат и запись в журнал `.memory-bank/night-log.md`. По стопу —
+  отчёт `swarm-report/night-<slug>-<дата>.md`, ветка остаётся на ревью утром. Не берёт
+  задачи, требующие человека/железа (камера, manual QA) и всё за пределами репозитория
+  (деплой, секреты, remote). Промпт: `.claude/agents/night-runner.md`, модель `opus`.
 - **Модель саб-агентов dev-loop — фиксирована в самих skill-файлах, вручную
   переключать не нужно:** `/plan` спавнит planner+skeptic на **opus** (самое сложное
   рассуждение), `/build` и `/debug` — исполняющих/debugger-агентов на **sonnet**

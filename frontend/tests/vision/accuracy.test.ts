@@ -98,8 +98,22 @@ describe("formatReport", () => {
       second: "D",
       secondDE: 40,
     }));
-    diags[0] = { rgb: [180, 60, 60], kept: 0.05, best: "R", bestDE: 8, second: "L", secondDE: 26.5 };
-    diags[1] = { rgb: [40, 90, 190], kept: 0.8, best: "B", bestDE: 11, second: "U", secondDE: 12.5 };
+    diags[0] = {
+      rgb: [180, 60, 60],
+      kept: 0.05,
+      best: "R",
+      bestDE: 8,
+      second: "L",
+      secondDE: 26.5,
+    };
+    diags[1] = {
+      rgb: [40, 90, 190],
+      kept: 0.8,
+      best: "B",
+      bestDE: 11,
+      second: "U",
+      secondDE: 12.5,
+    };
 
     const out = formatReport(scoreRead(a.join(""), SOLVED), diags);
     expect(out).toContain("kept 5% (ВЫБИТА), ΔE R 8.0 / L 26.5, отрыв 18.5");
@@ -175,5 +189,75 @@ describe("formatReport", () => {
   // читался бы как «подгонка не сработала».
   it("без телеметрии подгонки блок не печатается", () => {
     expect(formatReport(scoreRead(SOLVED, SOLVED))).not.toContain("Подгонка сетки");
+  });
+
+  // Скептик (LOW): «кожа в ячейках — следствие съехавшей сетки» была
+  // недоказанной посылкой. Отчёт обязан давать число, а не декларацию.
+  it("считает ячейки, чей цвет ближе к телесному тону, чем к любому эталону", () => {
+    const diags: CellDiag[] = Array.from({ length: 54 }, () => ({
+      rgb: [235, 238, 236] as [number, number, number], // здоровый белый
+      kept: 1,
+      best: "U",
+      bestDE: 3,
+      second: "D",
+      secondDE: 40,
+    }));
+    // Ячейка 0: цвет — палец/ладонь в кадре (телесный тон), а не наклейка.
+    diags[0] = {
+      rgb: config.FACE_FIT_SKIN_RGB,
+      kept: 1,
+      best: "L",
+      bestDE: 22,
+      second: "R",
+      secondDE: 26,
+    };
+    const out = formatReport(scoreRead(SOLVED, SOLVED), diags);
+    expect(out).toContain("ближе к телесному тону, чем к эталону кубика: 1");
+  });
+
+  it("не считает здоровую наклейку телесной, даже если её ΔE до эталона не нулевой", () => {
+    const diags: CellDiag[] = Array.from({ length: 54 }, () => ({
+      rgb: [235, 238, 236] as [number, number, number],
+      kept: 1,
+      best: "U",
+      bestDE: 3,
+      second: "D",
+      secondDE: 40,
+    }));
+    const out = formatReport(scoreRead(SOLVED, SOLVED), diags);
+    expect(out).toContain("ближе к телесному тону, чем к эталону кубика: 0");
+  });
+
+  // Телеметрия шага 6: контраст границ и определённость фазы сетки — печатаются,
+  // только если пришли (useCubeReader.ts их пока не заполняет — отдельная
+  // задача), но формат уже проверен на будущее.
+  it("печатает контраст границ и определённость фазы сетки, когда они пришли", () => {
+    const fits = [
+      { gain: 6.2, used: true, gap: 21, edge: 45, margin: 4.3, decided: true },
+      { gain: 5.1, used: true, gap: 19, edge: 8, margin: 1.1, decided: false },
+      { gain: 0.4, used: false, gap: 3.2 }, // старая форма без edge/margin/decided
+      { gain: 0.1, used: false, gap: 2.8, edge: 30, margin: 5, decided: true },
+      { gain: 4.0, used: true, gap: 17, edge: 40, margin: 3, decided: true },
+      { gain: 3.3, used: true, gap: 15, edge: 35, margin: 2.5, decided: true },
+    ];
+    const out = formatReport(scoreRead(SOLVED, SOLVED), undefined, fits);
+    expect(out).toContain("контраст границ 45.0");
+    expect(out).toContain("фаза сетки определена");
+    expect(out).toContain("фаза сетки НЕ определена");
+    expect(out).toContain("граней без определённой подгонки: 1 из 6");
+  });
+
+  it("без decided в телеметрии строку про определённость фазы не печатает", () => {
+    const fits = [
+      { gain: 6.2, used: true, gap: 21 },
+      { gain: 5.1, used: true, gap: 19 },
+      { gain: 0.4, used: false, gap: 3.2 },
+      { gain: 0.1, used: false, gap: 2.8 },
+      { gain: 4.0, used: true, gap: 17 },
+      { gain: 3.3, used: true, gap: 15 },
+    ];
+    const out = formatReport(scoreRead(SOLVED, SOLVED), undefined, fits);
+    expect(out).not.toContain("граней без определённой подгонки");
+    expect(out).not.toContain("контраст границ");
   });
 });

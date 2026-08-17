@@ -134,7 +134,9 @@ describe("useTournamentAttempt — commit", () => {
     const { result } = renderHook(() => useTournamentAttempt());
     await waitFor(() => expect(result.current.state.phase).toBe("precommit"));
 
-    startAttemptMock.mockRejectedValueOnce(new ApiError(0, null, "Не удалось связаться с сервером."));
+    startAttemptMock.mockRejectedValueOnce(
+      new ApiError(0, null, "Не удалось связаться с сервером."),
+    );
     await act(() => result.current.commit());
     expect(result.current.state.phase).toBe("commit_error");
     expect(result.current.state.attempt).toBeNull();
@@ -225,7 +227,9 @@ describe("useTournamentAttempt — submit", () => {
 
   it("a network failure is retryable and never drops the result", async () => {
     const result = await toActive();
-    submitAttemptMock.mockRejectedValueOnce(new ApiError(0, null, "Не удалось связаться с сервером."));
+    submitAttemptMock.mockRejectedValueOnce(
+      new ApiError(0, null, "Не удалось связаться с сервером."),
+    );
 
     await act(() => result.current.submit({ elapsedMs: 7000, dnf: false, cameraVerified: true }));
 

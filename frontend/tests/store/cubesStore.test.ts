@@ -22,7 +22,14 @@ import {
   __resetCubesForTests,
 } from "../../src/store/cubesStore";
 
-const P: ColorProfile = { U: [0, 0, 0], R: [0, 0, 0], F: [0, 0, 0], D: [0, 0, 0], L: [0, 0, 0], B: [0, 0, 0] };
+const P: ColorProfile = {
+  U: [0, 0, 0],
+  R: [0, 0, 0],
+  F: [0, 0, 0],
+  D: [0, 0, 0],
+  L: [0, 0, 0],
+  B: [0, 0, 0],
+};
 
 function cube(id: string, is_primary: boolean, createdAt: string): CubeRead {
   return {
@@ -145,7 +152,14 @@ describe("cubesStore.remove", () => {
 describe("getSelectedProfile", () => {
   it("returns the selected cube's profile when it is present in the list", () => {
     const c = cube("xyz", true, "2026-07-01");
-    c.color_profile = { U: [96, 0, 2], R: [50, 60, 40], F: [55, -45, 30], D: [90, -5, 80], L: [62, 40, 55], B: [40, 10, -45] };
+    c.color_profile = {
+      U: [96, 0, 2],
+      R: [50, 60, 40],
+      F: [55, -45, 30],
+      D: [90, -5, 80],
+      L: [62, 40, 55],
+      B: [40, 10, -45],
+    };
     useCubesStore.setState({ list: [c], selectedCubeId: "xyz", status: "ready" });
     expect(getSelectedProfile()).toEqual(c.color_profile);
   });

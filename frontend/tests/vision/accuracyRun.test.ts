@@ -106,7 +106,8 @@ describe("scoreRead over an assembled raw read", () => {
     // Off-diagonal confusion (both faces) sums to exactly K.
     let off = 0;
     for (const e of ["U", "R", "F", "D", "L", "B"] as Face[])
-      for (const r of ["U", "R", "F", "D", "L", "B"] as Face[]) if (e !== r) off += rep.confusion[e][r];
+      for (const r of ["U", "R", "F", "D", "L", "B"] as Face[])
+        if (e !== r) off += rep.confusion[e][r];
     expect(off).toBe(idxs.length);
   });
 

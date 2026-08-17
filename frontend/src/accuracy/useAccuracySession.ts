@@ -14,6 +14,7 @@ import { useScramble } from "../scramble/hooks/useScramble";
 import {
   scoreRead,
   scoreFreeGrip,
+  scorePictureGrip,
   formatReport,
   type AccuracyReport,
   type CellDiag,
@@ -45,17 +46,28 @@ import {
   lab2rgb,
   anchorDistances,
   minSeparation,
+  nearestNeighbours,
   checkCalibration,
 } from "../vision/colors";
 
 export type AccuracyMode = "scramble" | "solved";
 /**
- * Хватка. "fixed" — протокольная: фиксированный порядок захвата И фиксированная
- * ориентация, строгий позиционный счёт. "free" — кубик разрешено вертеть: грань
- * опознаётся по центру, внутри грани сравниваются мультимножества цветов.
- * Подробности и цена — в accuracy.scoreFreeGrip.
+ * Хватка — ось условия, а не пометка: числа разных хваток не смешиваются.
+ *
+ * "fixed" — протокольная: фиксированный порядок захвата И фиксированная
+ * ориентация, строгий позиционный счёт по 54.
+ *
+ * "free" — кубик разрешено вертеть: грань опознаётся по центру, внутри грани
+ * сравниваются МУЛЬТИМНОЖЕСТВА цветов (48). Цена — слепота к перестановке
+ * наклеек внутри грани. Подробности в accuracy.scoreFreeGrip.
+ *
+ * "picture" — кубик так же разрешено вертеть, но грань сравнивается с эталонной
+ * ПОЗИЦИОННО, с точностью до её поворота в кадре (48). Поворот выводится из
+ * физики кубика, а не из совпадения с ответом. Ловит перестановку внутри грани,
+ * которую "free" не видит, и не мерит руки, как "fixed". Подробности и замки —
+ * в accuracy.scorePictureGrip.
  */
-export type AccuracyGrip = "fixed" | "free";
+export type AccuracyGrip = "fixed" | "free" | "picture";
 
 export interface AccuracySession {
   videoRef: React.RefObject<HTMLVideoElement | null>;
@@ -305,27 +317,73 @@ export function useAccuracySession(): AccuracySession {
         // Свободная хватка: грань опознаётся по центру, внутри грани цвета
         // сравниваются мультимножествами, центры из счёта исключены. Ориентация
         // тут не нарушение, а разрешённое условие, поэтому замок ниже не про неё.
-        if (grip === "free") {
+        if (grip === "free" || grip === "picture") {
           // Выравнивание — из раскладки шести съёмок по шести цветам (сырые
           // центры), а не из одиночного argmin по центру: тот на тёплом свете
           // выдаёт один цвет дважды и топит чтение, в котором зрение не виновато.
           // Раскладка отказала — так и говорим, с её собственной причиной.
           if (!r.rawCenterFaces) {
-            const o = r.rawCenterOffender;
+            const offenders =
+              r.rawCenterOffenders ?? (r.rawCenterOffender ? [r.rawCenterOffender] : []);
             const spread = r.rawCenterSpread;
-            const head = o
-              ? centerAssignFailedRu(o.capture, o.face, o.de, config.CENTER_MAX_DELTA_E)
+            const head = offenders.length
+              ? centerAssignFailedRu(
+                  offenders,
+                  spread?.medianDE ?? 0,
+                  config.CENTER_MAX_DELTA_E,
+                  config.CENTER_OUTLIER_DE,
+                )
               : `Грани не опознаны по центрам: ${r.rawCenterReason ?? "раскладка не сошлась"}.`;
             setCaptureError(
               [
                 head,
-                spread ? centerSpreadRu(spread.faces, spread.des, spread.medianDE) : null,
+                spread
+                  ? centerSpreadRu(
+                      spread.faces,
+                      spread.des,
+                      spread.medianDE,
+                      spread.own,
+                      spread.ownDes,
+                      spread.rgb,
+                    )
+                  : null,
                 r.fitDiags.length ? fitSpreadRu(r.fitDiags) : null,
               ]
                 .filter(Boolean)
                 .join(" "),
             );
             appendDrop(runRef.current, conditionRef.current, "assign");
+            bump();
+            return;
+          }
+          if (grip === "picture") {
+            // Счёт по картинке: позиции сравниваются, поворот грани выведен из
+            // физики кубика. Неопределённый физикой поворот — честный дроп со
+            // своей причиной, а НЕ подбор поворота под ответ.
+            const pic = scorePictureGrip(r.rawFaceGrids, truth, r.rawCenterFaces);
+            if (pic.kind === "assign-conflict") {
+              setCaptureError(`Грани не опознаны по центрам: ${pic.reason}.`);
+              appendDrop(runRef.current, conditionRef.current, "assign");
+              bump();
+              return;
+            }
+            if (pic.kind === "rotation-ambiguous") {
+              setCaptureError(
+                `Поворот граней не определился по физике кубика (${pic.reason}). ` +
+                  "Чтение не засчитано: подбирать поворот под ответ протокол запрещает. Переснимай грани.",
+              );
+              appendDrop(runRef.current, conditionRef.current, "ambiguous");
+              bump();
+              return;
+            }
+            const picProduct = scorePictureGrip(r.productFaceGrids, truth, r.rawCenterFaces);
+            appendRead(runRef.current, conditionRef.current, pic.report);
+            lastReadKeyRef.current = conditionRef.current;
+            setLastReport(pic.report);
+            setLastProductReport(picProduct.kind === "ok" ? picProduct.report : null);
+            setLastDiags(r.cellDiags);
+            setLastFits(r.fitDiags);
+            setCaptureError(r.drifted ? `Чтение готово${driftNote(r.drifted)}` : null);
             bump();
             return;
           }
@@ -446,18 +504,24 @@ export function useAccuracySession(): AccuracySession {
     if (refs) {
       const sep = minSeparation(refs);
       const anchors = anchorDistances(refs);
+      const near = nearestNeighbours(refs);
       const lines = ["", "=== Эталоны калибровки (что камера сняла как цвета) ==="];
       for (const n of COLOR_NAMES) {
         const lab = refs[n];
         const [r, g, b] = lab2rgb(lab);
         lines.push(
           `  ${n}: RGB(${r},${g},${b})  Lab(${lab.map((x) => x.toFixed(0)).join(",")})` +
-            `  ΔE до анкора ${anchors[n].toFixed(1)}`,
+            `  ΔE до анкора ${anchors[n].toFixed(1)}` +
+            `  ближайший сосед ${near[n].name} ${near[n].de.toFixed(1)}`,
         );
       }
+      // Порог берётся из конфига, а не пишется числом в текст: подпись «~<20»
+      // расходилась с вердиктом (CALIB_MIN_SEPARATION_DE=10) — на 12.7 текст
+      // пугал, вердикт пропускал, и человек не знал, какому числу верить.
       lines.push(
         `  min попарный ΔE: ${sep.de.toFixed(1)} (${sep.a}–${sep.b}) ` +
-          `(если мало ~<20 — эталоны слиплись, камера не различает цвета)`,
+          `(порог вердикта ${config.CALIB_MIN_SEPARATION_DE} — ниже него эталоны слиплись, ` +
+          `камера не различает цвета)`,
       );
       // Расстояние до анкора само по себе НЕ повод отказать: на живой камере
       // рабочие синий/зелёный уходили от анкора дальше, чем испорченный белый.

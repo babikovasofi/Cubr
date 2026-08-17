@@ -61,9 +61,7 @@ beforeEach(() => {
 
 describe("BadgeGrid", () => {
   it("renders loading state initially", () => {
-    vi.mocked(getBadges).mockReturnValue(
-      new Promise(() => {}),
-    );
+    vi.mocked(getBadges).mockReturnValue(new Promise(() => {}));
     render(<BadgeGrid />);
     const loadingTexts = screen.getAllByText(/Загружаю бейджи/);
     expect(loadingTexts.length).toBeGreaterThan(0);
@@ -130,9 +128,7 @@ describe("BadgeGrid", () => {
   });
 
   it("renders error state with retry button", async () => {
-    vi.mocked(getBadges).mockRejectedValue(
-      new Error("Network error"),
-    );
+    vi.mocked(getBadges).mockRejectedValue(new Error("Network error"));
     render(<BadgeGrid />);
     await waitFor(() => {
       expect(screen.getByText(/Не удалось загрузить бейджи/)).toBeTruthy();

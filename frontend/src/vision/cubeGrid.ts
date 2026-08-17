@@ -13,6 +13,7 @@
 import { hungarian } from "./assignment";
 import { deltaE, COLOR_NAMES, type Lab, type ColorName, type Refs } from "./colors";
 import { config } from "./config";
+import { countPhysicsViolations } from "./cubePhysics";
 import { orientationVariants } from "./faceletRotations";
 import { validateFacelets, type Face, type Facelet } from "./cubeState";
 
@@ -64,12 +65,35 @@ export function normalizeByRotation<T>(grid: T[], k = 0): T[] {
  * per capture, plus `ambiguous` if two captures classify to the same face
  * (means the tester duplicated a face or lighting is wrong -> FAIL LOUD).
  */
+export interface CenterOffender {
+  capture: number;
+  face: Face;
+  de: number;
+  /** Сработал относительный замок: центр оторвался от медианы остальных. */
+  relative: boolean;
+  /** Сработал абсолютный: центр не похож ни на что, как ни сдвинулся свет. */
+  absolute: boolean;
+  /** К какому цвету съёмка тянется САМА, вне бижекции. */
+  own?: Face;
+  /** ΔE до этого своего цвета. Велик — центр прочитан плохо, а не дублирован. */
+  ownDE?: number;
+  /** Номер съёмки, уже занявшей `own` с меньшим ΔE: тогда это правда дубликат. */
+  duplicateOf?: number;
+}
+
 export interface CenterAssignment {
   faces: Face[];
   ok: boolean;
   reason?: string;
-  /** Какая съёмка провалила замок: её номер (с нуля), выданный цвет и ΔE до него. */
-  offender?: { capture: number; face: Face; de: number };
+  /** ХУДШАЯ съёмка из проваливших замок: её номер (с нуля), выданный цвет и ΔE. */
+  offender?: CenterOffender;
+  /**
+   * ВСЕ провалившие съёмки. Их выданные цвета — это ровно те центры, которых
+   * раскладка по-настоящему не увидела: бижекция обязана раздать шесть цветов,
+   * поэтому непоказанная грань достаётся лишней съёмке с огромным ΔE. Знать их
+   * все — единственный способ сказать человеку «ты не показала вот эти грани».
+   */
+  offenders?: CenterOffender[];
   /**
    * ΔE каждой съёмки до выданного ей цвета и медиана по шести. Нужны наружу:
    * одно число «40.8» одинаково выглядит и когда в рамку попал стол, и когда
@@ -118,21 +142,55 @@ export function assignFacesByCenter(faceGridsLab: Lab[][], refs: Refs): CenterAs
   // выбивает ОДНУ съёмку из общей картины. Медиана по шести — это и есть «общая
   // картина», поэтому ловим отрыв от неё. Абсолютный потолок остаётся вторым
   // рубежом: за ним центр уже не похож ни на что, сдвинулась сессия или нет.
+  //
+  // Собираем ВСЕХ нарушителей, а не возвращаемся на первом. Живой прогон
+  // 2026-08-05: съёмки 5 и 6 ушли на ΔE 30 и 55, человеку показали пятую — и он
+  // час чинил не ту грань, пока настоящая беда сидела в шестой. Заодно
+  // сообщение печатало порог АБСОЛЮТНОГО замка, когда срабатывал относительный,
+  // и выглядело самоопровержением: «в 30.0 от цвета, допустимо 34».
+  const offenders: CenterOffender[] = [];
   for (let c = 0; c < faces.length; c++) {
     const de = centerDEs[c];
-    const outlier = de - medianDE > config.CENTER_OUTLIER_DE;
-    if (outlier || de > config.CENTER_MAX_DELTA_E) {
-      return {
-        faces,
-        ok: false,
-        reason: outlier
-          ? `capture ${c + 1} centre is ${de.toFixed(1)} from the ${faces[c]} colour while the other captures sit around ${medianDE.toFixed(1)} — that one capture is not a cube face`
-          : `capture ${c + 1} centre is ${de.toFixed(1)} away from the ${faces[c]} colour (max ${config.CENTER_MAX_DELTA_E}) — the light moved far from calibration`,
-        offender: { capture: c, face: faces[c], de },
-        centerDEs,
-        medianDE,
-      };
+    const relative = de - medianDE > config.CENTER_OUTLIER_DE;
+    const absolute = de > config.CENTER_MAX_DELTA_E;
+    if (relative || absolute) {
+      // К какому цвету эта съёмка тянется САМА, вне бижекции, и насколько.
+      // Без этого «не показала грань с жёлтым центром» — обвинение наугад:
+      // тот же отказ выглядит одинаково и когда грань правда показана дважды
+      // (своё лучшее уже занято другой съёмкой), и когда центр просто плохо
+      // прочитан (своё лучшее тоже далеко). Живой прогон 2026-08-05 дал второй
+      // случай, а текст уверенно заявил первый.
+      const own = nearestRef(centers[c], refs) as Face;
+      const ownDE = deltaE(centers[c], refs[own]);
+      const takenBy = faces.findIndex((f, i) => f === own && i !== c);
+      offenders.push({
+        capture: c,
+        face: faces[c],
+        de,
+        relative,
+        absolute,
+        own,
+        ownDE,
+        // Дубликат — только если своё лучшее УЖЕ занято съёмкой, которая села на
+        // него заметно лучше. Иначе это плохо прочитанный центр.
+        duplicateOf: takenBy >= 0 && centerDEs[takenBy] < ownDE ? takenBy : undefined,
+      });
     }
+  }
+  if (offenders.length > 0) {
+    // Худший, а не первый: именно он объясняет, что пошло не так.
+    const worst = offenders.reduce((a, b) => (b.de > a.de ? b : a));
+    return {
+      faces,
+      ok: false,
+      reason: worst.absolute
+        ? `capture ${worst.capture + 1} centre is ${worst.de.toFixed(1)} away from the ${worst.face} colour (max ${config.CENTER_MAX_DELTA_E}) — the light moved far from calibration`
+        : `capture ${worst.capture + 1} centre is ${worst.de.toFixed(1)} from the ${worst.face} colour while the other captures sit around ${medianDE.toFixed(1)} — that one capture is not a cube face`,
+      offender: worst,
+      offenders,
+      centerDEs,
+      medianDE,
+    };
   }
   return { faces, ok: true, centerDEs, medianDE };
 }
@@ -254,6 +312,89 @@ export function lenientVerify(
     if (best.mismatches === 0) break;
   }
   return best!;
+}
+
+export interface PhysicsPin {
+  ok: boolean;
+  reason?: string;
+  /** Поворот (0..3) каждой съёмки, выбранный по физике кубика. */
+  rotations?: number[];
+  /** Собранная строка URFDLB при этих поворотах. */
+  facelets?: Facelet;
+  /** Сколько физических ограничений всё-таки нарушено у лучшего варианта. */
+  violations?: number;
+  /** Сколько комбинаций дали ТОТ ЖЕ минимум: >1 — поворот физикой не определён. */
+  tied?: number;
+}
+
+/**
+ * Поворот каждой грани, выведенный из ФИЗИКИ КУБИКА, а не из ответа.
+ *
+ * Зачем отдельно от `resolveRotations`. Тот требует полностью легального кубика и
+ * при первой же ошибке цвета отвергает чтение целиком. Для сборки это правильно.
+ * Для ЗАМЕРА точности — самоубийственно: оценивались бы только идеальные чтения,
+ * а всё остальное уходило бы в брак, и мерить стало бы нечего.
+ *
+ * Здесь выбирается комбинация поворотов, МЕНЬШЕ ВСЕГО нарушающая физику
+ * (`countPhysicsViolations`). Чтение с двумя ошибками цвета останется оценённым,
+ * а его повороты — определёнными.
+ *
+ * Почему это не подгонка под ответ: ожидаемый скрамбл в расчёт не входит вообще.
+ * Опора — только устройство кубика (у угла по одной наклейке с каждой оси, каждый
+ * кубик встречается один раз). Ошибка цвета физику НАРУШАЕТ, то есть наказывается,
+ * а не прощается.
+ *
+ * `tied > 1` означает, что физика поворот не определила (симметричное или сильно
+ * битое чтение) — вызывающий обязан это пометить, а не молча взять первый вариант.
+ */
+export function pinRotationsByPhysics(faceGrids: Face[][], faceOf: Face[]): PhysicsPin {
+  if (faceGrids.length !== 6 || faceOf.length !== 6) {
+    return { ok: false, reason: `нужно 6 граней, пришло ${faceGrids.length}` };
+  }
+  const slotOf: Record<Face, number> = { U: 0, R: 1, F: 2, D: 3, L: 4, B: 5 };
+  const seen = new Set(faceOf);
+  if (seen.size !== 6) {
+    return {
+      ok: false,
+      reason: "грани не опознаны по центрам: шесть съёмок дали не шесть разных цветов",
+    };
+  }
+
+  let best: { rotations: number[]; facelets: Facelet; violations: number } | null = null;
+  let tied = 0;
+  const rot = new Array(6).fill(0);
+
+  for (let combo = 0; combo < 4096; combo++) {
+    let c = combo;
+    for (let i = 0; i < 6; i++) {
+      rot[i] = c & 3;
+      c >>= 2;
+    }
+    const slots: (Face[] | null)[] = new Array(6).fill(null);
+    for (let capture = 0; capture < 6; capture++) {
+      slots[slotOf[faceOf[capture]]] = rotateGrid(faceGrids[capture], rot[capture]);
+    }
+    const s = slots.map((g) => (g as Face[]).join("")).join("") as Facelet;
+    const violations = countPhysicsViolations(s).total;
+    if (best === null || violations < best.violations) {
+      best = { rotations: rot.slice(), facelets: s, violations };
+      tied = 1;
+    } else if (violations === best.violations) {
+      tied += 1;
+    }
+    // Досрочного выхода на нуле нарушений НЕТ намеренно: надо досчитать, не
+    // даёт ли ноль ещё какая-то комбинация — тогда поворот неоднозначен, и это
+    // обязано быть видно вызывающему, а не скрыто ранним break.
+  }
+
+  if (best === null) return { ok: false, reason: "не нашлось ни одной комбинации поворотов" };
+  return {
+    ok: true,
+    rotations: best.rotations,
+    facelets: best.facelets,
+    violations: best.violations,
+    tied,
+  };
 }
 
 export function resolveRotations(faceGrids: Face[][], faceOf: Face[]): RotationResolution {

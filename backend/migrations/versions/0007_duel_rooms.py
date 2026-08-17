@@ -100,9 +100,7 @@ def upgrade() -> None:
         ["id"],
         ondelete="SET NULL",
     )
-    op.create_unique_constraint(
-        "uq_duel_rooms_parent_room_id", "duel_rooms", ["parent_room_id"]
-    )
+    op.create_unique_constraint("uq_duel_rooms_parent_room_id", "duel_rooms", ["parent_room_id"])
 
     op.create_table(
         "duel_participants",
@@ -151,17 +149,13 @@ def downgrade() -> None:
     op.drop_constraint(
         "fk_duel_participants_room_id_duel_rooms", "duel_participants", type_="foreignkey"
     )
-    op.drop_constraint(
-        "fk_duel_participants_user_id_user", "duel_participants", type_="foreignkey"
-    )
+    op.drop_constraint("fk_duel_participants_user_id_user", "duel_participants", type_="foreignkey")
     op.drop_index(op.f("ix_duel_participants_room_id"), table_name="duel_participants")
     op.drop_index(op.f("ix_duel_participants_user_id"), table_name="duel_participants")
     op.drop_table("duel_participants")
 
     op.drop_constraint("uq_duel_rooms_parent_room_id", "duel_rooms", type_="unique")
-    op.drop_constraint(
-        "fk_duel_rooms_parent_room_id_duel_rooms", "duel_rooms", type_="foreignkey"
-    )
+    op.drop_constraint("fk_duel_rooms_parent_room_id_duel_rooms", "duel_rooms", type_="foreignkey")
     op.drop_constraint("fk_duel_rooms_player_b_id_user", "duel_rooms", type_="foreignkey")
     op.drop_constraint("fk_duel_rooms_player_a_id_user", "duel_rooms", type_="foreignkey")
     op.drop_index(op.f("ix_duel_rooms_parent_room_id"), table_name="duel_rooms")

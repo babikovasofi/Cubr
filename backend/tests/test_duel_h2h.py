@@ -224,7 +224,9 @@ async def test_h2h_record_third_user_excluded(
 ) -> None:
     """Third-user rooms (A-C, B-C) don't affect A-B counts."""
     async with session_maker() as session:
-        a_id, b_id, c_id = await _create_test_users(session, "a@test.com", "b@test.com", "c@test.com")
+        a_id, b_id, c_id = await _create_test_users(
+            session, "a@test.com", "b@test.com", "c@test.com"
+        )
 
         # A-B rooms
         room_ab = DuelRoom(
@@ -372,9 +374,7 @@ async def test_h2h_endpoint_unknown_room_404(client: AsyncClient, email_spy: Ema
     assert resp.status_code == 404, resp.text
 
 
-async def test_h2h_endpoint_non_participant_404(
-    client: AsyncClient, email_spy: EmailSpy
-) -> None:
+async def test_h2h_endpoint_non_participant_404(client: AsyncClient, email_spy: EmailSpy) -> None:
     """Non-participant gets 404."""
     # Create room with creator + joiner
     await _register_and_login(client, "creator@example.com")
@@ -416,7 +416,11 @@ async def test_h2h_endpoint_happy_path(
 
     # Get player A's user_id
     async with session_maker() as session:
-        player_a = (await session.execute(select(User).where(User.email == "player_a@example.com"))).unique().scalar_one()
+        player_a = (
+            (await session.execute(select(User).where(User.email == "player_a@example.com")))
+            .unique()
+            .scalar_one()
+        )
         player_a_id = player_a.id
 
     # Player B joins
@@ -426,7 +430,11 @@ async def test_h2h_endpoint_happy_path(
 
     # Get player B's user_id
     async with session_maker() as session:
-        player_b = (await session.execute(select(User).where(User.email == "player_b@example.com"))).unique().scalar_one()
+        player_b = (
+            (await session.execute(select(User).where(User.email == "player_b@example.com")))
+            .unique()
+            .scalar_one()
+        )
         player_b_id = player_b.id
 
     # Finalize the room (A wins) and create more rooms for counts

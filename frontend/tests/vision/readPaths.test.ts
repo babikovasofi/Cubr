@@ -28,7 +28,9 @@ function solvedSamples(gain?: [number, number, number]) {
       lab: rgb.map((c) => rgb2lab(c)),
       kept: Array(9).fill(1),
       // Телеметрия подгонки на синтетике: сетка ложится по рамке, решётки нет.
-      fit: { gain: 0, used: false, gap: 0 },
+      // edge/margin/decided — необязательные поля (см. FaceFitDiag): здесь их
+      // видно занулёнными, как их выдаст ещё не подключённый useCubeReader.ts.
+      fit: { gain: 0, used: false, gap: 0, edge: 0, margin: 0, decided: false },
     };
   });
 }

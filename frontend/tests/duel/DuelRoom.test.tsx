@@ -11,14 +11,19 @@ import DuelRoom from "../../src/duel/DuelRoom";
 import type { DuelMachineState } from "../../src/duel/duelMachine";
 import type { DuelSocketApi } from "../../src/duel/useDuelSocket";
 
-const { useSoloSessionMock, scheduleCountdownBeepsMock, isCountdownMutedMock, setCountdownMutedMock, cleanupMock } =
-  vi.hoisted(() => ({
-    useSoloSessionMock: vi.fn(),
-    scheduleCountdownBeepsMock: vi.fn(),
-    isCountdownMutedMock: vi.fn(() => false),
-    setCountdownMutedMock: vi.fn(),
-    cleanupMock: vi.fn(),
-  }));
+const {
+  useSoloSessionMock,
+  scheduleCountdownBeepsMock,
+  isCountdownMutedMock,
+  setCountdownMutedMock,
+  cleanupMock,
+} = vi.hoisted(() => ({
+  useSoloSessionMock: vi.fn(),
+  scheduleCountdownBeepsMock: vi.fn(),
+  isCountdownMutedMock: vi.fn(() => false),
+  setCountdownMutedMock: vi.fn(),
+  cleanupMock: vi.fn(),
+}));
 
 vi.mock("../../src/solo/useSoloSession", () => ({
   useSoloSession: useSoloSessionMock,
@@ -91,12 +96,7 @@ describe("DuelRoom", () => {
     };
 
     renderWithRouter(
-      <DuelRoom
-        state={state}
-        dispatch={DEFAULT_DISPATCH}
-        socket={DEFAULT_SOCKET}
-        joinUrl={null}
-      />
+      <DuelRoom state={state} dispatch={DEFAULT_DISPATCH} socket={DEFAULT_SOCKET} joinUrl={null} />,
     );
 
     expect(screen.getByText("Жду соперника")).toBeTruthy();
@@ -116,7 +116,7 @@ describe("DuelRoom", () => {
         dispatch={DEFAULT_DISPATCH}
         socket={DEFAULT_SOCKET}
         joinUrl="https://example.com/duel/join/token-abc"
-      />
+      />,
     );
 
     // InvitePanel should render with the URL
@@ -131,17 +131,10 @@ describe("DuelRoom", () => {
     };
 
     renderWithRouter(
-      <DuelRoom
-        state={state}
-        dispatch={DEFAULT_DISPATCH}
-        socket={DEFAULT_SOCKET}
-        joinUrl={null}
-      />
+      <DuelRoom state={state} dispatch={DEFAULT_DISPATCH} socket={DEFAULT_SOCKET} joinUrl={null} />,
     );
 
-    expect(
-      screen.getByText(/Такой дуэли не существует/)
-    ).toBeTruthy();
+    expect(screen.getByText(/Такой дуэли не существует/)).toBeTruthy();
     expect(screen.getByRole("link", { name: "На главную" })).toBeTruthy();
   });
 
@@ -154,17 +147,10 @@ describe("DuelRoom", () => {
     };
 
     renderWithRouter(
-      <DuelRoom
-        state={state}
-        dispatch={DEFAULT_DISPATCH}
-        socket={DEFAULT_SOCKET}
-        joinUrl={null}
-      />
+      <DuelRoom state={state} dispatch={DEFAULT_DISPATCH} socket={DEFAULT_SOCKET} joinUrl={null} />,
     );
 
-    expect(
-      screen.getByText(/У тебя уже есть активная дуэль/)
-    ).toBeTruthy();
+    expect(screen.getByText(/У тебя уже есть активная дуэль/)).toBeTruthy();
     const button = screen.getByRole("link", { name: "Перейти к активной дуэли" });
     expect(button).toBeTruthy();
     expect(button.getAttribute("href")).toBe("/duel/existing-room-123");
@@ -179,17 +165,10 @@ describe("DuelRoom", () => {
     };
 
     renderWithRouter(
-      <DuelRoom
-        state={state}
-        dispatch={DEFAULT_DISPATCH}
-        socket={DEFAULT_SOCKET}
-        joinUrl={null}
-      />
+      <DuelRoom state={state} dispatch={DEFAULT_DISPATCH} socket={DEFAULT_SOCKET} joinUrl={null} />,
     );
 
-    expect(
-      screen.getByText(/У тебя уже есть активная дуэль/)
-    ).toBeTruthy();
+    expect(screen.getByText(/У тебя уже есть активная дуэль/)).toBeTruthy();
     expect(screen.getByRole("link", { name: "На главную" })).toBeTruthy();
   });
 
@@ -201,12 +180,7 @@ describe("DuelRoom", () => {
     };
 
     renderWithRouter(
-      <DuelRoom
-        state={state}
-        dispatch={DEFAULT_DISPATCH}
-        socket={DEFAULT_SOCKET}
-        joinUrl={null}
-      />
+      <DuelRoom state={state} dispatch={DEFAULT_DISPATCH} socket={DEFAULT_SOCKET} joinUrl={null} />,
     );
 
     expect(screen.getByTestId("solve-ritual")).toBeTruthy();
@@ -220,12 +194,7 @@ describe("DuelRoom", () => {
     };
 
     renderWithRouter(
-      <DuelRoom
-        state={state}
-        dispatch={DEFAULT_DISPATCH}
-        socket={DEFAULT_SOCKET}
-        joinUrl={null}
-      />
+      <DuelRoom state={state} dispatch={DEFAULT_DISPATCH} socket={DEFAULT_SOCKET} joinUrl={null} />,
     );
 
     expect(screen.queryByTestId("solve-ritual")).toBeNull();
@@ -243,12 +212,7 @@ describe("DuelRoom", () => {
     };
 
     renderWithRouter(
-      <DuelRoom
-        state={state}
-        dispatch={DEFAULT_DISPATCH}
-        socket={DEFAULT_SOCKET}
-        joinUrl={null}
-      />
+      <DuelRoom state={state} dispatch={DEFAULT_DISPATCH} socket={DEFAULT_SOCKET} joinUrl={null} />,
     );
 
     // CountdownOverlay should be visible
@@ -268,12 +232,7 @@ describe("DuelRoom", () => {
     };
 
     renderWithRouter(
-      <DuelRoom
-        state={state}
-        dispatch={DEFAULT_DISPATCH}
-        socket={DEFAULT_SOCKET}
-        joinUrl={null}
-      />
+      <DuelRoom state={state} dispatch={DEFAULT_DISPATCH} socket={DEFAULT_SOCKET} joinUrl={null} />,
     );
 
     // Overlay should show "Старт!" for already-elapsed time
@@ -298,7 +257,7 @@ describe("DuelRoom", () => {
     };
 
     const { unmount } = renderWithRouter(
-      <DuelRoom state={state} dispatch={DEFAULT_DISPATCH} socket={DEFAULT_SOCKET} joinUrl={null} />
+      <DuelRoom state={state} dispatch={DEFAULT_DISPATCH} socket={DEFAULT_SOCKET} joinUrl={null} />,
     );
 
     expect(scheduleCountdownBeepsMock).toHaveBeenCalledTimes(1);
@@ -320,7 +279,7 @@ describe("DuelRoom", () => {
     };
 
     renderWithRouter(
-      <DuelRoom state={state} dispatch={DEFAULT_DISPATCH} socket={DEFAULT_SOCKET} joinUrl={null} />
+      <DuelRoom state={state} dispatch={DEFAULT_DISPATCH} socket={DEFAULT_SOCKET} joinUrl={null} />,
     );
 
     const toggle = screen.getByRole("button", { name: "Выключить звук отсчёта" });
@@ -333,9 +292,9 @@ describe("DuelRoom", () => {
     expect(cleanupMock).toHaveBeenCalledTimes(1); // dep change (muted) tore down the schedule
     expect(scheduleCountdownBeepsMock).toHaveBeenCalledTimes(1); // not called again while muted
     expect(screen.getByRole("button", { name: "Включить звук отсчёта" })).toBeTruthy();
-    expect(screen.getByRole("button", { name: "Включить звук отсчёта" }).getAttribute("aria-pressed")).toBe(
-      "true"
-    );
+    expect(
+      screen.getByRole("button", { name: "Включить звук отсчёта" }).getAttribute("aria-pressed"),
+    ).toBe("true");
   });
 
   it("does not render CountdownOverlay when phase is not countdown", () => {
@@ -347,12 +306,7 @@ describe("DuelRoom", () => {
     };
 
     renderWithRouter(
-      <DuelRoom
-        state={state}
-        dispatch={DEFAULT_DISPATCH}
-        socket={DEFAULT_SOCKET}
-        joinUrl={null}
-      />
+      <DuelRoom state={state} dispatch={DEFAULT_DISPATCH} socket={DEFAULT_SOCKET} joinUrl={null} />,
     );
 
     // Overlay should not be present
@@ -367,12 +321,7 @@ describe("DuelRoom", () => {
     };
 
     renderWithRouter(
-      <DuelRoom
-        state={state}
-        dispatch={DEFAULT_DISPATCH}
-        socket={DEFAULT_SOCKET}
-        joinUrl={null}
-      />
+      <DuelRoom state={state} dispatch={DEFAULT_DISPATCH} socket={DEFAULT_SOCKET} joinUrl={null} />,
     );
 
     expect(screen.getByText(/Готов\. Жду соперника/)).toBeTruthy();
@@ -387,12 +336,7 @@ describe("DuelRoom", () => {
     };
 
     renderWithRouter(
-      <DuelRoom
-        state={state}
-        dispatch={DEFAULT_DISPATCH}
-        socket={DEFAULT_SOCKET}
-        joinUrl={null}
-      />
+      <DuelRoom state={state} dispatch={DEFAULT_DISPATCH} socket={DEFAULT_SOCKET} joinUrl={null} />,
     );
 
     expect(screen.getByText(/Жду результат соперника/)).toBeTruthy();
@@ -407,12 +351,7 @@ describe("DuelRoom", () => {
     };
 
     renderWithRouter(
-      <DuelRoom
-        state={state}
-        dispatch={DEFAULT_DISPATCH}
-        socket={DEFAULT_SOCKET}
-        joinUrl={null}
-      />
+      <DuelRoom state={state} dispatch={DEFAULT_DISPATCH} socket={DEFAULT_SOCKET} joinUrl={null} />,
     );
 
     expect(screen.getByText(/Соперник отключился/)).toBeTruthy();
@@ -428,18 +367,11 @@ describe("DuelRoom", () => {
     };
 
     renderWithRouter(
-      <DuelRoom
-        state={state}
-        dispatch={DEFAULT_DISPATCH}
-        socket={DEFAULT_SOCKET}
-        joinUrl={null}
-      />
+      <DuelRoom state={state} dispatch={DEFAULT_DISPATCH} socket={DEFAULT_SOCKET} joinUrl={null} />,
     );
 
     expect(screen.getByText(/Соперник отключился/)).toBeTruthy();
-    expect(
-      screen.getByText(/Жду его возвращения — если не вернётся/)
-    ).toBeTruthy();
+    expect(screen.getByText(/Жду его возвращения — если не вернётся/)).toBeTruthy();
   });
 
   it("renders DisconnectedBanner when phase is disconnected", () => {
@@ -450,12 +382,7 @@ describe("DuelRoom", () => {
     };
 
     renderWithRouter(
-      <DuelRoom
-        state={state}
-        dispatch={DEFAULT_DISPATCH}
-        socket={DEFAULT_SOCKET}
-        joinUrl={null}
-      />
+      <DuelRoom state={state} dispatch={DEFAULT_DISPATCH} socket={DEFAULT_SOCKET} joinUrl={null} />,
     );
 
     expect(screen.getByText(/Связь потеряна/)).toBeTruthy();
@@ -474,12 +401,7 @@ describe("DuelRoom", () => {
     };
 
     renderWithRouter(
-      <DuelRoom
-        state={state}
-        dispatch={DEFAULT_DISPATCH}
-        socket={DEFAULT_SOCKET}
-        joinUrl={null}
-      />
+      <DuelRoom state={state} dispatch={DEFAULT_DISPATCH} socket={DEFAULT_SOCKET} joinUrl={null} />,
     );
 
     // Ritual is shown because scramble is not null
@@ -495,12 +417,7 @@ describe("DuelRoom", () => {
     };
 
     renderWithRouter(
-      <DuelRoom
-        state={state}
-        dispatch={DEFAULT_DISPATCH}
-        socket={DEFAULT_SOCKET}
-        joinUrl={null}
-      />
+      <DuelRoom state={state} dispatch={DEFAULT_DISPATCH} socket={DEFAULT_SOCKET} joinUrl={null} />,
     );
 
     // Both banner and ritual should be present
@@ -517,12 +434,7 @@ describe("DuelRoom", () => {
     };
 
     renderWithRouter(
-      <DuelRoom
-        state={state}
-        dispatch={DEFAULT_DISPATCH}
-        socket={DEFAULT_SOCKET}
-        joinUrl={null}
-      />
+      <DuelRoom state={state} dispatch={DEFAULT_DISPATCH} socket={DEFAULT_SOCKET} joinUrl={null} />,
     );
 
     // Text appears twice (visible + sr-only), use getAllByText

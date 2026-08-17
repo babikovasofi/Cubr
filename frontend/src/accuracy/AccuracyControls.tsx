@@ -97,7 +97,7 @@ export default function AccuracyControls({ session }: AccuracyControlsProps) {
       <section className="flex flex-col gap-2 rounded-lg border border-line bg-surface p-4">
         <span className="font-sans text-overline uppercase text-muted">Хватка</span>
         <div className="flex gap-2" role="radiogroup" aria-label="Хватка">
-          {(["fixed", "free"] as const).map((g) => (
+          {(["fixed", "free", "picture"] as const).map((g) => (
             <button
               key={g}
               type="button"
@@ -109,14 +109,20 @@ export default function AccuracyControls({ session }: AccuracyControlsProps) {
                 session.grip === g ? "bg-primary text-white" : "bg-surface-2 text-ink",
               ].join(" ")}
             >
-              {g === "fixed" ? "Строгая (ориентация фиксирована)" : "Свободная (верти как удобно)"}
+              {g === "fixed"
+                ? "Строгая (ориентация фиксирована)"
+                : g === "free"
+                  ? "Свободная (мешок цветов)"
+                  : "По картинке (верти как удобно)"}
             </button>
           ))}
         </div>
         <p className="font-sans text-small text-muted">
           {session.grip === "fixed"
             ? "Порядок и ориентация заданы протоколом; счёт позиционный по всем 54 наклейкам."
-            : "Грань опознаётся по центру, центры из счёта исключены, внутри грани сравниваются цвета без учёта поворота (48 наклеек). Цена: перестановка наклеек ВНУТРИ грани не видна — это ошибка геометрии, её ловит строгая хватка."}
+            : session.grip === "free"
+              ? "Грань опознаётся по центру, центры из счёта исключены, внутри грани сравниваются цвета без учёта поворота (48 наклеек). Цена: перестановка наклеек ВНУТРИ грани не видна — это ошибка геометрии, её ловит строгая хватка."
+              : "Грань опознаётся по центру, кубик держи как удобно. Внутри грани сравниваются ПОЗИЦИИ с точностью до поворота грани (48 наклеек), поэтому перестановка наклеек видна — в отличие от свободной хватки. Поворот выводится из физики кубика, а не из совпадения с ответом; не определился — чтение уходит в дроп."}
         </p>
       </section>
 

@@ -44,7 +44,9 @@ function writeStored(id: string | null): void {
 
 /** Force a single primary: only `primaryId` keeps the flag. */
 function withSinglePrimary(list: CubeRead[], primaryId: string): CubeRead[] {
-  return list.map((c) => (c.is_primary === (c.id === primaryId) ? c : { ...c, is_primary: c.id === primaryId }));
+  return list.map((c) =>
+    c.is_primary === (c.id === primaryId) ? c : { ...c, is_primary: c.id === primaryId },
+  );
 }
 
 /** Keep the current pick if it still exists, else fall back to primary, then first. */
@@ -127,7 +129,10 @@ export const useCubesStore = create<CubesState>((set) => ({
       if (wasPrimary && list.length > 0 && !list.some((c) => c.is_primary)) {
         list = withSinglePrimary(list, list[0].id); // created_at desc → most recent
       }
-      const selectedCubeId = reconcileSelected(list, s.selectedCubeId === id ? null : s.selectedCubeId);
+      const selectedCubeId = reconcileSelected(
+        list,
+        s.selectedCubeId === id ? null : s.selectedCubeId,
+      );
       writeStored(selectedCubeId);
       return { list, selectedCubeId };
     });
