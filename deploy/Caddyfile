@@ -1,0 +1,18 @@
+# SPA + API on one origin. Cookie auth is SameSite=Lax and duel WebSocket
+# handshakes check Origin (DUEL_ALLOWED_WS_ORIGINS) — a second origin for the
+# API would break both, so Caddy is the single front door.
+
+{$SITE_DOMAIN} {
+    encode zstd gzip
+
+    handle /api/* {
+        uri strip_prefix /api
+        reverse_proxy api:8000
+    }
+
+    handle {
+        root * /srv/www
+        try_files {path} /index.html
+        file_server
+    }
+}
