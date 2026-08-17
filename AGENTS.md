@@ -70,6 +70,15 @@ Confirm the actual stack from the repo (`package.json`, `pubspec.yaml`, `pyproje
 No scope matches → ask the user which exec agent should own the change. Edit these globs to
 fit each project's real layout.
 
+### Autonomous (runs while the user is away)
+| Agent                            | Owns                                                          |
+|----------------------------------|---------------------------------------------------------------|
+| `.claude/agents/night-runner.md` | Overnight autopilot: picks its own tasks from the Memory Bank and works task-by-task with no questions. All changes land on an isolated `night/<slug>-<timestamp>` branch cut from `main` — never `main`, never a merge, never a push. Every task is validated (build + tests) before its own atomic commit; a red task is rolled back and logged. Journal: `.memory-bank/night-log.md`; stop command → report in `swarm-report/night-<slug>-<date>.md`. Runs on `opus`. |
+
+Night mode never takes work that needs a human or the outside world (camera/manual QA,
+deploy, secrets, remotes) and never touches anything the Memory Bank marks as blocked or
+out of scope.
+
 ## Model + reasoning tiers (agreed 2026-07-17)
 
 Each loop stage runs on a fixed model tier at **medium** reasoning effort:

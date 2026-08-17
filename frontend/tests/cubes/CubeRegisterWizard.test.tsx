@@ -56,9 +56,7 @@ describe("CubeRegisterWizard camera start", () => {
     const reg = stubReg({ started: false });
     useCubeRegisterMock.mockReturnValue(reg);
 
-    const { container } = render(
-      <CubeRegisterWizard onDone={() => {}} onCancel={() => {}} />,
-    );
+    const { container } = render(<CubeRegisterWizard onDone={() => {}} onCancel={() => {}} />);
 
     // This is the exact precondition useCubeRegister.start() needs: the
     // <video> node must already be in the DOM (so reg.videoRef.current is
@@ -83,9 +81,7 @@ describe("CubeRegisterWizard camera start", () => {
     const reg = stubReg({ started: true, calibrationStep: 2 });
     useCubeRegisterMock.mockReturnValue(reg);
 
-    const { container } = render(
-      <CubeRegisterWizard onDone={() => {}} onCancel={() => {}} />,
-    );
+    const { container } = render(<CubeRegisterWizard onDone={() => {}} onCancel={() => {}} />);
 
     expect(container.querySelector("video")).not.toBeNull();
     expect(screen.getByText("Снять грань 3/6")).toBeTruthy();

@@ -98,9 +98,7 @@ afterEach(() => {
 describe("useDuelSocket", () => {
   it("connects and sends join frame when roomId and sessionToken provided", async () => {
     const dispatch = vi.fn();
-    const { unmount } = renderHook(() =>
-      useDuelSocket("room-1", "token-123", "a", dispatch)
-    );
+    const { unmount } = renderHook(() => useDuelSocket("room-1", "token-123", "a", dispatch));
 
     // Simulate WS opening
     await act(async () => {
@@ -127,9 +125,7 @@ describe("useDuelSocket", () => {
 
   it("sends heartbeat ping at interval", async () => {
     const dispatch = vi.fn();
-    const { unmount } = renderHook(() =>
-      useDuelSocket("room-1", "token-123", "a", dispatch)
-    );
+    const { unmount } = renderHook(() => useDuelSocket("room-1", "token-123", "a", dispatch));
 
     await act(async () => {
       mockWebSockets[0]?.simulateOpen();
@@ -149,9 +145,7 @@ describe("useDuelSocket", () => {
 
   it("dispatches ws_start when receiving start frame with scramble", async () => {
     const dispatch = vi.fn();
-    const { unmount } = renderHook(() =>
-      useDuelSocket("room-1", "token-123", "a", dispatch)
-    );
+    const { unmount } = renderHook(() => useDuelSocket("room-1", "token-123", "a", dispatch));
 
     await act(async () => {
       mockWebSockets[0]?.simulateOpen();
@@ -174,9 +168,7 @@ describe("useDuelSocket", () => {
 
   it("dispatches room_state when receiving room_state frame", async () => {
     const dispatch = vi.fn();
-    const { unmount } = renderHook(() =>
-      useDuelSocket("room-1", "token-123", "a", dispatch)
-    );
+    const { unmount } = renderHook(() => useDuelSocket("room-1", "token-123", "a", dispatch));
 
     await act(async () => {
       mockWebSockets[0]?.simulateOpen();
@@ -209,9 +201,7 @@ describe("useDuelSocket", () => {
 
   it("dispatches opponent_status when receiving status_update for opponent", async () => {
     const dispatch = vi.fn();
-    const { unmount } = renderHook(() =>
-      useDuelSocket("room-1", "token-123", "a", dispatch)
-    );
+    const { unmount } = renderHook(() => useDuelSocket("room-1", "token-123", "a", dispatch));
 
     await act(async () => {
       mockWebSockets[0]?.simulateOpen();
@@ -231,9 +221,7 @@ describe("useDuelSocket", () => {
 
   it("drops status_update if player is self (defensive)", async () => {
     const dispatch = vi.fn();
-    const { unmount } = renderHook(() =>
-      useDuelSocket("room-1", "token-123", "a", dispatch)
-    );
+    const { unmount } = renderHook(() => useDuelSocket("room-1", "token-123", "a", dispatch));
 
     await act(async () => {
       mockWebSockets[0]?.simulateOpen();
@@ -245,17 +233,13 @@ describe("useDuelSocket", () => {
     });
 
     // status_update should not be dispatched
-    expect(dispatch).not.toHaveBeenCalledWith(
-      expect.objectContaining({ type: "opponent_status" })
-    );
+    expect(dispatch).not.toHaveBeenCalledWith(expect.objectContaining({ type: "opponent_status" }));
     unmount();
   });
 
   it("dispatches countdown when receiving countdown frame", async () => {
     const dispatch = vi.fn();
-    const { unmount } = renderHook(() =>
-      useDuelSocket("room-1", "token-123", "a", dispatch)
-    );
+    const { unmount } = renderHook(() => useDuelSocket("room-1", "token-123", "a", dispatch));
 
     await act(async () => {
       mockWebSockets[0]?.simulateOpen();
@@ -274,9 +258,7 @@ describe("useDuelSocket", () => {
 
   it("dispatches result when receiving result frame", async () => {
     const dispatch = vi.fn();
-    const { unmount } = renderHook(() =>
-      useDuelSocket("room-1", "token-123", "a", dispatch)
-    );
+    const { unmount } = renderHook(() => useDuelSocket("room-1", "token-123", "a", dispatch));
 
     await act(async () => {
       mockWebSockets[0]?.simulateOpen();
@@ -305,9 +287,7 @@ describe("useDuelSocket", () => {
 
   it("dispatches opponent_left when receiving opponent_left frame", async () => {
     const dispatch = vi.fn();
-    const { unmount } = renderHook(() =>
-      useDuelSocket("room-1", "token-123", "a", dispatch)
-    );
+    const { unmount } = renderHook(() => useDuelSocket("room-1", "token-123", "a", dispatch));
 
     await act(async () => {
       mockWebSockets[0]?.simulateOpen();
@@ -326,9 +306,7 @@ describe("useDuelSocket", () => {
 
   it("ignores pong frames silently", async () => {
     const dispatch = vi.fn();
-    const { unmount } = renderHook(() =>
-      useDuelSocket("room-1", "token-123", "a", dispatch)
-    );
+    const { unmount } = renderHook(() => useDuelSocket("room-1", "token-123", "a", dispatch));
 
     await act(async () => {
       mockWebSockets[0]?.simulateOpen();
@@ -336,17 +314,13 @@ describe("useDuelSocket", () => {
     });
 
     // No dispatch call for pong
-    expect(dispatch).not.toHaveBeenCalledWith(
-      expect.objectContaining({ type: "pong" })
-    );
+    expect(dispatch).not.toHaveBeenCalledWith(expect.objectContaining({ type: "pong" }));
     unmount();
   });
 
   it("dispatches room_not_found error when receiving error frame with room_not_found code", async () => {
     const dispatch = vi.fn();
-    const { unmount } = renderHook(() =>
-      useDuelSocket("room-1", "token-123", "a", dispatch)
-    );
+    const { unmount } = renderHook(() => useDuelSocket("room-1", "token-123", "a", dispatch));
 
     await act(async () => {
       mockWebSockets[0]?.simulateOpen();
@@ -362,9 +336,7 @@ describe("useDuelSocket", () => {
 
   it("dispatches duel_already_active error frame", async () => {
     const dispatch = vi.fn();
-    const { unmount } = renderHook(() =>
-      useDuelSocket("room-1", "token-123", "a", dispatch)
-    );
+    const { unmount } = renderHook(() => useDuelSocket("room-1", "token-123", "a", dispatch));
 
     await act(async () => {
       mockWebSockets[0]?.simulateOpen();
@@ -383,9 +355,7 @@ describe("useDuelSocket", () => {
 
   it("ignores malformed JSON frames", async () => {
     const dispatch = vi.fn();
-    const { unmount } = renderHook(() =>
-      useDuelSocket("room-1", "token-123", "a", dispatch)
-    );
+    const { unmount } = renderHook(() => useDuelSocket("room-1", "token-123", "a", dispatch));
 
     await act(async () => {
       mockWebSockets[0]?.simulateOpen();
@@ -396,17 +366,13 @@ describe("useDuelSocket", () => {
     });
 
     // Should not crash, dispatch should not be called for the malformed frame
-    expect(dispatch).not.toHaveBeenCalledWith(
-      expect.objectContaining({ type: "not-json" })
-    );
+    expect(dispatch).not.toHaveBeenCalledWith(expect.objectContaining({ type: "not-json" }));
     unmount();
   });
 
   it("reconnects on unexpected close (not 4401/4403)", async () => {
     const dispatch = vi.fn();
-    const { unmount } = renderHook(() =>
-      useDuelSocket("room-1", "token-123", "a", dispatch)
-    );
+    const { unmount } = renderHook(() => useDuelSocket("room-1", "token-123", "a", dispatch));
 
     await act(async () => {
       mockWebSockets[0]?.simulateOpen();
@@ -443,9 +409,7 @@ describe("useDuelSocket", () => {
 
   it("does not reconnect on fatal close codes (4401, 4403)", async () => {
     const dispatch = vi.fn();
-    const { unmount } = renderHook(() =>
-      useDuelSocket("room-1", "token-123", "a", dispatch)
-    );
+    const { unmount } = renderHook(() => useDuelSocket("room-1", "token-123", "a", dispatch));
 
     await act(async () => {
       mockWebSockets[0]?.simulateOpen();
@@ -472,9 +436,7 @@ describe("useDuelSocket", () => {
 
   it("unmount closes idempotently (StrictMode-safe)", async () => {
     const dispatch = vi.fn();
-    const { unmount } = renderHook(() =>
-      useDuelSocket("room-1", "token-123", "a", dispatch)
-    );
+    const { unmount } = renderHook(() => useDuelSocket("room-1", "token-123", "a", dispatch));
 
     await act(async () => {
       mockWebSockets[0]?.simulateOpen();
@@ -497,9 +459,7 @@ describe("useDuelSocket", () => {
 
   it("provides sendStatusUpdate API", async () => {
     const dispatch = vi.fn();
-    const { result } = renderHook(() =>
-      useDuelSocket("room-1", "token-123", "a", dispatch)
-    );
+    const { result } = renderHook(() => useDuelSocket("room-1", "token-123", "a", dispatch));
 
     await act(async () => {
       mockWebSockets[0]?.simulateOpen();
@@ -519,9 +479,7 @@ describe("useDuelSocket", () => {
 
   it("provides sendFinish API with time_ms rounded", async () => {
     const dispatch = vi.fn();
-    const { result } = renderHook(() =>
-      useDuelSocket("room-1", "token-123", "a", dispatch)
-    );
+    const { result } = renderHook(() => useDuelSocket("room-1", "token-123", "a", dispatch));
 
     await act(async () => {
       mockWebSockets[0]?.simulateOpen();
@@ -547,9 +505,7 @@ describe("useDuelSocket", () => {
 
   it("sendFinish enforces minimum time_ms of 1", async () => {
     const dispatch = vi.fn();
-    const { result } = renderHook(() =>
-      useDuelSocket("room-1", "token-123", "a", dispatch)
-    );
+    const { result } = renderHook(() => useDuelSocket("room-1", "token-123", "a", dispatch));
 
     await act(async () => {
       mockWebSockets[0]?.simulateOpen();
@@ -575,9 +531,7 @@ describe("useDuelSocket", () => {
 
   it("does not send when WS is not open", async () => {
     const dispatch = vi.fn();
-    const { result } = renderHook(() =>
-      useDuelSocket("room-1", "token-123", "a", dispatch)
-    );
+    const { result } = renderHook(() => useDuelSocket("room-1", "token-123", "a", dispatch));
 
     // Don't simulate open, so WS stays in CONNECTING state
 
@@ -595,7 +549,7 @@ describe("useDuelSocket", () => {
     const dispatch = vi.fn();
     const { rerender, unmount } = renderHook(
       ({ roomId, token }) => useDuelSocket(roomId, token, "a", dispatch),
-      { initialProps: { roomId: "room-1", token: "token-123" } }
+      { initialProps: { roomId: "room-1", token: "token-123" } },
     );
 
     await act(async () => {

@@ -543,9 +543,7 @@ async def test_standings_valid_ordered_by_submitted_at(
 # --- standings: excludes dnf and started ----
 
 
-async def test_standings_excludes_dnf_and_started(
-    client: AsyncClient, email_spy: EmailSpy
-) -> None:
+async def test_standings_excludes_dnf_and_started(client: AsyncClient, email_spy: EmailSpy) -> None:
     """DNF appears in dnf_count only; started excluded from both; valid appears."""
     await _register_and_login(client, email_spy, "valid@example.com")
     await client.post("/tournament/current/attempt/start")
@@ -582,13 +580,17 @@ async def test_standings_only_dnf(client: AsyncClient, email_spy: EmailSpy) -> N
     """All dnf → entries [], dnf_count N."""
     await _register_and_login(client, email_spy, "dnf1@example.com")
     await client.post("/tournament/current/attempt/start")
-    resp = await client.post("/tournament/current/attempt/submit", json={"time_ms": 1, "status": "dnf"})
+    resp = await client.post(
+        "/tournament/current/attempt/submit", json={"time_ms": 1, "status": "dnf"}
+    )
     assert resp.status_code == 200, resp.text
     assert resp.json()["status"] == "dnf"
 
     await _register_and_login(client, email_spy, "dnf2@example.com")
     await client.post("/tournament/current/attempt/start")
-    resp = await client.post("/tournament/current/attempt/submit", json={"time_ms": 1, "status": "dnf"})
+    resp = await client.post(
+        "/tournament/current/attempt/submit", json={"time_ms": 1, "status": "dnf"}
+    )
     assert resp.status_code == 200, resp.text
     assert resp.json()["status"] == "dnf"
 
@@ -609,7 +611,9 @@ async def test_standings_no_rank_field(client: AsyncClient, email_spy: EmailSpy)
     """Response JSON has no rank/position key."""
     await _register_and_login(client, email_spy, "norank@example.com")
     await client.post("/tournament/current/attempt/start")
-    await client.post("/tournament/current/attempt/submit", json={"time_ms": 5000, "status": "valid"})
+    await client.post(
+        "/tournament/current/attempt/submit", json={"time_ms": 5000, "status": "valid"}
+    )
 
     resp = await client.get("/tournament/current/standings")
     assert resp.status_code == 200, resp.text
@@ -631,13 +635,13 @@ async def test_standings_no_email_no_nickname_leak(
     """Email "leaky@example.com" + nickname "Leaky" + public_handle=None → display_name "Аноним", no leak."""
     await _register_and_login(client, email_spy, "leaky@example.com")
     await client.post("/tournament/current/attempt/start")
-    await client.post("/tournament/current/attempt/submit", json={"time_ms": 5000, "status": "valid"})
+    await client.post(
+        "/tournament/current/attempt/submit", json={"time_ms": 5000, "status": "valid"}
+    )
 
     # Manually set nickname (register doesn't usually expose it, but it's there on the model)
     async with session_maker() as session:
-        user_result = await session.execute(
-            select(User).where(User.email == "leaky@example.com")
-        )
+        user_result = await session.execute(select(User).where(User.email == "leaky@example.com"))
         user = user_result.scalars().first()
         assert user is not None
         user.nickname = "Leaky"
@@ -665,7 +669,9 @@ async def test_standings_public_handle_shown(
     """public_handle "SpeedCuber" → display_name "SpeedCuber"."""
     await _register_and_login(client, email_spy, "speedcuber@example.com")
     await client.post("/tournament/current/attempt/start")
-    await client.post("/tournament/current/attempt/submit", json={"time_ms": 5000, "status": "valid"})
+    await client.post(
+        "/tournament/current/attempt/submit", json={"time_ms": 5000, "status": "valid"}
+    )
 
     # Set public_handle via PATCH
     resp = await client.patch("/users/me", json={"public_handle": "SpeedCuber"})
@@ -683,9 +689,7 @@ async def test_standings_public_handle_shown(
 # --- standings: no scramble in response ----
 
 
-async def test_standings_no_scramble_in_body(
-    client: AsyncClient, email_spy: EmailSpy
-) -> None:
+async def test_standings_no_scramble_in_body(client: AsyncClient, email_spy: EmailSpy) -> None:
     """DB scramble string absent from response body."""
     await _register_and_login(client, email_spy, "noscramble@example.com")
     start_resp = await client.post("/tournament/current/attempt/start")
@@ -693,7 +697,9 @@ async def test_standings_no_scramble_in_body(
     scramble_from_start = start_resp.json()["scramble"]
     assert scramble_from_start  # Start returns the scramble
 
-    await client.post("/tournament/current/attempt/submit", json={"time_ms": 5000, "status": "valid"})
+    await client.post(
+        "/tournament/current/attempt/submit", json={"time_ms": 5000, "status": "valid"}
+    )
 
     resp = await client.get("/tournament/current/standings")
     assert resp.status_code == 200, resp.text
@@ -706,15 +712,15 @@ async def test_standings_no_scramble_in_body(
 # --- standings: limit clamping ----
 
 
-async def test_standings_limit_clamped(
-    client: AsyncClient, email_spy: EmailSpy
-) -> None:
+async def test_standings_limit_clamped(client: AsyncClient, email_spy: EmailSpy) -> None:
     """limit bounds the result; limit<=0 → 422."""
     # Create 5 valid attempts
     for i in range(5):
         await _register_and_login(client, email_spy, f"user{i}@example.com")
         await client.post("/tournament/current/attempt/start")
-        await client.post("/tournament/current/attempt/submit", json={"time_ms": 1000 + i, "status": "valid"})
+        await client.post(
+            "/tournament/current/attempt/submit", json={"time_ms": 1000 + i, "status": "valid"}
+        )
 
     # Request limit=2, should get exactly 2 even though 5 valid attempts exist
     resp = await client.get("/tournament/current/standings?limit=2")
@@ -795,9 +801,7 @@ async def test_set_public_handle_via_patch_me(client: AsyncClient, email_spy: Em
 # --- public_handle not leaked to others ----
 
 
-async def test_public_handle_not_leaked_to_others(
-    client: AsyncClient, email_spy: EmailSpy
-) -> None:
+async def test_public_handle_not_leaked_to_others(client: AsyncClient, email_spy: EmailSpy) -> None:
     """GET /users/me never exposes another user."""
     await _register_and_login(client, email_spy, "alice@example.com")
     resp = await client.patch("/users/me", json={"public_handle": "AliceHandle"})

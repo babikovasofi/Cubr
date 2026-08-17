@@ -54,9 +54,7 @@ def upgrade() -> None:
         ["id"],
         ondelete="CASCADE",
     )
-    op.create_unique_constraint(
-        "uq_user_badges_user_code", "user_badges", ["user_id", "code"]
-    )
+    op.create_unique_constraint("uq_user_badges_user_code", "user_badges", ["user_id", "code"])
 
 
 def downgrade() -> None:

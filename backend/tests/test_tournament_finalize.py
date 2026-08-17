@@ -213,8 +213,7 @@ async def test_sweep_ignores_valid_and_dnf(
     # Reload and verify unchanged
     async with session_maker() as session:
         result = await session.execute(
-            select(TournamentAttempt)
-            .where(TournamentAttempt.id.in_([valid_id, dnf_id]))
+            select(TournamentAttempt).where(TournamentAttempt.id.in_([valid_id, dnf_id]))
         )
         attempts_by_id = {a.id: a for a in result.scalars().all()}
 
@@ -353,10 +352,7 @@ async def test_sweep_mixed_batch_counts_only_expired(
     window = 600
 
     async with session_maker() as session:
-        users = [
-            await _insert_user(session, f"user{i}@example.com")
-            for i in range(4)
-        ]
+        users = [await _insert_user(session, f"user{i}@example.com") for i in range(4)]
         tournament = await _insert_tournament(session)
 
         # Expired started
@@ -458,6 +454,7 @@ async def test_finalize_run_sweeps_and_commits(
     # Monkeypatch now_utc and async_session_maker so run() uses test fixtures
     # now_utc is imported directly in the finalize module, so patch it there
     import app.jobs.finalize as finalize_module
+
     monkeypatch.setattr(finalize_module, "now_utc", lambda: now)
     # async_session_maker is imported inside run() from app.db, so patch it there
     monkeypatch.setattr("app.db.async_session_maker", session_maker)

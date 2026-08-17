@@ -80,7 +80,12 @@ describe("guideStateFor step transitions", () => {
 
   it("SOLVING -> solving step shows elapsed", () => {
     const g = guideStateFor(
-      base({ scrambleSet: true, scrambleVerified: true, fsmState: "SOLVING", solveElapsedMs: 4200 }),
+      base({
+        scrambleSet: true,
+        scrambleVerified: true,
+        fsmState: "SOLVING",
+        solveElapsedMs: 4200,
+      }),
     );
     expect(g.step).toBe("solving");
     expect(g.nowRu).toMatch(/4\.2/);
@@ -96,7 +101,9 @@ describe("guideStateFor step transitions", () => {
 
 describe("collector projection (real progress, never clicks)", () => {
   it("verify collection in progress -> collecting step bound to facesLength", () => {
-    const g = guideStateFor(base({ scrambleSet: true, collector: { purpose: "verify", facesLength: 3 } }));
+    const g = guideStateFor(
+      base({ scrambleSet: true, collector: { purpose: "verify", facesLength: 3 } }),
+    );
     expect(g.step).toBe("collecting");
     expect(g.activeButtonId).toBe("btn-verify");
     expect(g.nowRu).toMatch(/3\/6/);
@@ -134,7 +141,9 @@ describe("error branch", () => {
 describe("timer gating invariant (skeptic HIGH)", () => {
   it("without scrambleVerified the guide NEVER reaches armTimer/solving", () => {
     // Even with a scramble set and hands active, no verify => stay in verify step.
-    const g = guideStateFor(base({ scrambleSet: true, scrambleVerified: false, fsmState: "HANDS_IN_ZONE" }));
+    const g = guideStateFor(
+      base({ scrambleSet: true, scrambleVerified: false, fsmState: "HANDS_IN_ZONE" }),
+    );
     expect(g.step).toBe("verifyScramble");
     expect(["armTimer", "solving"]).not.toContain(g.step);
   });

@@ -104,7 +104,9 @@ describe("useDailyAttempt — load phase", () => {
   });
 
   it("a GET failure lands on load_error with a retry that can recover", async () => {
-    getCurrentDailyMock.mockRejectedValueOnce(new ApiError(0, null, "Не удалось связаться с сервером."));
+    getCurrentDailyMock.mockRejectedValueOnce(
+      new ApiError(0, null, "Не удалось связаться с сервером."),
+    );
     const { result } = renderHook(() => useDailyAttempt());
     await waitFor(() => expect(result.current.state.phase).toBe("load_error"));
 
@@ -133,7 +135,9 @@ describe("useDailyAttempt — commit", () => {
     const { result } = renderHook(() => useDailyAttempt());
     await waitFor(() => expect(result.current.state.phase).toBe("precommit"));
 
-    startDailyAttemptMock.mockRejectedValueOnce(new ApiError(0, null, "Не удалось связаться с сервером."));
+    startDailyAttemptMock.mockRejectedValueOnce(
+      new ApiError(0, null, "Не удалось связаться с сервером."),
+    );
     await act(() => result.current.commit());
     expect(result.current.state.phase).toBe("commit_error");
     expect(result.current.state.attempt).toBeNull();
@@ -192,7 +196,9 @@ describe("useDailyAttempt — submit", () => {
 
   it("409 (already submitted elsewhere) recovers via GET and still lands on terminal", async () => {
     const result = await toActive();
-    submitDailyAttemptMock.mockRejectedValueOnce(new ApiError(409, null, "Attempt already submitted"));
+    submitDailyAttemptMock.mockRejectedValueOnce(
+      new ApiError(409, null, "Attempt already submitted"),
+    );
     getCurrentDailyMock.mockResolvedValueOnce(TERMINAL_CURRENT);
 
     await act(() => result.current.submit({ elapsedMs: 12340, dnf: false, cameraVerified: true }));
@@ -224,7 +230,9 @@ describe("useDailyAttempt — submit", () => {
 
   it("a network failure is retryable and never drops the result", async () => {
     const result = await toActive();
-    submitDailyAttemptMock.mockRejectedValueOnce(new ApiError(0, null, "Не удалось связаться с сервером."));
+    submitDailyAttemptMock.mockRejectedValueOnce(
+      new ApiError(0, null, "Не удалось связаться с сервером."),
+    );
 
     await act(() => result.current.submit({ elapsedMs: 7000, dnf: false, cameraVerified: true }));
 

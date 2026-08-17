@@ -36,7 +36,7 @@ const renderDuelJoinPage = (token: string = "test-token") => {
         {/* Mock route for navigation test */}
         <Route path="/duel/:roomId" element={<div>Duel Page</div>} />
       </Routes>
-    </MemoryRouter>
+    </MemoryRouter>,
   );
 };
 
@@ -88,7 +88,7 @@ describe("DuelJoinPage", () => {
     render(
       <MemoryRouter initialEntries={["/duel/join/invite-token-123"]}>
         <DuelJoinPage />
-      </MemoryRouter>
+      </MemoryRouter>,
     );
 
     // The page should have navigated (we can't easily test navigate call
@@ -100,26 +100,19 @@ describe("DuelJoinPage", () => {
   });
 
   it("shows not_found message on 404 error", async () => {
-    joinRoomMock.mockRejectedValueOnce(
-      new ApiError(404, null, "Ссылка не найдена")
-    );
+    joinRoomMock.mockRejectedValueOnce(new ApiError(404, null, "Ссылка не найдена"));
 
     renderDuelJoinPage();
 
     await waitFor(() => {
-      expect(
-        screen.getByText(/Ссылка на дуэль недействительна или устарела/)
-      ).toBeTruthy();
+      expect(screen.getByText(/Ссылка на дуэль недействительна или устарела/)).toBeTruthy();
     });
   });
 
   it("shows already_active message on 409 error with existing room link", async () => {
-    const error = new ApiError(
-      409,
-      null,
-      "Already active",
-      { existing_room_id: "existing-room-123" }
-    );
+    const error = new ApiError(409, null, "Already active", {
+      existing_room_id: "existing-room-123",
+    });
     joinRoomMock.mockRejectedValueOnce(error);
     existingRoomIdFromMock.mockReturnValueOnce("existing-room-123");
 
@@ -127,9 +120,7 @@ describe("DuelJoinPage", () => {
 
     await waitFor(() => {
       expect(screen.getByText(/У тебя уже есть активная дуэль/)).toBeTruthy();
-      expect(
-        screen.getByRole("link", { name: "Перейти к активной дуэли" })
-      ).toBeTruthy();
+      expect(screen.getByRole("link", { name: "Перейти к активной дуэли" })).toBeTruthy();
     });
   });
 
@@ -161,23 +152,17 @@ describe("DuelJoinPage", () => {
   });
 
   it("shows error message on other API errors", async () => {
-    joinRoomMock.mockRejectedValueOnce(
-      new ApiError(500, null, "Internal server error")
-    );
+    joinRoomMock.mockRejectedValueOnce(new ApiError(500, null, "Internal server error"));
 
     renderDuelJoinPage();
 
     await waitFor(() => {
-      expect(
-        screen.getByText(/Не удалось подключиться к дуэли/)
-      ).toBeTruthy();
+      expect(screen.getByText(/Не удалось подключиться к дуэли/)).toBeTruthy();
     });
   });
 
   it("shows home link on error states", async () => {
-    joinRoomMock.mockRejectedValueOnce(
-      new ApiError(404, null, "Not found")
-    );
+    joinRoomMock.mockRejectedValueOnce(new ApiError(404, null, "Not found"));
 
     renderDuelJoinPage();
 
@@ -204,7 +189,7 @@ describe("DuelJoinPage", () => {
     const { unmount } = render(
       <BrowserRouter>
         <DuelJoinPage />
-      </BrowserRouter>
+      </BrowserRouter>,
     );
 
     // Unmount should not throw
@@ -214,15 +199,16 @@ describe("DuelJoinPage", () => {
   it("handles rapid route changes (cancel flag)", async () => {
     let resolveJoin: (value: any) => void;
     joinRoomMock.mockImplementation(
-      () => new Promise((resolve) => {
-        resolveJoin = resolve;
-      })
+      () =>
+        new Promise((resolve) => {
+          resolveJoin = resolve;
+        }),
     );
 
     render(
       <MemoryRouter initialEntries={["/duel/join/token-1"]}>
         <DuelJoinPage />
-      </MemoryRouter>
+      </MemoryRouter>,
     );
 
     // Resolve after unmount

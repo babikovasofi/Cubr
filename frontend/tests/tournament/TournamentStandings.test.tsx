@@ -35,12 +35,7 @@ describe("TournamentStandings", () => {
   it("renders de-ranked rows with NO rank number", () => {
     const mockReload = () => {};
     render(
-      <TournamentStandings
-        data={WITH_ENTRIES}
-        loading={false}
-        error={null}
-        reload={mockReload}
-      />,
+      <TournamentStandings data={WITH_ENTRIES} loading={false} error={null} reload={mockReload} />,
     );
 
     // All rows rendered
@@ -57,12 +52,7 @@ describe("TournamentStandings", () => {
   it("marks is_self row with 'ты' indicator", () => {
     const mockReload = () => {};
     render(
-      <TournamentStandings
-        data={WITH_ENTRIES}
-        loading={false}
-        error={null}
-        reload={mockReload}
-      />,
+      <TournamentStandings data={WITH_ENTRIES} loading={false} error={null} reload={mockReload} />,
     );
 
     // Charlie appears in entries and your_entry sections
@@ -79,12 +69,7 @@ describe("TournamentStandings", () => {
   it("renders empty state when entries is empty", () => {
     const mockReload = () => {};
     render(
-      <TournamentStandings
-        data={EMPTY_DATA}
-        loading={false}
-        error={null}
-        reload={mockReload}
-      />,
+      <TournamentStandings data={EMPTY_DATA} loading={false} error={null} reload={mockReload} />,
     );
 
     expect(screen.getByText("Пока никто не закончил")).toBeTruthy();
@@ -93,12 +78,7 @@ describe("TournamentStandings", () => {
   it("renders DNF count line when dnf_count > 0", () => {
     const mockReload = () => {};
     render(
-      <TournamentStandings
-        data={WITH_ENTRIES}
-        loading={false}
-        error={null}
-        reload={mockReload}
-      />,
+      <TournamentStandings data={WITH_ENTRIES} loading={false} error={null} reload={mockReload} />,
     );
 
     expect(screen.getByText("1 участник не финишировал")).toBeTruthy();
@@ -107,12 +87,7 @@ describe("TournamentStandings", () => {
   it("renders disclaimer text (дружеский зачёт)", () => {
     const mockReload = () => {};
     render(
-      <TournamentStandings
-        data={EMPTY_DATA}
-        loading={false}
-        error={null}
-        reload={mockReload}
-      />,
+      <TournamentStandings data={EMPTY_DATA} loading={false} error={null} reload={mockReload} />,
     );
 
     expect(
@@ -123,12 +98,7 @@ describe("TournamentStandings", () => {
   it("contains NO '@' character anywhere in output (privacy guard)", () => {
     const mockReload = () => {};
     render(
-      <TournamentStandings
-        data={WITH_ENTRIES}
-        loading={false}
-        error={null}
-        reload={mockReload}
-      />,
+      <TournamentStandings data={WITH_ENTRIES} loading={false} error={null} reload={mockReload} />,
     );
 
     const html = document.body.innerHTML;
@@ -138,12 +108,7 @@ describe("TournamentStandings", () => {
   it("renders your_entry outside list when present", () => {
     const mockReload = () => {};
     render(
-      <TournamentStandings
-        data={WITH_ENTRIES}
-        loading={false}
-        error={null}
-        reload={mockReload}
-      />,
+      <TournamentStandings data={WITH_ENTRIES} loading={false} error={null} reload={mockReload} />,
     );
 
     // Check for the "Твоё место" section
@@ -160,28 +125,14 @@ describe("TournamentStandings", () => {
       your_entry: null,
     };
     const mockReload = () => {};
-    render(
-      <TournamentStandings
-        data={data}
-        loading={false}
-        error={null}
-        reload={mockReload}
-      />,
-    );
+    render(<TournamentStandings data={data} loading={false} error={null} reload={mockReload} />);
 
     expect(screen.queryByText("Твоё место")).toBeNull();
   });
 
   it("shows loading state", () => {
     const mockReload = () => {};
-    render(
-      <TournamentStandings
-        data={null}
-        loading={true}
-        error={null}
-        reload={mockReload}
-      />,
-    );
+    render(<TournamentStandings data={null} loading={true} error={null} reload={mockReload} />);
 
     // The text appears in both visible and sr-only elements
     expect(screen.getAllByText("Загружаю таблицу…").length).toBeGreaterThan(0);
@@ -209,12 +160,7 @@ describe("TournamentStandings", () => {
   it("formats times correctly (ms to seconds with 2 decimals)", () => {
     const mockReload = () => {};
     render(
-      <TournamentStandings
-        data={WITH_ENTRIES}
-        loading={false}
-        error={null}
-        reload={mockReload}
-      />,
+      <TournamentStandings data={WITH_ENTRIES} loading={false} error={null} reload={mockReload} />,
     );
 
     // 5000 ms = 5.00 s, 3000 ms = 3.00 s, 7000 ms = 7.00 s
@@ -228,12 +174,7 @@ describe("TournamentStandings", () => {
   it("renders week_label in header", () => {
     const mockReload = () => {};
     render(
-      <TournamentStandings
-        data={WITH_ENTRIES}
-        loading={false}
-        error={null}
-        reload={mockReload}
-      />,
+      <TournamentStandings data={WITH_ENTRIES} loading={false} error={null} reload={mockReload} />,
     );
 
     expect(screen.getByText(/2026-W29/)).toBeTruthy();

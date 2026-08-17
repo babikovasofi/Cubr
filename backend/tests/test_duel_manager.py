@@ -51,8 +51,14 @@ class Callbacks:
         self.finalize.append((room_id, a, b))
         # Mirror production wiring: winner comes from the pure compute_winner.
         return compute_winner(
-            a.user_id, a.status, a.time_ms, a.finished_at,
-            b.user_id, b.status, b.time_ms, b.finished_at,
+            a.user_id,
+            a.status,
+            a.time_ms,
+            a.finished_at,
+            b.user_id,
+            b.status,
+            b.time_ms,
+            b.finished_at,
         )
 
     async def on_abandon(self, room_id: uuid.UUID) -> None:
@@ -266,7 +272,9 @@ async def test_prep_timeout_forces_dnf_for_not_ready() -> None:
 
 async def test_solve_timeout_forces_dnf_for_no_finish() -> None:
     cb = Callbacks()
-    mgr = make_manager(cb, prep_timeout_seconds=1, countdown_seconds=0.01, solve_timeout_seconds=0.03)
+    mgr = make_manager(
+        cb, prep_timeout_seconds=1, countdown_seconds=0.01, solve_timeout_seconds=0.03
+    )
     room, a, b = uuid.uuid4(), uuid.uuid4(), uuid.uuid4()
     await _connect_both(mgr, room, a, b)
     await mgr.set_status(room, a, "ready")

@@ -46,9 +46,7 @@ def upgrade() -> None:
     op.create_index(
         op.f("ix_oauth_account_oauth_name"), "oauth_account", ["oauth_name"], unique=False
     )
-    op.create_index(
-        "ix_oauth_account_user_id", "oauth_account", ["user_id"], unique=False
-    )
+    op.create_index("ix_oauth_account_user_id", "oauth_account", ["user_id"], unique=False)
 
     # nickname becomes nullable: OAuth sign-up creates the user before a nickname
     # is derived (see UserManager.oauth_callback).

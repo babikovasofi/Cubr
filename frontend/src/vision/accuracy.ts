@@ -20,7 +20,9 @@
 // camera read + pipeline; accuracy.ts just scores.
 
 import { config } from "./config";
+import { pinRotationsByPhysics, rotateGrid } from "./cubeGrid";
 import { SOLVED, FACE_ORDER, type Face, type Facelet } from "./cubeState";
+import { deltaE, rgb2lab } from "./colors";
 
 export interface StickerResult {
   index: number;
@@ -215,6 +217,111 @@ export function scoreFreeGrip(
   };
 }
 
+/**
+ * Счёт «ПО КАРТИНКЕ»: грань сравнивается с эталонной гранью ПОЗИЦИОННО, но с
+ * точностью до её поворота в кадре (0/90/180/270).
+ *
+ * Ритуал, который этот режим обслуживает: харнесс говорит «покажи грань с зелёным
+ * центром», человек показывает её плашмя в камеру, но кубик при этом перекачен
+ * как удобно — сверху может оказаться любая грань. Значит квадрат 3×3 приезжает
+ * повёрнутым, и сравнивать надо две картинки, а не два мешка цветов.
+ *
+ * Чем он лучше свободной хватки. Та сравнивает МУЛЬТИМНОЖЕСТВА и потому слепа к
+ * перестановке наклеек внутри грани — а это ровно тот отказ, который даёт съехавшая
+ * сетка. Здесь перестановка видна: её не спасает ни один из четырёх поворотов.
+ * Продукту нужны именно позиции (из них собирается состояние для cubejs), поэтому
+ * этот режим меряет то же свойство, которым продукт и пользуется.
+ *
+ * Чем он лучше строгой хватки. Не требует держать кубик в одной ориентации
+ * двадцать чтений подряд — то есть не мерит руки вместо зрения.
+ *
+ * ЧЕСТНОСТЬ. Поворот берётся из ФИЗИКИ кубика (`pinRotationsByPhysics`), а не из
+ * совпадения с ответом: ожидаемый скрамбл в выборе поворота не участвует вообще.
+ * Ошибка цвета физику нарушает, то есть наказывается. Если физика поворот НЕ
+ * определила (`tied > 1`), режим честно говорит об этом отдельным исходом —
+ * подбирать поворот под ответ здесь нельзя, это и есть survivorship bias.
+ *
+ * Центры из счёта исключены (48, не 54): грань опознаётся по центру, значит центр
+ * верен по построению и дал бы +11% из воздуха. Та же логика, что в свободной хватке.
+ */
+export type PictureGripScore =
+  | { kind: "assign-conflict"; reason: string }
+  | { kind: "rotation-ambiguous"; reason: string; violations: number; tied: number }
+  | { kind: "ok"; report: AccuracyReport; rotations: number[]; violations: number };
+
+export function scorePictureGrip(
+  faceGrids: Face[][],
+  expected: Facelet,
+  faceOf: Face[],
+  passFrac: number = config.ACCURACY_PASS_FRAC,
+): PictureGripScore {
+  if (faceGrids.length !== 6 || faceGrids.some((g) => g.length !== 9)) {
+    return { kind: "assign-conflict", reason: "нужно ровно 6 граней по 9 ячеек" };
+  }
+  const pin = pinRotationsByPhysics(faceGrids, faceOf);
+  if (!pin.ok || !pin.rotations) {
+    return { kind: "assign-conflict", reason: pin.reason ?? "повороты не выведены" };
+  }
+  if ((pin.tied ?? 1) > 1) {
+    return {
+      kind: "rotation-ambiguous",
+      reason: `физика не определила поворот граней: ${pin.tied} комбинаций нарушают её одинаково (${pin.violations})`,
+      violations: pin.violations ?? 0,
+      tied: pin.tied ?? 0,
+    };
+  }
+
+  const slotOf: Record<Face, number> = { U: 0, R: 1, F: 2, D: 3, L: 4, B: 5 };
+  const stickers: StickerResult[] = [];
+  const confusion = emptyConfusion();
+  let correct = 0;
+  let total = 0;
+
+  for (let cap = 0; cap < 6; cap++) {
+    const face = faceOf[cap];
+    const slot = slotOf[face];
+    const exp = expected.slice(slot * 9, slot * 9 + 9).split("") as Face[];
+    const rotated = rotateGrid(faceGrids[cap], pin.rotations[cap]);
+    // Куда уехала каждая ячейка при повороте: sourceOf[j] — номер ячейки в
+    // ИСХОДНОЙ съёмке, попавшей на место j после поворота.
+    //
+    // Без этого `index` считался по повёрнутой позиции и по слоту URFDLB, а
+    // диагностика ячеек (`cellDiagnostics`) лежит в порядке СЪЁМОК и БЕЗ
+    // поворота. Отчёт зипует их по `index` — и печатал RGB одной ячейки рядом с
+    // «прочитано/ожидалось» совсем другой. Живой прогон дал строку
+    // «read U, expected D … ΔE D 6.4»: победитель D, а прочитано якобы U, чего
+    // быть не может. Счёт верных при этом был верен всегда — расходилась только
+    // диагностика, то есть врало именно то, по чему чинят зрение.
+    const sourceOf = rotateGrid([0, 1, 2, 3, 4, 5, 6, 7, 8], pin.rotations[cap]);
+    for (let j = 0; j < 9; j++) {
+      if (j === 4) continue; // центр — ключ выравнивания, в счёт не идёт
+      total += 1;
+      const read = rotated[j];
+      const isCorrect = read === exp[j];
+      if (isCorrect) correct += 1;
+      const src = sourceOf[j];
+      stickers.push({
+        index: cap * 9 + src,
+        face,
+        cellInFace: src,
+        read,
+        expected: exp[j],
+        correct: isCorrect,
+      });
+      confusion[exp[j]][read] += 1;
+    }
+  }
+
+  stickers.sort((a, b) => a.index - b.index);
+  const fraction = total > 0 ? correct / total : 0;
+  return {
+    kind: "ok",
+    rotations: pin.rotations,
+    violations: pin.violations ?? 0,
+    report: { total, correct, fraction, pass: fraction >= passFrac, stickers, confusion },
+  };
+}
+
 function isFace(c: string): boolean {
   return (FACE_ORDER as readonly string[]).includes(c);
 }
@@ -274,6 +381,22 @@ export interface FaceFitDiag {
   used: boolean;
   /** Средний по 9 ячейкам контраст окантовки, единицы яркости 0..255. */
   gap: number;
+  /**
+   * Средний по 9 ячейкам контраст ВНУТРЕННИХ границ (ΔE, см. vision/faceFit
+   * edgeContrast) — признак ДЛЯ STICKERLESS, у которого физического зазора нет.
+   *
+   * НЕОБЯЗАТЕЛЬНОЕ поле, а не задуманно-обязательное (как исходно намечал план
+   * этой задачи): продюсер телеметрии — `useCubeReader.ts`, а он вне рамок этой
+   * правки (заблокирован пользователем отдельно, вместе с машинерией отказа).
+   * Поле объявлено здесь и покрыто тестами заранее, но реально заполнится
+   * только когда `useCubeReader.ts` начнёт передавать `edgeContrast(...)` —
+   * отдельная задача. До тех пор `formatReport` печатает то, что есть.
+   */
+  edge?: number;
+  /** См. `FitResult.margin` (vision/faceFit). Тот же комментарий про `edge`. */
+  margin?: number;
+  /** См. `FitResult.decided` (vision/faceFit). Тот же комментарий про `edge`. */
+  decided?: boolean;
 }
 
 /** Human-readable multi-line report string for printing to the page. */
@@ -332,6 +455,14 @@ export function formatReport(
     lines.push(`  без отрыва от второго кандидата (< ${config.STICKER_MARGIN_MIN}): ${tight}`);
     lines.push(`  не похожих ни на один цвет кубика (ΔE > ${config.STICKER_MAX_DELTA_E}): ${far}`);
     lines.push(`  медианный ΔE до ближайшего эталона: ${medianDE.toFixed(1)}`);
+    // Скептик (LOW): «кожа в ячейках — следствие съехавшей сетки» была
+    // недоказанной посылкой. Число вместо декларации: сколько из 54 ячеек
+    // реально ближе к телесному тону, чем к любому из шести эталонов кубика —
+    // палец/ладонь в кадре даёт именно такой промах, и его нельзя чинить
+    // порогом STICKER_MAX_DELTA_E (out of scope, см. план).
+    const skinLab = rgb2lab(config.FACE_FIT_SKIN_RGB);
+    const skinLike = diags.filter((d) => deltaE(rgb2lab(d.rgb), skinLab) < d.bestDE).length;
+    lines.push(`  ближе к телесному тону, чем к эталону кубика: ${skinLike}`);
   }
   if (fits?.length) {
     const fellBack = fits.filter((f) => !f.used).length;
@@ -339,13 +470,37 @@ export function formatReport(
     lines.push("Подгонка сетки (по граням в порядке URFDLB):");
     for (let i = 0; i < fits.length; i++) {
       const f = fits[i];
+      const edge =
+        f.edge !== undefined
+          ? `, контраст границ ${f.edge.toFixed(1)} (цель ${config.FACE_FIT_EDGE_TARGET})`
+          : "";
+      const margin =
+        f.margin !== undefined && Number.isFinite(f.margin)
+          ? `, отрыв ${f.margin.toFixed(2)} (порог ${config.FACE_FIT_MIN_MARGIN})`
+          : f.margin !== undefined
+            ? `, отрыв ∞ (несогласных соперников нет)`
+            : "";
+      const decided =
+        f.decided !== undefined
+          ? `, ${f.decided ? "фаза сетки определена" : "фаза сетки НЕ определена"}`
+          : "";
       lines.push(
         `  ${FACE_ORDER[i] ?? i}: выигрыш ${f.gain.toFixed(2)} (порог ${config.FACE_FIT_MIN_GAIN})` +
           `, ${f.used ? "ПОДОГНАНА" : "ОТКАТ НА РАМКУ"}` +
-          `, контраст щелей ${f.gap.toFixed(1)} (цель ${config.FACE_FIT_GAP_TARGET})`,
+          `, контраст щелей ${f.gap.toFixed(1)} (цель ${config.FACE_FIT_GAP_TARGET})` +
+          edge +
+          margin +
+          decided,
       );
     }
     lines.push(`  откатов на рамку: ${fellBack} из ${fits.length}`);
+    // Печатается только когда ХОТЬ ОДНА грань несёт decided: без этого поле
+    // необязательное (useCubeReader.ts его пока не заполняет, см. FaceFitDiag),
+    // и строка "0 из 6" читалась бы как «все решены», хотя на деле неизвестно.
+    if (fits.some((f) => f.decided !== undefined)) {
+      const undecidedCount = fits.filter((f) => f.decided === false).length;
+      lines.push(`  граней без определённой подгонки: ${undecidedCount} из ${fits.length}`);
+    }
   }
   return lines.join("\n");
 }

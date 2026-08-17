@@ -60,7 +60,7 @@ vi.mock("../../src/store/authStore", () => ({
   useAuthStore: vi.fn((selector) =>
     selector({
       user: { id: "current-user-id" },
-    })
+    }),
   ),
 }));
 
@@ -78,7 +78,7 @@ describe("DuelPage", () => {
     const { container } = render(
       <BrowserRouter>
         <DuelPage />
-      </BrowserRouter>
+      </BrowserRouter>,
     );
     expect(container).toBeTruthy();
   });
@@ -89,7 +89,7 @@ describe("DuelPage", () => {
     render(
       <BrowserRouter>
         <DuelPage />
-      </BrowserRouter>
+      </BrowserRouter>,
     );
     // If the component renders without error, the hooks are correctly set up
     expect(true).toBe(true);
@@ -105,7 +105,7 @@ describe("DuelPage", () => {
     render(
       <BrowserRouter>
         <DuelPage />
-      </BrowserRouter>
+      </BrowserRouter>,
     );
     // Component structure verified; real integration tested in E2E
     expect(true).toBe(true);

@@ -44,7 +44,10 @@ describe("HandsFsm progression", () => {
     const fsm = new HandsFsm();
     // Enter zone, then be still for LESS than STILL_MS.
     const enter = repeat({ bothInZone: true }, Math.ceil(config.ZONE_ENTER_MS / 16) + 2);
-    const shortStill = repeat({ bothInZone: true, still: true }, Math.floor(config.STILL_MS / 16) - 2);
+    const shortStill = repeat(
+      { bothInZone: true, still: true },
+      Math.floor(config.STILL_MS / 16) - 2,
+    );
     const { state } = drive(fsm, [...enter, ...shortStill]);
     expect(state).toBe("HANDS_IN_ZONE");
     expect(state).not.toBe("READY");
@@ -53,7 +56,10 @@ describe("HandsFsm progression", () => {
   it("stillness >= STILL_MS reaches READY", () => {
     const fsm = new HandsFsm();
     const enter = repeat({ bothInZone: true }, Math.ceil(config.ZONE_ENTER_MS / 16) + 2);
-    const longStill = repeat({ bothInZone: true, still: true }, Math.ceil(config.STILL_MS / 16) + 2);
+    const longStill = repeat(
+      { bothInZone: true, still: true },
+      Math.ceil(config.STILL_MS / 16) + 2,
+    );
     const { state } = drive(fsm, [...enter, ...longStill]);
     expect(state).toBe("READY");
   });

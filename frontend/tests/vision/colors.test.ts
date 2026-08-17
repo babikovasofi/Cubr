@@ -11,6 +11,7 @@ import {
   checkCalibration,
   anchorDistances,
   minSeparation,
+  nearestNeighbours,
   classifyFace,
   assignQuota,
   applyLightGain,
@@ -21,11 +22,7 @@ import {
   type Lab,
   type Refs,
 } from "../../src/vision/colors";
-import {
-  quickAdjust,
-  observedFaceStats,
-  minPairwiseRefDE,
-} from "../../src/vision/quickAdjust";
+import { quickAdjust, observedFaceStats, minPairwiseRefDE } from "../../src/vision/quickAdjust";
 import { config } from "../../src/vision/config";
 
 describe("rgb2lab", () => {
@@ -254,6 +251,39 @@ describe("checkCalibration", () => {
     const nudged: Refs = { ...refs, U: [refs.D[0] - 2, refs.U[1], refs.U[2]] };
     expect(checkCalibration(nudged)).toBeNull();
   });
+
+  // Отчёт печатал ОДНУ самую тесную пару, а живой отказ 2026-08-05 был про
+  // конкретную пару L–U (центр оранжевой грани прочитан белым). Если самая
+  // тесная пара — не она, вопрос «слиплись ли L и U» оставался без ответа.
+  it("сосед считается для каждого цвета, а не только для самой тесной пары", () => {
+    const refs = refsOf(REAL_RUNS.working65);
+    const near = nearestNeighbours(refs);
+    const sep = minSeparation(refs);
+
+    // Каждый цвет получил соседа, и это не он сам.
+    for (const n of COLOR_NAMES) {
+      expect(near[n].name).not.toBe(n);
+      expect(near[n].de).toBeGreaterThan(0);
+    }
+    // Самая тесная пара согласована с обеими функциями: у обоих её концов
+    // сосед — второй конец, и ΔE тот же.
+    expect(near[sep.a].name).toBe(sep.b);
+    expect(near[sep.b].name).toBe(sep.a);
+    expect(near[sep.a].de).toBeCloseTo(sep.de, 6);
+    // Минимум по соседям и есть min попарное — сосед никого не пропускает.
+    const minOverNeighbours = Math.min(...COLOR_NAMES.map((n) => near[n].de));
+    expect(minOverNeighbours).toBeCloseTo(sep.de, 6);
+  });
+
+  it("называет соседом именно белый, когда оранжевый эталон уехал в белый", () => {
+    // Живой симптом: центр оранжевой грани снялся почти белым. min попарное
+    // тогда указывает на L–U, но проверяем адресно — отчёт должен показать это
+    // в строке L, а не только в итоговой строке.
+    const merged: Record<string, RGB> = { ...REAL_RUNS.working65, L: [198, 226, 238] };
+    const near = nearestNeighbours(refsOf(merged));
+    expect(near.L.name).toBe("U");
+    expect(near.L.de).toBeLessThan(config.CALIB_MIN_SEPARATION_DE);
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -278,11 +308,7 @@ function makeRefs(): Refs {
 }
 
 function jitter(rgb: RGB, d: number): RGB {
-  return [
-    clamp(rgb[0] + rand(d)),
-    clamp(rgb[1] + rand(d)),
-    clamp(rgb[2] + rand(d)),
-  ];
+  return [clamp(rgb[0] + rand(d)), clamp(rgb[1] + rand(d)), clamp(rgb[2] + rand(d))];
 }
 function rand(d: number): number {
   return Math.round((Math.random() * 2 - 1) * d);
@@ -418,8 +444,15 @@ describe("quickAdjust — von-Kries over one white face", () => {
     const refs = makeRefs();
     // Half the stickers white, half strongly grey → large intra-cluster spread.
     const loose: RGB[] = [
-      baseRGB.U, baseRGB.U, baseRGB.U, baseRGB.U, baseRGB.U,
-      [150, 150, 150], [150, 150, 150], [150, 150, 150], [150, 150, 150],
+      baseRGB.U,
+      baseRGB.U,
+      baseRGB.U,
+      baseRGB.U,
+      baseRGB.U,
+      [150, 150, 150],
+      [150, 150, 150],
+      [150, 150, 150],
+      [150, 150, 150],
     ];
     const r = quickAdjust(refs, loose);
     expect(r.kind).toBe("diverged");
@@ -449,7 +482,17 @@ describe("observedFaceStats", () => {
   it("reports a loose cluster when the 9 stickers disagree", () => {
     const refs = makeRefs();
     const grey: RGB = [120, 120, 120];
-    const mixed: RGB[] = [baseRGB.U, baseRGB.U, baseRGB.U, baseRGB.U, baseRGB.U, grey, grey, grey, grey];
+    const mixed: RGB[] = [
+      baseRGB.U,
+      baseRGB.U,
+      baseRGB.U,
+      baseRGB.U,
+      baseRGB.U,
+      grey,
+      grey,
+      grey,
+      grey,
+    ];
     const stats = observedFaceStats(mixed.map(rgb2lab), refs);
     expect(stats.clusterSpread).toBeGreaterThan(config.QUICK_ADJUST_CLUSTER_DE);
   });
