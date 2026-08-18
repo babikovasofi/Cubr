@@ -13,6 +13,7 @@ proxies (wired in ``main.py``). We never read raw XFF here.
 """
 
 from collections.abc import AsyncIterator, Awaitable, Callable
+from contextlib import asynccontextmanager
 
 from fastapi import HTTPException, Request
 from limits import RateLimitItem, parse
@@ -56,14 +57,65 @@ def _raise(item: RateLimitItem, key_func: Callable[[Request], str]) -> None:
     )
 
 
-def ip_rate_limit(limit: str) -> Callable[[Request], Awaitable[None]]:
-    """Dependency: throttle by client IP (`AUTH_RATE_LIMIT` style)."""
+@asynccontextmanager
+async def _outcome_gated_budget(item: RateLimitItem, key: str) -> AsyncIterator[None]:
+    """Shared body for a rate limit that must only spend budget on a FAILED
+    attempt and give the budget back in full on success — used by both
+    `ip_rate_limit` (on `/auth/login` only) and `login_account_rate_limit`.
+
+    Peek the budget without consuming it (`_window.test`) and reject up
+    front (429, via the same `_raise` everyone else uses) if it's already
+    exhausted. Otherwise let the wrapped path operation run: on success (no
+    exception propagates back) CLEAR the counter for `key`; on failure
+    (`HTTPException` — LOGIN_BAD_CREDENTIALS et al.) spend one unit via
+    `_window.hit` and re-raise unchanged.
+
+    A single shared helper, not two copies, because both callers are the
+    *same* policy applied to two different keys (per-IP, per-account) —
+    factoring out the copy wouldn't blur what each limit means; it's the
+    literal thing they have in common. What keeps their meanings apart is
+    the `key` each caller builds (`ip:...` vs `login-account:...`) and
+    *where* each is willing to apply it — that stays in the two callers.
+    """
+    if not await _window.test(item, key):
+        _raise(item, _client_ip)
+    try:
+        yield
+    except HTTPException:
+        await _window.hit(item, key)
+        raise
+    else:
+        await _window.clear(item, key)
+
+
+def ip_rate_limit(limit: str) -> Callable[[Request], AsyncIterator[None]]:
+    """Dependency: throttle by client IP (`AUTH_RATE_LIMIT` style).
+
+    Everywhere except `/auth/login` this is the original "hit on every
+    request" shape: for register / verify / forgot-password / reset-password
+    / the google oauth redirect, a *successful* call is precisely the event
+    being throttled (it sends mail, or changes account state) — so success
+    must keep costing budget there.
+
+    On `/auth/login` specifically it switches to the outcome-gated shape
+    (`_outcome_gated_budget`, shared with `login_account_rate_limit`): a
+    person who logs in correctly many times in a row from one IP (retries,
+    a second tab, a flaky network) must not trip this — only wrong guesses
+    should. Brute-forcing many DIFFERENT accounts from one IP still trips
+    it exactly as before, since every failed guess from that IP still spends
+    the same per-IP bucket regardless of which account it targeted.
+    """
     item = parse(limit)
 
-    async def dependency(request: Request) -> None:
+    async def dependency(request: Request) -> AsyncIterator[None]:
         key = f"ip:{request.scope.get('path', '')}:{_client_ip(request)}"
-        if not await _window.hit(item, key):
-            _raise(item, _client_ip)
+        if not request.url.path.endswith("/login"):
+            if not await _window.hit(item, key):
+                _raise(item, _client_ip)
+            yield
+            return
+        async with _outcome_gated_budget(item, key):
+            yield
 
     return dependency
 
@@ -103,14 +155,9 @@ def login_account_rate_limit(limit: str) -> Callable[[Request], AsyncIterator[No
     alongside an actual attacker. Real brute-force defenses only meter
     *wrong* guesses.
 
-    This is a yield-dependency instead, which lets it observe the outcome:
-    - before the path op: peek the account's budget WITHOUT consuming it
-      (`_window.test`) and reject up front if it's already exhausted;
-    - after the path op: on success (no exception — fastapi-users' login
-      returns its 204 response and nothing is raised), CLEAR the account's
-      counter — a correct password is proof the requester isn't guessing;
-      on failure (`HTTPException`, e.g. LOGIN_BAD_CREDENTIALS) spend one
-      unit of budget (`_window.hit`) and re-raise unchanged.
+    This is a yield-dependency instead, built on the same outcome-gated
+    shape as `ip_rate_limit`'s `/auth/login` case — see
+    `_outcome_gated_budget` for the peek/clear/hit mechanics.
 
     Mounted on the whole fastapi-users auth router (login *and* logout share
     one router — see app.routers.auth), so this checks the request path
@@ -131,19 +178,8 @@ def login_account_rate_limit(limit: str) -> Callable[[Request], AsyncIterator[No
             yield
             return
         key = f"login-account:{username}"
-        if not await _window.test(item, key):
-            _raise(item, _client_ip)
-        try:
+        async with _outcome_gated_budget(item, key):
             yield
-        except HTTPException:
-            # A real failed guess (bad credentials, unverified, ...) —
-            # this is what the budget is meant to meter.
-            await _window.hit(item, key)
-            raise
-        else:
-            # Correct password: this account isn't being brute-forced right
-            # now, so give it its full budget back.
-            await _window.clear(item, key)
 
     return dependency
 
