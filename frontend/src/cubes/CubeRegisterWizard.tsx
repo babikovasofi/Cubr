@@ -76,7 +76,7 @@ export default function CubeRegisterWizard({ defaultPrimary = false, onDone, onC
         overlayRef={reg.overlayRef}
         workRef={reg.workRef}
         error={reg.error}
-        onRetry={reg.start}
+        onRetry={reg.retry}
       />
 
       <aside className="flex flex-col gap-4">

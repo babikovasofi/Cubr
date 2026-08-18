@@ -45,6 +45,7 @@ function stubReg(overrides: Partial<CubeRegister> = {}): CubeRegister {
     calibrated: false,
     profile: null,
     start: vi.fn(async () => {}),
+    retry: vi.fn(async () => {}),
     capture: vi.fn(),
     reset: vi.fn(),
     ...overrides,

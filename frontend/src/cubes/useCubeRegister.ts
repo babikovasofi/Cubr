@@ -61,6 +61,8 @@ export interface CubeRegister {
   calibrated: boolean;
   profile: ColorProfile | null;
   start: () => Promise<void>;
+  /** Обработчик кнопки «Попробовать снова»: чинит камеру или гасит ошибку чтения. */
+  retry: () => Promise<void>;
   capture: () => void;
   reset: () => void;
 }
@@ -112,6 +114,20 @@ export function useCubeRegister(): CubeRegister {
     }
   };
 
+  // «Попробовать снова» под ошибкой обслуживает ДВА разных отказа, и лечатся они
+  // по-разному. Камера не поднялась — надо поднимать заново. Грань не
+  // прочиталась — камера в порядке, надо просто снять кадр ещё раз, а на экране
+  // убрать надпись. Раньше кнопка звала start(), который выходит на первой
+  // строке при уже запущенной камере, поэтому при ошибке чтения она не делала
+  // РОВНО НИЧЕГО: пользователь жал её и оставался с той же красной надписью.
+  const retry = async (): Promise<void> => {
+    if (started && camera.isLive()) {
+      setError(null);
+      return;
+    }
+    await start();
+  };
+
   const capture = (): void => {
     const v = videoRef.current;
     if (!v) return;
@@ -148,6 +164,7 @@ export function useCubeRegister(): CubeRegister {
     calibrated: reader.calibrated,
     profile: reader.calibrated ? reader.getProfile() : null,
     start,
+    retry,
     capture,
     reset,
   };
