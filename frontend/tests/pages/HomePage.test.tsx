@@ -71,9 +71,9 @@ describe("HomePage", () => {
   it("тренажёр PLL — анониму сразу на /trainer, не на /register (§П5)", () => {
     renderHome();
 
-    expect(screen.getByRole("link", { name: /Тренажёр PLL/ }).getAttribute("href")).toBe(
-      "/trainer",
-    );
+    expect(
+      screen.getByRole("link", { name: /Тренажёр последнего слоя/ }).getAttribute("href"),
+    ).toBe("/trainer");
   });
 
   it("статус loading показывает лендинг, а не дашборд", () => {
@@ -107,9 +107,9 @@ describe("HomePage", () => {
     useAuthStore.setState({ status: "authed" });
     renderHome();
 
-    expect(screen.getByRole("link", { name: /Тренажёр PLL/ }).getAttribute("href")).toBe(
-      "/trainer",
-    );
+    expect(
+      screen.getByRole("link", { name: /Тренажёр последнего слоя/ }).getAttribute("href"),
+    ).toBe("/trainer");
   });
 
   it("с телефона лендинг честно предупреждает про компьютер (R8)", () => {
