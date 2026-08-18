@@ -2,7 +2,7 @@ from datetime import datetime
 from typing import TYPE_CHECKING
 
 from fastapi_users_db_sqlalchemy import SQLAlchemyBaseUserTableUUID
-from sqlalchemy import DateTime, Integer, String, func
+from sqlalchemy import DateTime, Index, Integer, String, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db import Base
@@ -18,6 +18,19 @@ class User(SQLAlchemyBaseUserTableUUID, Base):
     ``email`` / ``hashed_password`` / ``is_active`` / ``is_superuser`` /
     ``is_verified`` from the fastapi-users base (adopted now so the 2.2 auth
     stage does not have to rewrite the table). App-specific columns below.
+
+    ``uq_user_public_handle_lower`` (friends feature, see ``app.models.
+    friendship``): a case-insensitive UNIQUE index on ``public_handle`` so
+    "add by handle" is unambiguous — without it two people could hold
+    handles differing only in case and a lookup by handle would be unable
+    to tell them apart. It is a PARTIAL index (``WHERE public_handle IS NOT
+    NULL``) on purpose: plain SQL ``UNIQUE`` never treats two ``NULL``s as
+    equal, but the partial predicate additionally guarantees that unset
+    handles are never even considered by the index, so any number of users
+    without a handle coexist with no conflict. This does NOT make profiles
+    public — ``public_handle`` stays opt-in/empty by default; the index only
+    makes an already-public field (Т10, shown on tournament/daily boards)
+    unambiguous to look up.
     """
 
     # Nullable: OAuth sign-up (fastapi-users ``oauth_callback``) creates the row
@@ -46,4 +59,14 @@ class User(SQLAlchemyBaseUserTableUUID, Base):
         "OAuthAccount",
         lazy="joined",
         cascade="all, delete-orphan",
+    )
+
+    __table_args__ = (
+        Index(
+            "uq_user_public_handle_lower",
+            func.lower(public_handle),
+            unique=True,
+            postgresql_where=public_handle.isnot(None),
+            sqlite_where=public_handle.isnot(None),
+        ),
     )
