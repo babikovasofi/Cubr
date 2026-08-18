@@ -1,5 +1,11 @@
 import { describe, it, expect } from "vitest";
-import { scoreRead, formatReport, formatRawGrids, type CellDiag } from "../../src/vision/accuracy";
+import {
+  scoreRead,
+  formatReport,
+  formatRawGrids,
+  colorBalanceRu,
+  type CellDiag,
+} from "../../src/vision/accuracy";
 import { SOLVED, FACE_ORDER, type Facelet } from "../../src/vision/cubeState";
 import { COLOR_NAMES } from "../../src/vision/colors";
 import { config } from "../../src/vision/config";
@@ -302,7 +308,9 @@ describe("formatRawGrids", () => {
       grid("BBBBBBBBB"),
     ];
     const out = formatRawGrids(grids);
-    const first = out.split("\n")[1];
+    // Строку ищем по номеру съёмки, а не по позиции: перед ячейками может стоять
+    // строка баланса цветов, и она стоит там именно тогда, когда чтение битое.
+    const first = out.split("\n").find((l) => l.trim().startsWith("1:"))!;
     expect(first).toContain("U");
     expect(first).toContain("R");
     expect(first).toContain("(F)");
@@ -334,5 +342,50 @@ describe("formatRawGrids", () => {
     const out = formatRawGrids([grid("UUUUUUUUU")]);
     expect(out).not.toContain("центр ΔE");
     expect(out).not.toContain("выбито бликом");
+  });
+});
+
+describe("colorBalanceRu", () => {
+  const g = (s: string): string[] => s.split("");
+
+  it("у физически возможного чтения молчит", () => {
+    const grids = ["U", "R", "F", "D", "L", "B"].map((c) => g(c.repeat(9)));
+    expect(colorBalanceRu(grids)).toBeNull();
+  });
+
+  // Числа живого прогона 2026-08-19: отказ говорил про повороты граней, а на
+  // самом деле четыре красных прочитаны не красными — это R1, главный риск.
+  it("называет недостающий цвет, когда чтение невозможно", () => {
+    const grids = [
+      g("LDDLUULUU"),
+      g("LLDBRRBDF"),
+      g("UUULFBFUF"),
+      g("RFDDDRDBB"),
+      g("DFUFLFLLL"),
+      g("BRBUBLLUU"),
+    ];
+    const out = colorBalanceRu(grids)!;
+    expect(out).toContain("R 5");
+    expect(out).toContain("L 12");
+    expect(out).toContain("U 12");
+    expect(out).toContain("недостаёт цвета R: 4");
+  });
+
+  it("дамп ячеек печатает баланс первой строкой", () => {
+    const grids = [
+      g("LDDLUULUU"),
+      g("LLDBRRBDF"),
+      g("UUULFBFUF"),
+      g("RFDDDRDBB"),
+      g("DFUFLFLLL"),
+      g("BRBUBLLUU"),
+    ];
+    const out = formatRawGrids(grids);
+    expect(out.split("\n")[0]).toContain("Баланс цветов");
+  });
+
+  it("у возможного чтения дамп начинается сразу с ячеек", () => {
+    const grids = ["U", "R", "F", "D", "L", "B"].map((c) => g(c.repeat(9)));
+    expect(formatRawGrids(grids).split("\n")[0]).toContain("Ячейки съёмок");
   });
 });

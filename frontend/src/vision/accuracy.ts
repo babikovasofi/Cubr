@@ -400,6 +400,38 @@ export interface FaceFitDiag {
 }
 
 /**
+ * Сколько раз каждый цвет встретился в сыром чтении при норме девять.
+ *
+ * Самая дешёвая проверка на свете и самая наглядная: на кубике по девять
+ * наклеек каждого цвета, точка. Перекос значит, что цвета перепутаны — и
+ * говорит это ДО поворотов, эталона и физики, то есть тогда, когда все прочие
+ * сообщения ещё рассуждают о своём.
+ *
+ * Живой прогон 2026-08-19 отказал словами «физика не определила поворот граней:
+ * 2 комбинации нарушают её одинаково (6)» — формально верно и бесполезно.
+ * Баланс на тех же данных: R 5 при норме 9, L 12, U 12. Четыре красных
+ * прочитаны не красными — вот отчего физика и не сошлась, и это R1, главный
+ * риск проекта, а не свойство поворотов.
+ *
+ * Строка печатается ТОЛЬКО при перекосе: у здорового чтения она была бы шумом.
+ */
+export function colorBalanceRu(grids: readonly (readonly string[])[]): string | null {
+  const counts = new Map<string, number>();
+  for (const g of grids) for (const c of g) counts.set(c, (counts.get(c) ?? 0) + 1);
+  const off = [...counts.entries()]
+    .filter(([, n]) => n !== 9)
+    .sort((a, b) => Math.abs(b[1] - 9) - Math.abs(a[1] - 9));
+  if (off.length === 0) return null;
+  const parts = off.map(([c, n]) => `${c} ${n} (${n > 9 ? "+" : "\u2212"}${Math.abs(n - 9)})`);
+  const worst = off[0];
+  const tail =
+    worst[1] < 9
+      ? ` Больше всего недостаёт цвета ${worst[0]}: ${9 - worst[1]} наклеек прочитаны не им.`
+      : ` Больше всего лишнего цвета ${worst[0]}: +${worst[1] - 9}.`;
+  return `Баланс цветов (на кубике ровно по 9): ${parts.join(", ")}.${tail}`;
+}
+
+/**
  * Все 9 ячеек каждой съёмки — сырым argmin, без раскладки и без квот.
  *
  * Зачем отдельно от `formatReport`. Тот печатает промахи ПРОЧИТАННОГО кубика, а
@@ -420,10 +452,15 @@ export function formatRawGrids(
   grids: readonly (readonly string[])[],
   diags?: readonly CellDiag[],
 ): string {
-  const lines: string[] = [
+  const lines: string[] = [];
+  // Баланс идёт ПЕРВЫМ: он один отвечает на вопрос «чтение вообще возможно?»,
+  // и без него человек читает буквы, не зная, что искать.
+  const balance = colorBalanceRu(grids);
+  if (balance) lines.push(balance);
+  lines.push(
     "Ячейки съёмок (сырой argmin, 3 ряда по 3, центр в скобках; строчная буква — " +
       `ΔE больше ${config.STICKER_MAX_DELTA_E}, то есть не цвет кубика):`,
-  ];
+  );
   grids.forEach((grid, cap) => {
     const cells = grid.map((face, i) => {
       const d = diags?.[cap * 9 + i];

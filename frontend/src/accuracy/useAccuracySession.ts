@@ -317,7 +317,18 @@ export function useAccuracySession(): AccuracySession {
           setCaptureError(r.diag ?? faceUnreadableRu());
           return;
         }
-        dropRead(r.diag ? `${faceUnreadableRu()} (${r.diag})` : faceUnreadableRu(), "unreadable");
+        // Отказ, который сам себя объясняет, печатается ОДИН. Общая присказка
+        // «повтори грань, держи её в жёлтой рамке» поверх «сними чтение заново»
+        // — прямое противоречие в одном абзаце, и человек делает то, что
+        // прочитал первым.
+        dropRead(
+          r.reason === "no-lattice-late" && r.diag
+            ? r.diag
+            : r.diag
+              ? `${faceUnreadableRu()} (${r.diag})`
+              : faceUnreadableRu(),
+          "unreadable",
+        );
         reader.resetAccuracy();
         bump();
         return;

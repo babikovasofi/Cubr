@@ -450,7 +450,7 @@ export type AccuracyCapture =
   // отдельный случай: сняли не кубик. Он не портит уже снятые грани и лечится
   // одним действием, поэтому вызывающий переспрашивает ЭТУ грань, а не бракует
   // всё чтение.
-  | { kind: "unreadable"; diag?: string; reason?: "not-a-face" | "no-lattice" }
+  | { kind: "unreadable"; diag?: string; reason?: "not-a-face" | "no-lattice" | "no-lattice-late" }
   | {
       kind: "complete";
       rawFaceGrids: Face[][]; // 6 × 9 сырое чтение в фиксированном порядке URFDLB
@@ -492,7 +492,7 @@ export type VerifyResult =
   | { kind: "ok" }
   | { kind: "mismatch"; face: string; count: number }
   | { kind: "illegal" } // read is not a legal cube
-  | { kind: "unreadable"; diag?: string; reason?: "not-a-face" | "no-lattice" } // свет/резкость/уверенность/не кубик/нет решётки — diag объясняет что именно
+  | { kind: "unreadable"; diag?: string; reason?: "not-a-face" | "no-lattice" | "no-lattice-late" } // свет/резкость/уверенность/не кубик/нет решётки — diag объясняет что именно
   | { kind: "assign" } // two faces classified to the same center
   | { kind: "ambiguous" } // multiple legal rotations
   | { kind: "resolve" }; // no legal rotation combo
@@ -933,6 +933,10 @@ export function useCubeReader(workRef: React.RefObject<HTMLCanvasElement | null>
     if (collapsed.length > 0) {
       return {
         kind: "unreadable",
+        // Своя причина, а не общая: отказ УЖЕ объясняет, что делать («сними
+        // чтение заново»), и обёртка «повтори грань, держи её в жёлтой рамке»
+        // поверх него говорит человеку противоположное.
+        reason: "no-lattice-late",
         diag: latticeCollapsedLateRu(collapsed.map((x) => String(COLOR_NAMES[x.i]))),
       };
     }
