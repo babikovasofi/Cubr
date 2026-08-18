@@ -25,8 +25,14 @@ import {
 } from "../colors";
 import { quickAdjust as colorsQuickAdjust } from "../quickAdjust";
 import { config, squareGuidePx, type Rect } from "../config";
-import { fitFaceRegion, gapContrast, edgeContrast, type FitRegion } from "../faceFit";
-import { notACubeFaceRu } from "../guide";
+import {
+  fitFaceRegion,
+  gapContrast,
+  edgeContrast,
+  latticeVerdict,
+  type FitRegion,
+} from "../faceFit";
+import { notACubeFaceRu, latticeCollapsedRu, latticeCollapsedLateRu } from "../guide";
 import {
   assignFacesByCenter,
   resolveRotations,
@@ -444,7 +450,7 @@ export type AccuracyCapture =
   // отдельный случай: сняли не кубик. Он не портит уже снятые грани и лечится
   // одним действием, поэтому вызывающий переспрашивает ЭТУ грань, а не бракует
   // всё чтение.
-  | { kind: "unreadable"; diag?: string; reason?: "not-a-face" }
+  | { kind: "unreadable"; diag?: string; reason?: "not-a-face" | "no-lattice" }
   | {
       kind: "complete";
       rawFaceGrids: Face[][]; // 6 × 9 сырое чтение в фиксированном порядке URFDLB
@@ -486,7 +492,7 @@ export type VerifyResult =
   | { kind: "ok" }
   | { kind: "mismatch"; face: string; count: number }
   | { kind: "illegal" } // read is not a legal cube
-  | { kind: "unreadable"; diag?: string; reason?: "not-a-face" } // свет/резкость/уверенность/не кубик — diag объясняет что именно
+  | { kind: "unreadable"; diag?: string; reason?: "not-a-face" | "no-lattice" } // свет/резкость/уверенность/не кубик/нет решётки — diag объясняет что именно
   | { kind: "assign" } // two faces classified to the same center
   | { kind: "ambiguous" } // multiple legal rotations
   | { kind: "resolve" }; // no legal rotation combo
@@ -628,6 +634,11 @@ export function useCubeReader(workRef: React.RefObject<HTMLCanvasElement | null>
   const calibRgbRef = useRef<Partial<Record<ColorName, RGB>>>({});
   const collectorRef = useRef<FaceSample[] | null>(null);
   const accCollectorRef = useRef<FaceSample[] | null>(null);
+  // Какие грани уже забракованы замком решётки в ТЕКУЩЕМ чтении. Бюджет — одна
+  // пересъёмка на грань: у грани, где рядом лежат наклейки одного цвета, оба
+  // признака решётки законно слабые, и бесконечный отказ превратил бы харнесс в
+  // тупик. Один раз просим переснять, второй — принимаем как есть.
+  const latticeRefusedRef = useRef<Set<number>>(new Set());
   // Сколько раз подряд грань отклонена по неуверенности (см. пороги в config).
   const lowConfidenceRef = useRef(0);
 
@@ -831,12 +842,14 @@ export function useCubeReader(workRef: React.RefObject<HTMLCanvasElement | null>
 
   const beginAccuracy = (): void => {
     accCollectorRef.current = [];
+    latticeRefusedRef.current = new Set();
     setAccFacesLength(0);
     setCollectingAccuracy(true);
   };
 
   const resetAccuracy = (): void => {
     accCollectorRef.current = null;
+    latticeRefusedRef.current = new Set();
     setAccFacesLength(0);
     setCollectingAccuracy(false);
   };
@@ -863,6 +876,28 @@ export function useCubeReader(workRef: React.RefObject<HTMLCanvasElement | null>
       return { kind: "unreadable", diag: notACubeFaceRu(medianDE), reason: "not-a-face" };
     }
 
+    // Решётка этой съёмки против решётки уже снятых граней. Цветовые замки выше
+    // сюда не достают: белый стол за краем рамки — законный цвет кубика, и по
+    // ΔE такая съёмка выглядит здоровой. Мимо грани выдаёт структура.
+    const lattice = latticeVerdict(
+      face.fit,
+      accCollectorRef.current.map((f) => f.fit),
+    );
+    if (lattice.collapsed && !latticeRefusedRef.current.has(faceIndex)) {
+      latticeRefusedRef.current.add(faceIndex);
+      return {
+        kind: "unreadable",
+        reason: "no-lattice",
+        diag: latticeCollapsedRu(
+          expectedColor,
+          face.fit.edge ?? 0,
+          lattice.edgeMedian,
+          face.fit.gap,
+          lattice.gapMedian,
+        ),
+      };
+    }
+
     const de = deltaE(face.lab[4], refs[expectedColor]);
     // Drift is ADVISORY, not a block: on a real webcam the center can legitimately
     // drift > CENTER_DRIFT_DE (auto-WB/exposure) and refusing the capture just stops
@@ -881,6 +916,26 @@ export function useCubeReader(workRef: React.RefObject<HTMLCanvasElement | null>
     accCollectorRef.current = null;
     setCollectingAccuracy(false);
     setAccFacesLength(0);
+
+    // Первые съёмки проверить в момент захвата было не с чем — медианы ещё не
+    // существовало. Теперь она есть: сверяем каждую грань со всеми остальными.
+    // Переснять одну грань уже поздно, поэтому чтение уходит в дроп целиком —
+    // это честнее, чем засчитать в гейт девять ячеек стола.
+    const collapsed = faces
+      .map((f, i) => ({
+        i,
+        v: latticeVerdict(
+          f.fit,
+          faces.filter((_, j) => j !== i).map((o) => o.fit),
+        ),
+      }))
+      .filter((x) => x.v.collapsed);
+    if (collapsed.length > 0) {
+      return {
+        kind: "unreadable",
+        diag: latticeCollapsedLateRu(collapsed.map((x) => String(COLOR_NAMES[x.i]))),
+      };
+    }
 
     const {
       rawFaceGrids,

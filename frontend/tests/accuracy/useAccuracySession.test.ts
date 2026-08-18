@@ -356,4 +356,30 @@ describe("useAccuracySession — honesty barrier", () => {
     await act(async () => result.current.resetRun());
     expect(result.current.buildExport()).not.toContain("Последний брак");
   });
+  // Замок решётки просит переснять ОДНУ грань — как и «сняли не кубик». Если бы
+  // он бросал всё чтение в дроп, тестировщик терял бы пять честно снятых граней
+  // из-за одной, и drop-rate гейта наполнялся бы отказами инструмента, а не
+  // ошибками зрения.
+  it("«нет решётки» не бракует чтение и не пишет дроп", async () => {
+    readerStub.calibrated = true;
+    readerStub.collectingAccuracy = true;
+    readerStub.pushAccuracyFace.mockResolvedValue({
+      kind: "unreadable",
+      reason: "no-lattice",
+      diag: "Грань U снята мимо: у неё нет решётки — контраст границ 5.3 при 41.9 у соседних граней",
+    });
+    readerStub.resetAccuracy.mockClear();
+
+    const { result } = renderHook(() => useAccuracySession());
+    await act(async () => result.current.setMode("solved"));
+    result.current.videoRef.current = {} as HTMLVideoElement;
+    await act(async () => {
+      await result.current.captureFace();
+    });
+
+    expect(result.current.captureError).toContain("нет решётки");
+    expect(result.current.captureError).not.toContain("Грань не прочиталась");
+    expect(readerStub.resetAccuracy).not.toHaveBeenCalled();
+    expect(result.current.buildExport()).not.toContain("Последний брак");
+  });
 });

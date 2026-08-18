@@ -9,6 +9,7 @@ import {
   candidateRegions,
   gapContrast,
   edgeContrast,
+  latticeVerdict,
   type Patch,
 } from "../../src/vision/faceFit";
 import { deltaE, rgb2lab, type ColorName, type Refs, type RGB } from "../../src/vision/colors";
@@ -502,5 +503,74 @@ describe("A7/anti-запор: decided на существующих стикер
     const fit = fitFaceRegion(patch, REFS);
     expect(fit.margin).toBe(Infinity);
     expect(fit.decided).toBe(true);
+  });
+});
+
+describe("latticeVerdict — замок на съёмку мимо грани", () => {
+  // Числа взяты из живого прогона 2026-08-19 (stickerless, LED): грань U снята
+  // так, что правый край рамки ушёл на белый стол, и пять её ячеек прочитались
+  // белыми с ΔE 2–4. Ни один цветовой замок этого не увидел — стол белый, и
+  // белый есть на кубике. Решётка увидела: 5.3 против 39–47 у соседей.
+  const live = {
+    U: { gap: 4.0, edge: 5.3 },
+    R: { gap: 8.3, edge: 47.4 },
+    F: { gap: 3.3, edge: 39.5 },
+    D: { gap: 12.0, edge: 41.9 },
+    L: { gap: 24.9, edge: 47.3 },
+    B: { gap: 15.9, edge: 39.8 },
+  };
+  const others = (skip: keyof typeof live): { gap: number; edge: number }[] =>
+    (Object.keys(live) as (keyof typeof live)[]).filter((k) => k !== skip).map((k) => live[k]);
+
+  it("бракует ту самую грань живого прогона", () => {
+    const v = latticeVerdict(live.U, others("U"));
+    expect(v.collapsed).toBe(true);
+    expect(v.edgeRatio).toBeLessThan(0.35);
+  });
+
+  // Абсолютным порогом эти две грани не разделить: щели у здоровой F (3.3) даже
+  // НИЖЕ, чем у сломанной U (4.0). Разделяет только сравнение с соседями.
+  it("здоровую грань с низкими щелями не трогает", () => {
+    const v = latticeVerdict(live.F, others("F"));
+    expect(v.collapsed).toBe(false);
+    expect(live.F.gap).toBeLessThan(live.U.gap); // та самая ловушка
+  });
+
+  it("грань одного цвета (низкие границы, целые щели) не бракуется", () => {
+    // Наклейки одного цвета рядом — перепада через границу нет законно. Щели на
+    // месте, значит сетка на кубике, и такую грань браковать не за что.
+    const uniform = { gap: 13.0, edge: 2.0 };
+    const v = latticeVerdict(uniform, [
+      { gap: 12.0, edge: 40 },
+      { gap: 14.0, edge: 42 },
+      { gap: 11.0, edge: 38 },
+    ]);
+    expect(v.collapsed).toBe(false);
+  });
+
+  it("молчит, пока соседей меньше двух: медианы ещё нет", () => {
+    expect(latticeVerdict({ gap: 1, edge: 1 }, []).collapsed).toBe(false);
+    expect(latticeVerdict({ gap: 1, edge: 1 }, [{ gap: 20, edge: 40 }]).collapsed).toBe(false);
+  });
+
+  it("молчит, когда решётки нет у самих соседей", () => {
+    // Все шесть съёмок без решётки — вопрос не к одной грани, а ко всему чтению
+    // (свет, дистанция). Замок на выброс тут не судья.
+    const v = latticeVerdict({ gap: 0, edge: 0 }, [
+      { gap: 0, edge: 0 },
+      { gap: 0, edge: 0 },
+      { gap: 0, edge: 0 },
+    ]);
+    expect(v.collapsed).toBe(false);
+  });
+
+  it("порог берётся из аргумента, а не зашит", () => {
+    const face = { gap: 5, edge: 5 };
+    const rest = [
+      { gap: 10, edge: 10 },
+      { gap: 10, edge: 10 },
+    ];
+    expect(latticeVerdict(face, rest, 0.4).collapsed).toBe(false); // 0.5 > 0.4
+    expect(latticeVerdict(face, rest, 0.6).collapsed).toBe(true); // 0.5 < 0.6
   });
 });
