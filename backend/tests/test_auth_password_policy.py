@@ -213,3 +213,104 @@ async def test_login_account_rate_limit_does_not_apply_to_logout(
     for _ in range(3):
         resp = await client.post("/auth/logout")
         assert resp.status_code in (204, 401), resp.text
+
+
+# --- the fix: only FAILED attempts spend budget ------------------------------
+#
+# Every request below uses its own fake source IP (`_client_from_ip`), same
+# trick as the cross-IP test above — AUTH_RATE_LIMIT is ALSO 10/minute, keyed
+# by IP, and would otherwise trip first and make these tests meaningless.
+
+
+async def test_login_account_rate_limit_ten_successful_logins_never_429(
+    client: AsyncClient, email_spy: EmailSpy
+) -> None:
+    """The reported bug: a person who correctly enters their password many
+    times in a row (retries, a second tab, ...) must never see 429 — only
+    wrong guesses may spend the account's budget."""
+    email = "good-typist@example.com"
+    await _register(client, email)
+
+    for i in range(10):
+        async with _client_from_ip(f"10.4.0.{i + 1}") as c:
+            resp = await c.post(
+                "/auth/login", data={"username": email, "password": STRONG_PASSWORD}
+            )
+            assert resp.status_code == 204, (i, resp.text)
+
+
+async def test_login_account_rate_limit_ten_failures_429_on_eleventh(
+    client: AsyncClient, email_spy: EmailSpy
+) -> None:
+    email = "bad-guesser@example.com"
+    await _register(client, email)
+
+    statuses: list[int] = []
+    for i in range(11):
+        async with _client_from_ip(f"10.5.0.{i + 1}") as c:
+            resp = await c.post(
+                "/auth/login", data={"username": email, "password": "wrong-password-here"}
+            )
+            statuses.append(resp.status_code)
+
+    assert 429 not in statuses[:10], statuses
+    assert statuses[10] == 429, statuses
+
+
+async def test_logout_spends_no_account_budget(client: AsyncClient, email_spy: EmailSpy) -> None:
+    """Logout never touches the account bucket at all (it no-ops off any
+    path that isn't `/login`) — repeated logouts must not eat into the
+    budget a subsequent login attempt run would need."""
+    email = "logs-out-a-lot@example.com"
+    await _register(client, email)
+
+    async with _client_from_ip("10.7.0.1") as c:
+        resp = await c.post("/auth/login", data={"username": email, "password": STRONG_PASSWORD})
+        assert resp.status_code == 204, resp.text
+        for _ in range(5):
+            # First logout invalidates the session (204); repeats then have
+            # no valid cookie left (401) — either way, no 429 and no spend.
+            resp = await c.post("/auth/logout")
+            assert resp.status_code in (204, 401), resp.text
+
+    # Full 10-failure budget still available afterwards.
+    statuses: list[int] = []
+    for i in range(11):
+        async with _client_from_ip(f"10.7.1.{i + 1}") as c:
+            resp = await c.post(
+                "/auth/login", data={"username": email, "password": "wrong-password-here"}
+            )
+            statuses.append(resp.status_code)
+    assert 429 not in statuses[:10], statuses
+    assert statuses[10] == 429, statuses
+
+
+async def test_login_account_rate_limit_success_resets_the_counter(
+    client: AsyncClient, email_spy: EmailSpy
+) -> None:
+    """A correct login after a run of failures proves the account isn't
+    under attack — the budget must come back in full, not stay drained."""
+    email = "recovers@example.com"
+    await _register(client, email)
+
+    for i in range(5):
+        async with _client_from_ip(f"10.6.0.{i + 1}") as c:
+            resp = await c.post(
+                "/auth/login", data={"username": email, "password": "wrong-password-here"}
+            )
+            assert resp.status_code != 429, (i, resp.text)
+
+    async with _client_from_ip("10.6.0.100") as c:
+        resp = await c.post("/auth/login", data={"username": email, "password": STRONG_PASSWORD})
+        assert resp.status_code == 204, resp.text
+
+    # Full budget again: 10 more failures must not trip until the 11th.
+    statuses: list[int] = []
+    for i in range(11):
+        async with _client_from_ip(f"10.6.1.{i + 1}") as c:
+            resp = await c.post(
+                "/auth/login", data={"username": email, "password": "wrong-password-here"}
+            )
+            statuses.append(resp.status_code)
+    assert 429 not in statuses[:10], statuses
+    assert statuses[10] == 429, statuses

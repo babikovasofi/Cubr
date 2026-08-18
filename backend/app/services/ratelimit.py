@@ -12,9 +12,9 @@ Client IP comes from ``request.client.host`` which is only rewritten from
 proxies (wired in ``main.py``). We never read raw XFF here.
 """
 
-from collections.abc import Awaitable, Callable
+from collections.abc import AsyncIterator, Awaitable, Callable
 
-from fastapi import Request
+from fastapi import HTTPException, Request
 from limits import RateLimitItem, parse
 from limits.aio.storage import MemoryStorage
 from limits.aio.strategies import MovingWindowRateLimiter
@@ -86,13 +86,31 @@ def email_rate_limit(limit: str) -> Callable[[Request], Awaitable[None]]:
     return dependency
 
 
-def login_account_rate_limit(limit: str) -> Callable[[Request], Awaitable[None]]:
-    """Dependency: throttle `/auth/login` by the *target account*, not IP.
+def login_account_rate_limit(limit: str) -> Callable[[Request], AsyncIterator[None]]:
+    """Dependency: throttle `/auth/login` by the *target account*, not IP —
+    but only spend budget on attempts that actually FAIL.
 
     `ip_rate_limit`/`AUTH_RATE_LIMIT` counts attempts per client IP — an
     attacker spraying guesses at ONE account from a hundred rotating IPs
     never trips it. This counts per account (the form's `username` field,
     i.e. the email being attacked) regardless of source IP.
+
+    A plain "hit on every request" dependency (the previous shape) can't see
+    the outcome — dependencies run BEFORE the path operation — so it spent a
+    unit of budget on every login, successful ones included. A person who
+    correctly re-enters their password a handful of times in a row (typos,
+    a slow network retry, a second device) would eventually get 429'd
+    alongside an actual attacker. Real brute-force defenses only meter
+    *wrong* guesses.
+
+    This is a yield-dependency instead, which lets it observe the outcome:
+    - before the path op: peek the account's budget WITHOUT consuming it
+      (`_window.test`) and reject up front if it's already exhausted;
+    - after the path op: on success (no exception — fastapi-users' login
+      returns its 204 response and nothing is raised), CLEAR the account's
+      counter — a correct password is proof the requester isn't guessing;
+      on failure (`HTTPException`, e.g. LOGIN_BAD_CREDENTIALS) spend one
+      unit of budget (`_window.hit`) and re-raise unchanged.
 
     Mounted on the whole fastapi-users auth router (login *and* logout share
     one router — see app.routers.auth), so this checks the request path
@@ -102,17 +120,30 @@ def login_account_rate_limit(limit: str) -> Callable[[Request], Awaitable[None]]
     """
     item = parse(limit)
 
-    async def dependency(request: Request) -> None:
+    async def dependency(request: Request) -> AsyncIterator[None]:
         if not request.url.path.endswith("/login"):
+            yield
             return
         username = await _extract_login_username(request)
         if username is None:
             # No account to key on (malformed body) — the IP limit above
             # still covers this request; don't rate-limit an empty key.
+            yield
             return
         key = f"login-account:{username}"
-        if not await _window.hit(item, key):
+        if not await _window.test(item, key):
             _raise(item, _client_ip)
+        try:
+            yield
+        except HTTPException:
+            # A real failed guess (bad credentials, unverified, ...) —
+            # this is what the budget is meant to meter.
+            await _window.hit(item, key)
+            raise
+        else:
+            # Correct password: this account isn't being brute-forced right
+            # now, so give it its full budget back.
+            await _window.clear(item, key)
 
     return dependency
 
