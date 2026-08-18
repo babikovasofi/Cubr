@@ -7,6 +7,7 @@ import type { DuelResultProps } from "../../src/duel/DuelResult";
 import type { DuelResultPayload } from "../../src/duel/duelMachine";
 import type { DuelH2HRead, DuelSeriesRead } from "../../src/api/duel";
 import { useLangStore } from "../../src/store/langStore";
+import { loadEnDict } from "../../src/i18n/t";
 
 // Mock useAuthStore
 vi.mock("../../src/store/authStore", () => ({
@@ -290,7 +291,9 @@ describe("DuelResult series line (plan: rematch-series)", () => {
     expect(screen.getByText("В этой серии 4 игры, счёт 2:2")).toBeTruthy();
   });
 
-  it("renders the series line in English when lang=en", () => {
+  it("renders the series line in English when lang=en", async () => {
+    // en — ленивый чанк (см. src/i18n/t.ts); догружаем явно перед рендером.
+    await loadEnDict();
     act(() => useLangStore.setState({ lang: "en" }));
     render(<DuelResult {...defaultProps} series={SERIES} />);
     expect(screen.getByText("This series: 2 games, score 2:0")).toBeTruthy();

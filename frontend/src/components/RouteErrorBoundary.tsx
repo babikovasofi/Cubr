@@ -12,8 +12,7 @@
 
 import { Component, type ErrorInfo, type ReactNode } from "react";
 import Button from "./Button";
-import { translate } from "../i18n/t";
-import { useLangStore } from "../store/langStore";
+import { useT } from "../i18n/t";
 
 interface Props {
   children: ReactNode;
@@ -25,9 +24,11 @@ interface State {
 
 function FailPanel() {
   // Хук здесь, а не в классе: граница обязана быть классом, но текст всё равно
-  // должен слушаться переключателя языка.
-  const lang = useLangStore((s) => s.lang);
-  const t = (key: string) => translate(lang, key);
+  // должен слушаться переключателя языка. useT() (не голый translate()) — та
+  // же догрузка словаря `en`, что и у остального интерфейса: упавший роут-чанк
+  // и недогруженный словарь — независимые сбои, второй не должен зависеть от
+  // того, успел ли где-то ещё смонтироваться компонент с useT().
+  const t = useT();
 
   return (
     <div className="flex min-h-[40vh] flex-col items-start justify-center gap-4">

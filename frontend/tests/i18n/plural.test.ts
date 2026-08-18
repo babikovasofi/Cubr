@@ -4,7 +4,7 @@
 
 import { describe, it, expect } from "vitest";
 import { pluralFormRu, pluralRu } from "../../src/i18n/plural";
-import { translate } from "../../src/i18n/t";
+import { translate, loadEnDict } from "../../src/i18n/t";
 
 const DAYS = ["{n} день", "{n} дня", "{n} дней"] as const;
 
@@ -35,7 +35,11 @@ describe("pluralRu", () => {
     expect(pluralRu(9, DAYS)).toBe("{n} дней");
   });
 
-  it("вместе с translate даёт готовую строку на обоих языках", () => {
+  it("вместе с translate даёт готовую строку на обоих языках", async () => {
+    // Словарь en — ленивый чанк (см. src/i18n/t.ts); догружаем его явно,
+    // иначе translate("en", …) отдаст непереведённый русский ключ.
+    await loadEnDict();
+
     const dnf = [
       "{n} участник не финишировал",
       "{n} участника не финишировали",
