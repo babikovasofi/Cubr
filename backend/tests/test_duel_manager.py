@@ -387,3 +387,61 @@ async def test_finalize_is_idempotent_and_cleans_up_tasks() -> None:
     await asyncio.sleep(0)
     assert all(t.cancelled() or t.done() for t in tasks)
     assert mgr.get(room) is None
+
+
+# --------------------------------------------------------------------------- #
+# finalize that cannot be persisted
+# --------------------------------------------------------------------------- #
+
+
+async def test_failed_finalize_abandons_the_room_instead_of_wedging_it() -> None:
+    """A persist failure must free the room, not lock both players out forever.
+
+    `_finalize` flips the in-memory phase to finished BEFORE the callback
+    persists anything. When the callback raised, the exception escaped,
+    `_cleanup` never ran, the DB row stayed `active` and both participants
+    stayed `active` — and since a partial-UNIQUE forbids a second active room
+    per player and no delete endpoint exists, both players lost duels for
+    good. Review 2026-08-19 found a one-frame path into exactly that state.
+    """
+    cb = Callbacks()
+
+    async def failing_finalize(
+        room_id: uuid.UUID, a: PlayerOutcome, b: PlayerOutcome
+    ) -> uuid.UUID | None:
+        cb.finalize.append((room_id, a, b))
+        raise RuntimeError("persist blew up (e.g. value out of range for integer)")
+
+    mgr = make_manager(cb)
+    mgr._on_finalize = failing_finalize  # type: ignore[assignment]
+    room, a, b = uuid.uuid4(), uuid.uuid4(), uuid.uuid4()
+    sa, _ = await _connect_both(mgr, room, a, b)
+
+    await mgr.record_finish(room, a, time_ms=4000, dnf=False, verify_frames_ok=True)
+    await mgr.record_finish(room, b, time_ms=7000, dnf=False, verify_frames_ok=True)
+
+    # The room is released through the abandon path, so participants are freed.
+    assert cb.abandon == [room]
+    # Players still hear an answer instead of a socket that goes quiet.
+    assert sa.last("result")["winner_id"] is None
+    # And no RoomState is left behind in memory.
+    assert mgr.get(room) is None
+
+
+async def test_abandon_failing_too_still_tears_the_room_down() -> None:
+    """Belt and braces: if even the fallback write fails, memory is still freed."""
+    cb = Callbacks()
+
+    async def boom(*args: object, **kwargs: object) -> uuid.UUID | None:
+        raise RuntimeError("database is down")
+
+    mgr = make_manager(cb)
+    mgr._on_finalize = boom  # type: ignore[assignment]
+    mgr._on_abandon = boom  # type: ignore[assignment]
+    room, a, b = uuid.uuid4(), uuid.uuid4(), uuid.uuid4()
+    await _connect_both(mgr, room, a, b)
+
+    await mgr.record_finish(room, a, time_ms=4000, dnf=False, verify_frames_ok=True)
+    await mgr.record_finish(room, b, time_ms=7000, dnf=False, verify_frames_ok=True)
+
+    assert mgr.get(room) is None
