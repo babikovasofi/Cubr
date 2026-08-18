@@ -63,6 +63,11 @@ export default function InvitePanel({ joinUrl }: InvitePanelProps) {
       <p className="font-sans text-small text-muted" aria-live="polite">
         {t("Ожидаю подключения соперника…")}
       </p>
+
+      {/* Honest about what this button does NOT do — plan: friends §14. */}
+      <p className="font-sans text-small text-faint">
+        {t("Уведомление не придёт — отправь ссылку сам.")}
+      </p>
     </section>
   );
 }

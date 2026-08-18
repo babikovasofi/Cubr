@@ -672,4 +672,32 @@ export const EN: Record<string, string> = {
   "Следующий случай": "Next case",
   "Показать ответ": "Show answer",
   "Случай {id}": "Case {id}",
+
+  // --- проход 5: друзья (plan: friends) ---
+  Друзья: "Friends",
+  "Загружаю друзей…": "Loading friends…",
+  "Не удалось загрузить друзей.": "Could not load friends.",
+  "Входящие заявки": "Incoming requests",
+  "Исходящие заявки": "Outgoing requests",
+  Принять: "Accept",
+  Отклонить: "Decline",
+  Отменить: "Cancel",
+  "Список друзей": "Friend list",
+  "Пока нет друзей — добавь кого-нибудь по хэндлу выше.":
+    "No friends yet — add someone by handle above.",
+  Вызвать: "Challenge",
+  "Хэндл друга": "Friend's handle",
+  "Отправить заявку": "Send request",
+  "Такого хэндла нет.": "No such handle.",
+  "Не удалось отправить заявку.": "Could not send the request.",
+  "Не удалось выполнить действие.": "Could not complete the action.",
+  "Уведомление не придёт — отправь ссылку сам.":
+    "No notification is sent — send the link yourself.",
+  // Коды ошибок /friends/* и UserManager.update() (client.ts RU_BY_CODE) —
+  // переводятся здесь же, т.к. рендерятся через t(e.message) (см. GoogleButton).
+  "Этот хэндл уже занят другим пользователем.": "That handle is already taken.",
+  "Заявка уже отправлена — жди ответа.": "A request is already pending — wait for a reply.",
+  "Вы уже друзья.": "You are already friends.",
+  "Сначала укажи свой хэндл в профиле — без него нельзя добавлять друзей.":
+    "Set your own handle in your profile first — you need one to add friends.",
 };

@@ -45,6 +45,12 @@ const RU_BY_CODE: Record<string, string> = {
   NAME_INVALID_CHARS:
     "В имени можно использовать буквы, цифры, пробел, дефис, точку и подчёркивание.",
   NAME_TOO_SHORT: "Имя слишком короткое: минимум 2 символа.",
+  // Друзья (plan: friends) — коды из backend/app/routers/friends.py и
+  // UserManager.update() (занятый public_handle бьёт по тому же диалекту).
+  HANDLE_TAKEN: "Этот хэндл уже занят другим пользователем.",
+  FRIEND_ALREADY_PENDING: "Заявка уже отправлена — жди ответа.",
+  FRIEND_ALREADY_FRIENDS: "Вы уже друзья.",
+  HANDLE_REQUIRED: "Сначала укажи свой хэндл в профиле — без него нельзя добавлять друзей.",
 };
 
 const RU_BY_STATUS: Record<number, string> = {
