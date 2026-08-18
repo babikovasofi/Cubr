@@ -8,6 +8,7 @@ import { ApiError } from "../../src/api/client";
 import type { SolveRead } from "../../src/api/solves";
 import { useSettingsStore } from "../../src/store/settingsStore";
 import { useLangStore } from "../../src/store/langStore";
+import { loadEnDict } from "../../src/i18n/t";
 
 const { useAuthStoreMock, updateMeMock, listSolvesMock } = vi.hoisted(() => ({
   updateMeMock: vi.fn(),
@@ -376,7 +377,9 @@ describe("ProfilePage — пустая история (userflow §10)", () => {
 // Локализация, проход 2: профиль говорит по-английски целиком (карточки рекордов,
 // настройки, история). Полнота словаря — забота tests/i18n/coverage.test.ts.
 describe("ProfilePage — английский", () => {
-  it("переводит карточки рекордов и заголовки", () => {
+  it("переводит карточки рекордов и заголовки", async () => {
+    // en — ленивый чанк (см. src/i18n/t.ts); догружаем явно перед рендером.
+    await loadEnDict();
     useAuthStoreMock.mockImplementation((selector) =>
       selector({ user: MOCK_USER, updateMe: updateMeMock }),
     );

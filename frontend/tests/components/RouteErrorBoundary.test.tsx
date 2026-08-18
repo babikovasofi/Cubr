@@ -4,7 +4,7 @@
 // упавшая загрузка чанка даёт текст и кнопку, а не белый экран.
 
 import { describe, it, expect, vi, afterEach, beforeEach } from "vitest";
-import { render, screen, cleanup, fireEvent } from "@testing-library/react";
+import { render, screen, cleanup, fireEvent, waitFor } from "@testing-library/react";
 import RouteErrorBoundary from "../../src/components/RouteErrorBoundary";
 import { useLangStore } from "../../src/store/langStore";
 
@@ -52,13 +52,17 @@ describe("RouteErrorBoundary", () => {
     expect(reload).toHaveBeenCalled();
   });
 
-  it("текст следует за языком интерфейса", () => {
+  it("текст следует за языком интерфейса", async () => {
     useLangStore.setState({ lang: "en" });
     render(
       <RouteErrorBoundary>
         <Boom />
       </RouteErrorBoundary>,
     );
-    expect(screen.getByRole("alert").textContent).toContain("Could not load this page");
+    // Словарь `en` — отдельный чанк, догружается после коммита (см. useT()),
+    // поэтому первый кадр ещё русский — ждём перевод, а не читаем его сразу.
+    await waitFor(() =>
+      expect(screen.getByRole("alert").textContent).toContain("Could not load this page"),
+    );
   });
 });

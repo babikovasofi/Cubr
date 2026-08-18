@@ -16,6 +16,7 @@ vi.mock("../../src/api/duel", () => ({
 import HomePage from "../../src/pages/HomePage";
 import { useAuthStore } from "../../src/store/authStore";
 import { useLangStore } from "../../src/store/langStore";
+import { loadEnDict } from "../../src/i18n/t";
 
 function renderHome() {
   return render(
@@ -144,7 +145,10 @@ describe("HomePage", () => {
 // Локализация: на английском лендинг говорит по-английски. Проверяем ровно факт
 // переключения (полнота словаря — забота tests/i18n/t.test.ts).
 describe("HomePage — английский", () => {
-  it("герой и CTA переводятся", () => {
+  it("герой и CTA переводятся", async () => {
+    // Словарь en — ленивый чанк (см. src/i18n/t.ts); догружаем его явно, иначе
+    // первый рендер после переключения ещё покажет русский.
+    await loadEnDict();
     useAuthStore.setState({ user: null, status: "anon" });
     act(() => useLangStore.setState({ lang: "en" }));
     try {

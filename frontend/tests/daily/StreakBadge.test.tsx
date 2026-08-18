@@ -14,7 +14,7 @@ vi.mock("../../src/api/daily", () => ({
 }));
 
 import StreakBadge, { streakHeadline } from "../../src/daily/StreakBadge";
-import { translate } from "../../src/i18n/t";
+import { translate, loadEnDict } from "../../src/i18n/t";
 
 const BASE = { last_day: "2026-07-28", today: "2026-07-28" };
 
@@ -83,7 +83,9 @@ describe("streakHeadline · склонение и перевод", () => {
     ).toBe(expected);
   });
 
-  it("английский берёт форму единственного числа только для одного дня", () => {
+  it("английский берёт форму единственного числа только для одного дня", async () => {
+    // en — ленивый чанк (см. src/i18n/t.ts); догружаем явно перед переводом.
+    await loadEnDict();
     const one = streakHeadline(
       { ...BASE, current_streak: 1, best_streak: 1, completed_today: true },
       enT,
