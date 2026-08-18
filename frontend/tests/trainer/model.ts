@@ -231,4 +231,134 @@ export function sameCaseUpToAufAndOrientation(a: Facelet, b: Facelet): boolean {
   });
 }
 
+// --- OLL orientation oracle -------------------------------------------
+//
+// OLL's independent variable is ORIENTATION, not permutation: how the 4
+// last-layer corners are twisted (co, 0..2) and the 4 last-layer edges are
+// flipped (eo, 0..1). This is a genuinely different equivalence than PLL's
+// permutation cycles above, so it gets its own signature function rather
+// than reusing canonicalSignatureFromPerm on repurposed data — see oll.ts's
+// header for why: a single U turn cyclically shifts co/eo the SAME way it
+// shifts cp/ep (postShiftPerm's formula, confirmed empirically against
+// cubejs — see the shift-direction check `ollCompleteness.test.ts`'s own
+// "OLL vs PLL: a 4-way group, not 16-way" note relies on), but there is no
+// meaningful "pre-multiply" analogue for orientation-only data (prepending a
+// U to the sequence that reaches an identity-permutation orientation state
+// produces a state with a NONTRIVIAL permutation — it falls outside the
+// 216-state space entirely, so it can't stand for "the same case viewed from
+// a different AUF" the way PLL's SHIFT-based preShiftPerm does). Canonical
+// signature is therefore the minimum over the 4 postShiftPerm-rotations
+// only, not 16.
+
+function cornerOrient4(facelets: Facelet): number[] {
+  return Cube.fromString(facelets).co.slice(0, 4);
+}
+function edgeOrient4(facelets: Facelet): number[] {
+  return Cube.fromString(facelets).eo.slice(0, 4);
+}
+
+export interface CornerTwistEntry {
+  pos: CornerPos;
+  twist: 1 | 2;
+}
+
+/** Non-zero corner twists as {pos, twist} entries, position order preserved
+ * from `labels` — the inverse of `cornerTwistToArray`. Corners with twist 0
+ * (correctly oriented) are omitted, mirroring pll.ts's cycle-omission
+ * convention for fixed points. */
+export function cornerTwistFromArray(
+  co4: number[],
+  labels: readonly CornerPos[],
+): CornerTwistEntry[] {
+  const out: CornerTwistEntry[] = [];
+  co4.forEach((v, i) => {
+    if (v !== 0) out.push({ pos: labels[i], twist: v as 1 | 2 });
+  });
+  return out;
+}
+
+/** Inverse of `cornerTwistFromArray`: rebuilds a raw co4 array from declared
+ * twist entries. Positions absent are twist 0. Used to turn a table row's
+ * independently-authored cornerTwist back into raw orientation data WITHOUT
+ * ever touching an algorithm — what lets ollCompleteness.test.ts validate
+ * the spec before any `alg` field exists, mirroring permFromCycles. */
+export function cornerTwistToArray(
+  entries: readonly CornerTwistEntry[],
+  labels: readonly CornerPos[],
+): number[] {
+  const co4 = labels.map(() => 0);
+  for (const e of entries) co4[labels.indexOf(e.pos)] = e.twist;
+  return co4;
+}
+
+/** Non-zero edge flips as position labels — the inverse of `edgeFlipToArray`. */
+export function edgeFlipFromArray(eo4: number[], labels: readonly EdgePos[]): EdgePos[] {
+  const out: EdgePos[] = [];
+  eo4.forEach((v, i) => {
+    if (v !== 0) out.push(labels[i]);
+  });
+  return out;
+}
+
+/** Inverse of `edgeFlipFromArray`. */
+export function edgeFlipToArray(flips: readonly EdgePos[], labels: readonly EdgePos[]): number[] {
+  const eo4 = labels.map(() => 0);
+  for (const pos of flips) eo4[labels.indexOf(pos)] = 1;
+  return eo4;
+}
+
+/**
+ * AUF-invariant key for a raw (co4, eo4) pair: the lexicographically
+ * smallest key among the 4 `postShiftPerm`-rotations (see this section's
+ * header for why only 4, not PLL's 16). This is what collapses the 216
+ * legal OLL-space states down to exactly 58 classes (1 solved + 57 OLL).
+ */
+export function canonicalOllSignatureFromArrays(co4: number[], eo4: number[]): string {
+  const keys: string[] = [];
+  let co = co4;
+  let eo = eo4;
+  for (let i = 0; i < 4; i++) {
+    keys.push(co.join(",") + "|" + eo.join(","));
+    co = postShiftPerm(co);
+    eo = postShiftPerm(eo);
+  }
+  return keys.sort()[0];
+}
+
+/** `canonicalOllSignatureFromArrays`, reading co/eo straight off a facelets string. */
+export function canonicalOllSignature(facelets: Facelet): string {
+  return canonicalOllSignatureFromArrays(cornerOrient4(facelets), edgeOrient4(facelets));
+}
+
+export interface OllSignature {
+  cornerTwist: CornerTwistEntry[];
+  edgeFlip: EdgePos[];
+}
+
+/** The independent structural fingerprint of a last-layer orientation state
+ * — which corners are twisted and which edges are flipped. Derived purely
+ * from cubejs's co/eo orientation arrays — never from an algorithm string. */
+export function ollSignature(facelets: Facelet): OllSignature {
+  return {
+    cornerTwist: cornerTwistFromArray(cornerOrient4(facelets), CORNER_POS),
+    edgeFlip: edgeFlipFromArray(edgeOrient4(facelets), EDGE_POS),
+  };
+}
+
+/** Same OLL case, irrespective of AUF. */
+export function sameOllCaseUpToAuf(a: Facelet, b: Facelet): boolean {
+  return canonicalOllSignature(a) === canonicalOllSignature(b);
+}
+
+/** Same OLL case irrespective of AUF AND of which of the 24 orientations the
+ * cube was physically held in — see `sameCaseUpToAufAndOrientation`'s own
+ * doc comment, same "any grip" reasoning, generalized to orientation. */
+export function sameOllCaseUpToAufAndOrientation(a: Facelet, b: Facelet): boolean {
+  const target = canonicalOllSignature(b);
+  return orientationVariants(a).some((variant) => {
+    const normalized = normalizeCenters(variant);
+    return validateFacelets(normalized).ok && canonicalOllSignature(normalized) === target;
+  });
+}
+
 export { SOLVED, validateFacelets };
