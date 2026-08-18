@@ -22,6 +22,7 @@ from fastapi_users.authentication import (
     CookieTransport,
     JWTStrategy,
 )
+from fastapi_users.exceptions import InvalidPasswordException
 from fastapi_users.password import PasswordHelper
 from fastapi_users_db_sqlalchemy import SQLAlchemyUserDatabase
 from httpx_oauth.clients.google import GoogleOAuth2
@@ -33,6 +34,7 @@ from app.db import get_user_db
 from app.models import User
 from app.services import email as email_service
 from app.services.moderation import check_display_name, sanitize_derived_nickname
+from app.services.password_policy import check_password_policy
 
 logger = logging.getLogger("cubr.auth")
 
@@ -104,6 +106,24 @@ def _reject_bad_names(*values: object) -> None:
 class UserManager(UUIDIDMixin, BaseUserManager[User, uuid.UUID]):
     reset_password_token_secret = settings.RESET_VERIFY_SECRET
     verification_token_secret = settings.RESET_VERIFY_SECRET
+
+    async def validate_password(self, password: str, user: schemas.UC | User) -> None:
+        # Same check on every path that SETS a password — register, the
+        # forgot/reset-password flow, and PATCH /users/me — because
+        # BaseUserManager routes all three through here (create() calls this
+        # directly; reset_password()/update() both call it via _update()).
+        # Login never does (see BaseUserManager.authenticate), so accounts
+        # created before this policy existed keep working.
+        rejection = check_password_policy(
+            password,
+            email=getattr(user, "email", None),
+            nickname=getattr(user, "nickname", None),
+        )
+        if rejection is not None:
+            # fastapi-users' stock routers catch this and answer
+            # 400 {"code": "<ENDPOINT>_INVALID_PASSWORD", "reason": ...} —
+            # never a bare 422 (see password_policy.py's module docstring).
+            raise InvalidPasswordException(reason=rejection.reason)
 
     async def create(
         self,
