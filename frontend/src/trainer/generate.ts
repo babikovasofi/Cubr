@@ -1,15 +1,33 @@
-// Constructs a scramble for a chosen PLL case — no solver, no search. A
-// case's state is DEFINED as "apply the case's algorithm's inverse to a
-// solved cube" (see pll.ts's header and the plan's Design decisions), so:
+// Constructs a scramble for a chosen last-layer case (PLL or OLL) — no
+// solver, no search. A case's state is DEFINED as "apply the case's
+// algorithm's inverse to a solved cube" (see pll.ts's/oll.ts's headers and
+// the plan's Design decisions), so:
 //
 //   scramble = [orientation prefix, if "any grip"] + invertAlg(case.alg) + AUF
 //
 // is correct BY CONSTRUCTION for any algorithm string — applying it to a
 // solved cube always lands on exactly that case (proven independently by the
-// test battery in tests/trainer/generate.test.ts, not trusted here). Zero
-// cubejs import: this file only manipulates move-token strings.
+// test battery in tests/trainer/generate.test.ts and ollGenerate.test.ts, not
+// trusted here). Zero cubejs import: this file only manipulates move-token
+// strings.
+//
+// Generic over `ScrambleCase` (just `{ alg, facelets }`) rather than forked
+// per case set: pll.ts's PllCase and oll.ts's OllCase both satisfy it
+// structurally, and nothing below needs to know which one it's holding —
+// PLL's "invert the solving algorithm, add an AUF" construction is exactly
+// as correct for OLL (an OLL case is equally well-defined as "the state
+// invertAlg(alg) produces from solved" — see oll.ts's header for the one
+// place this generalization needed real care: OLL algorithms are NOT
+// permutation-neutral the way this file's comments used to assume PLL's
+// were, but that only affects what `facelets` looks like, not the
+// construction below, which never inspects facelets at all).
 
-import type { PllCase, PllCaseId } from "./pll";
+/** The minimal shape `generateCaseScramble` needs — satisfied by both
+ * `PllCase` and `OllCase` without either importing the other. */
+export interface ScrambleCase {
+  alg: string;
+  facelets: string;
+}
 
 /** The four ways to finish a scramble on the U layer. */
 export const AUFS = ["", "U", "U2", "U'"] as const;
@@ -108,8 +126,11 @@ export interface GenerateOptions {
   anyGrip?: boolean;
 }
 
-/** Pick one case id from a non-empty list using `rng` (defaults to Math.random). */
-export function pickCase(ids: readonly PllCaseId[], rng: () => number = Math.random): PllCaseId {
+/** Pick one case id from a non-empty list using `rng` (defaults to
+ * Math.random). Generic over the id type so it works for `PllCaseId`,
+ * `OllCaseId`, or a mixed array of both (they're disjoint string unions —
+ * "OLL1".."OLL57" never collide with PLL's two-letter ids). */
+export function pickCase<T extends string>(ids: readonly T[], rng: () => number = Math.random): T {
   if (ids.length === 0) throw new Error("pickCase: empty id list");
   const index = Math.floor(rng() * ids.length) % ids.length;
   return ids[index];
@@ -124,11 +145,16 @@ function pick<T>(items: readonly T[], rng: () => number): T {
  * The scramble string for one draw of `caseDef`: orientation prefix (if
  * `anyGrip`) + invertAlg(case.alg) + a random AUF, simplified. Applying this
  * to a solved cube reproduces the case's `facelets` exactly (up to the AUF
- * and, with `anyGrip`, up to the chosen orientation) — see pll.ts's header
- * for why this is correct by construction, and generate.test.ts for the
- * proof against the model.
+ * and, with `anyGrip`, up to the chosen orientation) — see pll.ts's/oll.ts's
+ * headers for why this is correct by construction, and generate.test.ts /
+ * ollGenerate.test.ts for the proof against the model. Generic over
+ * `ScrambleCase` — see this file's header for why PLL and OLL share this
+ * unchanged rather than branching.
  */
-export function generateCaseScramble(caseDef: PllCase, options: GenerateOptions = {}): string {
+export function generateCaseScramble<T extends ScrambleCase>(
+  caseDef: T,
+  options: GenerateOptions = {},
+): string {
   const rng = options.rng ?? Math.random;
   const orientation = options.anyGrip ? pick(ORIENTATIONS, rng) : "";
   const auf = pick(AUFS, rng);
