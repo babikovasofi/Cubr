@@ -17,6 +17,7 @@ import {
   scorePictureGrip,
   formatReport,
   type AccuracyReport,
+  formatRawGrids,
   type CellDiag,
   type FaceFitDiag,
 } from "../vision/accuracy";
@@ -31,6 +32,7 @@ import {
   formatRunSummary,
   type AccuracyRun,
   type ConditionKey,
+  type DropReason,
 } from "../vision/accuracyRun";
 import { SOLVED, type Facelet } from "../vision/cubeState";
 import {
@@ -148,6 +150,14 @@ export function useAccuracySession(): AccuracySession {
     calib: "fresh",
   });
   const [captureError, setCaptureError] = useState<string | null>(null);
+  // Текст последнего БРАКА, слово в слово как его увидел человек.
+  //
+  // До этого «Копировать отчёт» отдавал только успешные чтения, а дроп жил одной
+  // строкой на экране и умирал со следующей съёмкой. Прогон, где в дроп ушло
+  // ВСЁ (stickerless/LED, 2026-08-19), копировался как пустая сводка: 0 чтений,
+  // drop 100% — и ни одного числа о том, что именно развалилось. Диагностика
+  // обязана уезжать в буфер вместе с гейтом, иначе её пересказывают руками.
+  const [lastDropText, setLastDropText] = useState<string | null>(null);
   const [lastReport, setLastReport] = useState<AccuracyReport | null>(null);
   // Второй счёт того же чтения — продуктовым путём (нормировка света + квоты).
   // Гейт по нему НЕ считается: его планка стоит на сыром зрении.
@@ -247,6 +257,25 @@ export function useAccuracySession(): AccuracySession {
     setCondition({ calib: "fresh" });
   };
 
+  /**
+   * Забраковать чтение: показать причину, запомнить её для отчёта, записать дроп.
+   *
+   * Один путь на все причины — иначе следующая ветка отказа снова забудет
+   * положить текст в отчёт, как забыли все шесть предыдущих. `grids` передаётся
+   * там, где чтение дошло до 54 ячеек: тогда к причине прикладывается сама
+   * грань, а не только вывод о ней.
+   */
+  const dropRead = (
+    text: string,
+    reason: DropReason,
+    capture?: { grids: readonly (readonly string[])[]; diags: readonly CellDiag[] },
+  ): void => {
+    const full = capture ? `${text}\n${formatRawGrids(capture.grids, capture.diags)}` : text;
+    setCaptureError(full);
+    setLastDropText(full);
+    appendDrop(runRef.current, conditionRef.current, reason);
+  };
+
   const captureFace = async (): Promise<void> => {
     setCaptureError(null);
     if (!reader.calibrated) {
@@ -284,8 +313,7 @@ export function useAccuracySession(): AccuracySession {
           setCaptureError(r.diag ?? faceUnreadableRu());
           return;
         }
-        setCaptureError(r.diag ? `${faceUnreadableRu()} (${r.diag})` : faceUnreadableRu());
-        appendDrop(runRef.current, conditionRef.current, "unreadable");
+        dropRead(r.diag ? `${faceUnreadableRu()} (${r.diag})` : faceUnreadableRu(), "unreadable");
         reader.resetAccuracy();
         bump();
         return;
@@ -300,10 +328,11 @@ export function useAccuracySession(): AccuracySession {
         // скорится вовсе; в дропы идёт как mis-scramble — тем же путём, что и
         // разобранный вручную промах, чтобы ничего не пропадало молча.
         if (truth !== SOLVED && looksSolvedRead(r.rawFaceGrids)) {
-          setCaptureError(
+          dropRead(
             "Кубик прочитан как СОБРАННЫЙ, а эталон — скрамбл. Похоже, скрамбл не собран на кубике: собери его по шагам слева (белый центр вверх, зелёный центр к себе) и сними чтение заново.",
+            "mis-scramble",
+            { grids: r.rawFaceGrids, diags: r.cellDiags },
           );
-          appendDrop(runRef.current, conditionRef.current, "mis-scramble");
           bump();
           return;
         }
@@ -334,7 +363,7 @@ export function useAccuracySession(): AccuracySession {
                   config.CENTER_OUTLIER_DE,
                 )
               : `Грани не опознаны по центрам: ${r.rawCenterReason ?? "раскладка не сошлась"}.`;
-            setCaptureError(
+            dropRead(
               [
                 head,
                 spread
@@ -351,8 +380,9 @@ export function useAccuracySession(): AccuracySession {
               ]
                 .filter(Boolean)
                 .join(" "),
+              "assign",
+              { grids: r.rawFaceGrids, diags: r.cellDiags },
             );
-            appendDrop(runRef.current, conditionRef.current, "assign");
             bump();
             return;
           }
@@ -362,17 +392,20 @@ export function useAccuracySession(): AccuracySession {
             // своей причиной, а НЕ подбор поворота под ответ.
             const pic = scorePictureGrip(r.rawFaceGrids, truth, r.rawCenterFaces);
             if (pic.kind === "assign-conflict") {
-              setCaptureError(`Грани не опознаны по центрам: ${pic.reason}.`);
-              appendDrop(runRef.current, conditionRef.current, "assign");
+              dropRead(`Грани не опознаны по центрам: ${pic.reason}.`, "assign", {
+                grids: r.rawFaceGrids,
+                diags: r.cellDiags,
+              });
               bump();
               return;
             }
             if (pic.kind === "rotation-ambiguous") {
-              setCaptureError(
+              dropRead(
                 `Поворот граней не определился по физике кубика (${pic.reason}). ` +
                   "Чтение не засчитано: подбирать поворот под ответ протокол запрещает. Переснимай грани.",
+                "ambiguous",
+                { grids: r.rawFaceGrids, diags: r.cellDiags },
               );
-              appendDrop(runRef.current, conditionRef.current, "ambiguous");
               bump();
               return;
             }
@@ -389,8 +422,10 @@ export function useAccuracySession(): AccuracySession {
           }
           const free = scoreFreeGrip(r.rawFaceGrids, truth, undefined, r.rawCenterFaces);
           if (free.kind === "assign-conflict") {
-            setCaptureError(`Грани не опознаны по центрам: ${free.reason}.`);
-            appendDrop(runRef.current, conditionRef.current, "assign");
+            dropRead(`Грани не опознаны по центрам: ${free.reason}.`, "assign", {
+              grids: r.rawFaceGrids,
+              diags: r.cellDiags,
+            });
             bump();
             return;
           }
@@ -413,11 +448,12 @@ export function useAccuracySession(): AccuracySession {
         // (≤2 расхождения из 54): при мягком сюда затекли бы настоящие ошибки
         // классификации, и гейт стало бы нечем провалить.
         if (lenient.mismatches <= 2 && strictWrong >= 6) {
-          setCaptureError(
+          dropRead(
             `Цвета прочитаны верно (${54 - lenient.mismatches}/54 с точностью до поворота), но кубик был показан в другой ориентации, ` +
               "поэтому чтение не засчитано. Держи белый центр вверху и зелёный к себе, грани показывай по подсказкам, не переворачивая кубик между шагами.",
+            "orientation",
+            { grids: r.rawFaceGrids, diags: r.cellDiags },
           );
-          appendDrop(runRef.current, conditionRef.current, "orientation");
           bump();
           return;
         }
@@ -459,6 +495,7 @@ export function useAccuracySession(): AccuracySession {
   const resetRun = (): void => {
     runRef.current = new Map();
     lastReadKeyRef.current = null;
+    setLastDropText(null);
     setLastReport(null);
     setLastProductReport(null);
     setLastDiags(null);
@@ -495,6 +532,13 @@ export function useAccuracySession(): AccuracySession {
           (lastReport ? ` (сырое: ${raw}/${lastReport.total})` : ""),
       );
       parts.push("Гейт 0.3 считается по сырому чтению — эта строка справочная.");
+      parts.push("");
+    }
+    // Брак печатается ПЕРЕД сводкой: в прогоне, где всё ушло в дроп, сводка —
+    // это шесть нулей, и без причины над ними отчёт бесполезен.
+    if (lastDropText) {
+      parts.push("=== Последний брак (дроп) ===");
+      parts.push(lastDropText);
       parts.push("");
     }
     parts.push("=== Сводка прогона ===");

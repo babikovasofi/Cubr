@@ -278,4 +278,82 @@ describe("useAccuracySession — honesty barrier", () => {
 
     scrambleStub.expectedFacelets = null;
   });
+  // Прогон 2026-08-19 (stickerless, LED) ушёл в дроп целиком, и «Копировать
+  // отчёт» отдал сводку из одних нулей: причина жила строкой на экране и в
+  // буфер не попадала. Диагностика, которую нельзя скопировать, пересказывается
+  // руками — то есть теряется.
+  it("брак на раскладке центров уезжает в отчёт вместе с ячейками съёмок", async () => {
+    const uniform = (c: string): string[] => Array.from({ length: 9 }, () => c);
+    const grids = (): string[][] => ["U", "R", "F", "D", "L", "B"].map(uniform);
+
+    readerStub.calibrated = true;
+    readerStub.collectingAccuracy = true;
+    readerStub.pushAccuracyFace.mockResolvedValue({
+      kind: "complete",
+      rawFaceGrids: grids(),
+      productFaceGrids: grids(),
+      // Раскладка отказала: две съёмки тянутся к одному цвету.
+      rawCenterFaces: null,
+      rawCenterOffenders: [
+        { capture: 4, face: "B", de: 46.4, relative: true, own: "R", ownDE: 5, duplicateOf: 1 },
+      ],
+      rawCenterSpread: {
+        faces: ["F", "R", "D", "U", "B", "L"],
+        des: [3, 3, 2, 38, 46, 43],
+        medianDE: 20.4,
+        own: ["F", "R", "D", "D", "R", "D"],
+        ownDes: [3, 3, 2, 2, 5, 3],
+        rgb: [
+          [0, 185, 95],
+          [249, 79, 75],
+          [216, 219, 76],
+          [216, 216, 75],
+          [255, 83, 87],
+          [211, 211, 68],
+        ],
+      },
+      cellDiags: Array.from({ length: 54 }, () => ({
+        rgb: [200, 200, 200] as [number, number, number],
+        kept: 0.9,
+        best: "U",
+        bestDE: 3,
+        second: "D",
+        secondDE: 40,
+      })),
+      fitDiags: Array.from({ length: 6 }, () => ({ gain: 5, used: true, gap: 18 })),
+      resolved: null,
+    });
+
+    const { result } = renderHook(() => useAccuracySession());
+    await act(async () => result.current.setMode("solved"));
+    await act(async () => result.current.setGrip("picture"));
+    result.current.videoRef.current = {} as HTMLVideoElement;
+    await act(async () => {
+      await result.current.captureFace();
+    });
+
+    // На экране — причина и сама грань, а не один центр.
+    expect(result.current.captureError).toContain("не опознана");
+    expect(result.current.captureError).toContain("Ячейки съёмок");
+
+    const out = result.current.buildExport();
+    expect(out).toContain("=== Последний брак (дроп) ===");
+    expect(out).toContain("Ячейки съёмок");
+    expect(out).toContain("assign");
+    // Брак стоит ПЕРЕД сводкой: сводка из нулей без причины бесполезна.
+    expect(out.indexOf("Последний брак")).toBeLessThan(out.indexOf("=== Сводка прогона ==="));
+  });
+
+  it("сброс прогона убирает брак из отчёта", async () => {
+    const { result } = renderHook(() => useAccuracySession());
+    await act(async () => result.current.setMode("solved"));
+    await act(async () => result.current.setGrip("picture"));
+    result.current.videoRef.current = {} as HTMLVideoElement;
+    await act(async () => {
+      await result.current.captureFace();
+    });
+    expect(result.current.buildExport()).toContain("Последний брак");
+    await act(async () => result.current.resetRun());
+    expect(result.current.buildExport()).not.toContain("Последний брак");
+  });
 });

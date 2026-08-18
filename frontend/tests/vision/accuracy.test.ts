@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { scoreRead, formatReport, type CellDiag } from "../../src/vision/accuracy";
+import { scoreRead, formatReport, formatRawGrids, type CellDiag } from "../../src/vision/accuracy";
 import { SOLVED, FACE_ORDER, type Facelet } from "../../src/vision/cubeState";
 import { COLOR_NAMES } from "../../src/vision/colors";
 import { config } from "../../src/vision/config";
@@ -259,5 +259,80 @@ describe("formatReport", () => {
     const out = formatReport(scoreRead(SOLVED, SOLVED), undefined, fits);
     expect(out).not.toContain("граней без определённой подгонки");
     expect(out).not.toContain("контраст границ");
+  });
+});
+
+describe("formatRawGrids", () => {
+  const grid = (letters: string): string[] => letters.split("");
+  const cleanDiag = (best: string): CellDiag => ({
+    rgb: [200, 200, 200] as [number, number, number],
+    kept: 0.9,
+    best,
+    bestDE: 3,
+    second: "D",
+    secondDE: 40,
+  });
+
+  it("печатает шесть съёмок по три ряда, центр — в скобках", () => {
+    const grids = [
+      grid("UUUUUUUUU"),
+      grid("RRRRRRRRR"),
+      grid("FFFFFFFFF"),
+      grid("DDDDDDDDD"),
+      grid("LLLLLLLLL"),
+      grid("BBBBBBBBB"),
+    ];
+    const out = formatRawGrids(grids);
+    expect(out).toContain("(U)");
+    expect(out).toContain("(B)");
+    expect(out.split("\n")).toHaveLength(7); // заголовок + шесть съёмок
+    expect(out).toContain("6: ");
+  });
+
+  // Сдвиг сетки и показанная дважды грань дают раскладке одинаковый отказ, а
+  // лечатся противоположно. Разводит их только грань целиком: у сдвига ряды
+  // разноцветные, у дубликата — честная грань, просто не та.
+  it("показывает ряды целиком, а не один центр", () => {
+    const grids = [
+      grid("UURFFDLLB"),
+      grid("RRRRRRRRR"),
+      grid("FFFFFFFFF"),
+      grid("DDDDDDDDD"),
+      grid("LLLLLLLLL"),
+      grid("BBBBBBBBB"),
+    ];
+    const out = formatRawGrids(grids);
+    const first = out.split("\n")[1];
+    expect(first).toContain("U");
+    expect(first).toContain("R");
+    expect(first).toContain("(F)");
+    expect(first).toContain("B");
+  });
+
+  it("ячейку, далёкую от всех эталонов, печатает строчной буквой", () => {
+    const grids = [grid("UUUUUUUUU")];
+    const diags = Array.from({ length: 9 }, () => cleanDiag("U"));
+    diags[0] = { ...cleanDiag("U"), bestDE: config.STICKER_MAX_DELTA_E + 1 };
+    const out = formatRawGrids(grids, diags);
+    expect(out).toContain("u"); // выбившаяся ячейка
+    expect(out).toContain("(U)"); // центр остался нормальным
+  });
+
+  it("к каждой съёмке приписывает ΔE центра, худшую ячейку и число выбитых бликом", () => {
+    const grids = [grid("UUUUUUUUU")];
+    const diags = Array.from({ length: 9 }, () => cleanDiag("U"));
+    diags[4] = { ...cleanDiag("U"), bestDE: 12.5 };
+    diags[7] = { ...cleanDiag("U"), bestDE: 21.25 };
+    diags[8] = { ...cleanDiag("U"), kept: config.CELL_MIN_KEPT_FRAC / 2 };
+    const out = formatRawGrids(grids, diags);
+    expect(out).toContain("центр ΔE 12.5");
+    expect(out).toContain("макс по ячейкам 21.3");
+    expect(out).toContain("выбито бликом 1");
+  });
+
+  it("без диагностики печатает только буквы — ни ΔE, ни бликов", () => {
+    const out = formatRawGrids([grid("UUUUUUUUU")]);
+    expect(out).not.toContain("центр ΔE");
+    expect(out).not.toContain("выбито бликом");
   });
 });

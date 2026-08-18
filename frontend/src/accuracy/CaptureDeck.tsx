@@ -92,7 +92,9 @@ export default function CaptureDeck({ session }: CaptureDeckProps) {
       )}
 
       {session.captureError ? (
-        <p role="alert" className="font-sans text-small font-bold text-danger">
+        // Дамп ячеек — сетка из букв: без сохранения переносов она склеивается в
+        // одну строку и читать её невозможно.
+        <p role="alert" className="whitespace-pre-line font-sans text-small font-bold text-danger">
           {session.captureError}
         </p>
       ) : null}

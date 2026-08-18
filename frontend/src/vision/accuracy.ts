@@ -399,6 +399,54 @@ export interface FaceFitDiag {
   decided?: boolean;
 }
 
+/**
+ * Все 9 ячеек каждой съёмки — сырым argmin, без раскладки и без квот.
+ *
+ * Зачем отдельно от `formatReport`. Тот печатает промахи ПРОЧИТАННОГО кубика, а
+ * съёмка, развалившаяся на раскладке центров, до счёта не доходит вовсе: в
+ * отчёт не попадает ни одна её ячейка. Живой прогон 2026-08-19 (stickerless,
+ * LED) уперся ровно в это: три чтения подряд ушли в дроп, наружу торчали только
+ * шесть центров, и по ним неразличимы две болезни с противоположным лечением —
+ * человек показал одну грань дважды, ИЛИ сетка села на грань со сдвигом и
+ * «центром» стала соседняя наклейка. Грань целиком разводит их сразу: у сдвига
+ * ряды выглядят как срез чужой грани, у дубликата — как честная грань, просто
+ * не та.
+ *
+ * Строчная буква = ΔE до ближайшего эталона больше `STICKER_MAX_DELTA_E`: ячейка
+ * не похожа ни на один цвет кубика (щель, фон, блик). Три строчных подряд в
+ * крайнем ряду — почерк сползшей сетки, и это видно глазом без единого числа.
+ */
+export function formatRawGrids(
+  grids: readonly (readonly string[])[],
+  diags?: readonly CellDiag[],
+): string {
+  const lines: string[] = [
+    "Ячейки съёмок (сырой argmin, 3 ряда по 3, центр в скобках; строчная буква — " +
+      `ΔE больше ${config.STICKER_MAX_DELTA_E}, то есть не цвет кубика):`,
+  ];
+  grids.forEach((grid, cap) => {
+    const cells = grid.map((face, i) => {
+      const d = diags?.[cap * 9 + i];
+      const ch = d && d.bestDE > config.STICKER_MAX_DELTA_E ? face.toLowerCase() : face;
+      return i === 4 ? `(${ch})` : ` ${ch} `;
+    });
+    const rows = [cells.slice(0, 3), cells.slice(3, 6), cells.slice(6, 9)].map((r) => r.join(""));
+    const capDiags = diags?.slice(cap * 9, cap * 9 + 9);
+    let tail = "";
+    if (capDiags && capDiags.length === 9) {
+      const worst = Math.max(...capDiags.map((d) => d.bestDE));
+      const blown = capDiags.filter((d) => d.kept < config.CELL_MIN_KEPT_FRAC).length;
+      tail =
+        `  [центр ΔE ${capDiags[4].bestDE.toFixed(1)}` +
+        `, макс по ячейкам ${worst.toFixed(1)}` +
+        (blown ? `, выбито бликом ${blown}` : "") +
+        "]";
+    }
+    lines.push(`  ${cap + 1}: ${rows.join(" | ")}${tail}`);
+  });
+  return lines.join("\n");
+}
+
 /** Human-readable multi-line report string for printing to the page. */
 export function formatReport(
   rep: AccuracyReport,
