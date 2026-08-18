@@ -349,11 +349,17 @@ export function centerSpreadRu(
  * тогда подгонка отчиталась об успехе, а цвет всё равно мусорный. Числа
  * разводят эти случаи, слова — нет.
  */
-export function fitSpreadRu(fits: { used: boolean; gap: number }[]): string {
-  const parts = fits.map(
-    (f, i) => `${i + 1}:${f.used ? "подогнана" : "рамка"} ${f.gap.toFixed(0)}`,
-  );
-  return `Сетка по съёмкам (номер:как легла контраст-щелей): ${parts.join(", ")}.`;
+export function fitSpreadRu(fits: { used: boolean; gap: number; edge?: number }[]): string {
+  // Печатаются ОБА признака решётки, потому что замок смотрит на оба, и по
+  // одним щелям нельзя понять его решение. У монолитного кубика щели уходят в
+  // ноль штатно (тени между деталями вместо чёрного корпуса), и строка «0, 1,
+  // 2» без второго числа читается как приговор геометрии там, где всё в
+  // порядке: границы при этом держат 40.
+  const parts = fits.map((f, i) => {
+    const edge = typeof f.edge === "number" ? `/${f.edge.toFixed(0)}` : "";
+    return `${i + 1}:${f.used ? "подогнана" : "рамка"} ${f.gap.toFixed(0)}${edge}`;
+  });
+  return `Сетка по съёмкам (номер:как легла щели/границы): ${parts.join(", ")}.`;
 }
 
 /**

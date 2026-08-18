@@ -5,6 +5,7 @@ import {
   verifyMismatchRu,
   cameraDeniedRu,
   modelFailedRu,
+  fitSpreadRu,
   type GuideSnapshot,
 } from "../../src/vision/guide";
 
@@ -154,5 +155,26 @@ describe("calibration helper", () => {
     expect(remainingCalibFacesRu(0)).toMatch(/белая/i);
     expect(remainingCalibFacesRu(5)).toMatch(/синяя/i);
     expect(remainingCalibFacesRu(6)).toBe("");
+  });
+});
+
+describe("fitSpreadRu — оба признака решётки", () => {
+  it("печатает щели и границы через дробь", () => {
+    const out = fitSpreadRu([
+      { used: true, gap: 0, edge: 41 },
+      { used: false, gap: 12, edge: 5 },
+    ]);
+    expect(out).toContain("1:подогнана 0/41");
+    expect(out).toContain("2:рамка 12/5");
+  });
+
+  // У stickerless щели штатно уходят в ноль: чёрного корпуса между наклейками
+  // нет. Без второго числа такая строка выглядит как приговор геометрии там,
+  // где решётка на месте и держится границами.
+  it("без границ печатает одни щели, ничего не выдумывая", () => {
+    const out = fitSpreadRu([{ used: true, gap: 7 }]);
+    expect(out).toContain("1:подогнана 7.");
+    // Дробь есть только в заголовке строки, но не в самом числе съёмки.
+    expect(out).not.toContain("7/");
   });
 });
