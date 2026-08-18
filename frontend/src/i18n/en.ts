@@ -220,10 +220,10 @@ export const EN: Record<string, string> = {
   Секунды: "Seconds",
 
   "Ссылка на аватар": "Avatar URL",
-  "Публичное имя в турнире": "Public name on the boards",
+  "Публичное имя": "Public name",
   "Не задано — покажем как «Аноним»": "Not set — shown as «Anonymous»",
-  "Это имя увидят другие участники турнира в таблице недели. Оставь поле пустым — и там будет стоять «Аноним».":
-    "Other players see this name on the weekly board. Leave it empty and it will read «Anonymous» there.",
+  "Это имя увидят другие: в списке друзей и в таблицах турнира и скрамбла дня. Остальной профиль виден только тебе.":
+    "Others will see this name: in your friends list and on the tournament and daily-scramble boards. The rest of your profile stays yours alone.",
   Сохранить: "Save",
   Сохранено: "Saved",
   "Не удалось сохранить изменения.": "Could not save the changes.",
@@ -515,6 +515,9 @@ export const EN: Record<string, string> = {
     "Capture your cube's colour profile — this is your first and primary cube. You can skip it and add one later from the profile.",
   "Пропустить (камера не проверена)": "Skip (camera unchecked)",
   "Пропустить регистрацию": "Skip the registration",
+  "Заведи публичное имя — по нему тебя смогут найти и добавить в друзья, и оно появится в таблицах турнира и скрамбла дня вместо «Аноним». Можно задать или изменить его позже в профиле.":
+    "Set up a public name — it's how people can find and add you as a friend, and it will show up on the tournament and daily-scramble boards instead of «Anonymous». You can set or change it later in your profile.",
+  "Не удалось сохранить имя. Попробуй ещё раз.": "Could not save the name. Try again.",
   "Пропустить онбординг": "Skip onboarding",
 
   // --- проход 3: подсказки камеры и калибровки (vision/guide.ts) ---

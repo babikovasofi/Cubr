@@ -13,6 +13,7 @@ import GoalCard from "../profile/GoalCard";
 import CoachCard from "../profile/CoachCard";
 import { currentAo5, AVERAGE_SIZE } from "../profile/average";
 import ShowcaseForm from "../profile/ShowcaseForm";
+import PublicHandleField from "../profile/PublicHandleField";
 import SegmentedToggle from "../components/SegmentedToggle";
 import { useAuthStore } from "../store/authStore";
 import { useSettingsStore } from "../store/settingsStore";
@@ -231,21 +232,7 @@ function EditForm({
           value={avatar}
           onChange={(e) => setAvatar(e.target.value)}
         />
-        <div className="flex flex-col gap-1.5">
-          <Input
-            label={t("Публичное имя в турнире")}
-            placeholder={t("Не задано — покажем как «Аноним»")}
-            maxLength={64}
-            value={publicHandle}
-            onChange={(e) => setPublicHandle(e.target.value)}
-            error={error}
-          />
-          <p className="font-sans text-small text-muted">
-            {t(
-              "Это имя увидят другие участники турнира в таблице недели. Оставь поле пустым — и там будет стоять «Аноним».",
-            )}
-          </p>
-        </div>
+        <PublicHandleField value={publicHandle} onChange={setPublicHandle} error={error} />
         <div className="flex items-center gap-3">
           <Button type="submit" disabled={busy}>
             {busy ? t("Сохраняю…") : t("Сохранить")}
