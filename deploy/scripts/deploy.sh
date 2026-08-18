@@ -51,6 +51,21 @@ ssh "$HOST" 'cd /srv/cubr && docker compose up -d'
 rsync -az --delete "$REPO_ROOT/frontend/dist/" "$HOST:/srv/cubr/www/"
 
 say "6/6 смоук"
+# The API needs a few seconds to boot after `up -d` returns: uvicorn starts,
+# opens the pool and only then answers. Smoking immediately reports a 502 for a
+# deploy that is in fact fine — and a deploy script that cries wolf teaches the
+# person running it to ignore a red verdict, which is worse than having no
+# check at all. So: wait for readiness, with a bounded patience.
+printf 'жду готовности API'
+for _ in $(seq 1 30); do
+  if [ "$(curl -sS -o /dev/null -w '%{http_code}' "$SITE/api/health")" = "200" ]; then
+    printf ' — готов\n'
+    break
+  fi
+  printf '.'
+  sleep 2
+done
+
 code_root=$(curl -sS -o /dev/null -w '%{http_code}' "$SITE/")
 code_api=$(curl -sS -o /dev/null -w '%{http_code}' "$SITE/api/health")
 code_spa=$(curl -sS -o /dev/null -w '%{http_code}' "$SITE/rules")
