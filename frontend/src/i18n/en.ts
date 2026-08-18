@@ -264,6 +264,35 @@ export const EN: Record<string, string> = {
     "{target} in a row under {milestone} — the milestone holds.",
   "{done} из {target} подряд ниже {milestone}.": "{done} of {target} in a row under {milestone}.",
 
+  // коуч-аналитика
+  Коуч: "Coach",
+  "Нужно ещё {n} сборок, чтобы делать честные выводы (сейчас {count} из {min}).":
+    "Need {n} more solves for honest conclusions (currently {count} of {min}).",
+  "Обычно собираешь между {p25} и {p75}.": "You usually solve between {p25} and {p75}.",
+  "Лучшая {best} · типичная {median} · худшая {worst}.":
+    "Best {best} · typical {median} · worst {worst}.",
+  "Рекорд заметно быстрее типичного темпа — возможно, повезло.":
+    "Your record is notably faster than your typical pace — maybe a lucky run.",
+  "Рекорд близко к типичному темпу — стабильный уровень.":
+    "Your record is close to your typical pace — a steady level.",
+  "За последние {n} сборок медиана {recent}, за предыдущие {n} — {prior}.":
+    "Over the last {n} solves the median is {recent}, over the previous {n} it was {prior}.",
+  "За последние {n} сборок медиана {recent}, за предыдущие {n} — {prior}: без изменений.":
+    "Over the last {n} solves the median is {recent}, over the previous {n} it was {prior}: no change.",
+  "За последние {n} сборок медиана {recent}, за предыдущие {n} — {prior}: быстрее на {pct}%.":
+    "Over the last {n} solves the median is {recent}, over the previous {n} it was {prior}: faster by {pct}%.",
+  "За последние {n} сборок медиана {recent}, за предыдущие {n} — {prior}: медленнее на {pct}%.":
+    "Over the last {n} solves the median is {recent}, over the previous {n} it was {prior}: slower by {pct}%.",
+  "Тренд появится после ещё {n} сборок (нужно {min} на сравнение).":
+    "The trend appears after {n} more solves ({min} needed to compare).",
+  "Доля незавершённых сборок появится после {min} попыток (сейчас {count}).":
+    "The DNF rate appears after {min} attempts (currently {count}).",
+  "Доля незавершённых сборок: {pct}% (по {count} попыткам).":
+    "DNF rate: {pct}% (out of {count} attempts).",
+  "Было {prior}%, стало {recent}% — без изменений.": "Was {prior}%, now {recent}% — no change.",
+  "Было {prior}%, стало {recent}% — растёт.": "Was {prior}%, now {recent}% — rising.",
+  "Было {prior}%, стало {recent}% — снижается.": "Was {prior}%, now {recent}% — falling.",
+
   // история и график
   "История сборок": "Solve history",
   "Загружаю историю…": "Loading the history…",
