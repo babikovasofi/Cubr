@@ -15,7 +15,7 @@ proxies (wired in ``main.py``). We never read raw XFF here.
 from collections.abc import AsyncIterator, Awaitable, Callable
 from contextlib import asynccontextmanager
 
-from fastapi import HTTPException, Request
+from fastapi import Depends, HTTPException, Request
 from limits import RateLimitItem, parse
 from limits.aio.storage import MemoryStorage
 from limits.aio.strategies import MovingWindowRateLimiter
@@ -25,6 +25,8 @@ from slowapi.util import get_remote_address
 from slowapi.wrappers import Limit
 
 from app.config import get_settings
+from app.models import User
+from app.services.auth import current_active_user
 
 settings = get_settings()
 
@@ -180,6 +182,35 @@ def login_account_rate_limit(limit: str) -> Callable[[Request], AsyncIterator[No
         key = f"login-account:{username}"
         async with _outcome_gated_budget(item, key):
             yield
+
+    return dependency
+
+
+def user_rate_limit(limit: str) -> Callable[[Request, User], Awaitable[None]]:
+    """Dependency: throttle by the CALLING user's `user.id` — for authed
+    endpoints where an IP-keyed limit is not a real defense (rotating IP /
+    a second worker resets it). First use: `POST /friends/requests`, where
+    the thing being throttled is enumerating which `public_handle`s exist
+    (see `app.routers.friends`, `app.services.friends` module docstring).
+
+    Mirrors `login_account_rate_limit`'s SHAPE — a per-account dependency
+    layered on top of its own `Depends(current_active_user)`, so it shares
+    FastAPI's per-request dependency cache with the route handler's own
+    `current_active_user` (one DB lookup, not two) — but deliberately NOT
+    its outcome-gated semantics. `login_account_rate_limit` only spends
+    budget on a FAILED login so retyping a correct password a few times
+    never trips it; there is no equivalent "wrong guess" signal here; every
+    call — success or failure — spends one unit of budget, same as the
+    plain `ip_rate_limit` shape. A key built from `user.id` (never the raw
+    handle being probed) so the limit stays about "how often did this
+    ACCOUNT call this endpoint", not about any one target.
+    """
+    item = parse(limit)
+
+    async def dependency(request: Request, user: User = Depends(current_active_user)) -> None:
+        key = f"friend-request:{user.id}"
+        if not await _window.hit(item, key):
+            _raise(item, _client_ip)
 
     return dependency
 

@@ -121,6 +121,25 @@ async def test_clearing_public_handle_still_allowed(
     assert resp.json()["public_handle"] is None
 
 
+async def test_public_handle_unique_case_insensitive(
+    client: AsyncClient, email_spy: EmailSpy
+) -> None:
+    await _register_and_login(client, "handle-owner@example.com")
+    resp = await client.patch("/users/me", json={"public_handle": "SpeedCuber"})
+    assert resp.status_code == 200, resp.text
+
+    # A second account, logging in fresh, tries a same-case-insensitive handle.
+    await client.post("/auth/logout")
+    await _register_and_login(client, "handle-taker@example.com")
+    resp = await client.patch("/users/me", json={"public_handle": "speedcuber"})
+    assert resp.status_code == 400, resp.text
+    assert resp.json()["detail"]["code"] == "HANDLE_TAKEN"
+
+    # Not a 500, and the handle in the DB is untouched.
+    me = await client.get("/users/me")
+    assert me.json()["public_handle"] is None
+
+
 def test_oauth_derived_nickname_is_sanitised() -> None:
     # Ронять OAuth-редирект 400-кой из-за локалпарта почты нельзя — только fallback.
     assert _derive_nickname("pizdec@example.com") == "cuber"

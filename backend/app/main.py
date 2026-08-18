@@ -15,6 +15,7 @@ from app.routers import (
     cubes,
     daily,
     duel,
+    friends,
     funnel,
     health,
     scramble,
@@ -87,5 +88,6 @@ app.include_router(scramble.router)
 app.include_router(tournament.router)
 app.include_router(daily.router)
 app.include_router(duel.router)
+app.include_router(friends.router)
 app.include_router(badges.router)
 app.include_router(funnel.router)

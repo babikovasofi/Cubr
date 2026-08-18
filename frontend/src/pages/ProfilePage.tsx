@@ -18,6 +18,7 @@ import { useAuthStore } from "../store/authStore";
 import { useSettingsStore } from "../store/settingsStore";
 import { formatSolveMs, type TimeFormat } from "../lib/formatTime";
 import CubeList from "../cubes/CubeList";
+import FriendsSection from "../friends/FriendsSection";
 import { listSolves, type SolveRead } from "../api/solves";
 import { ApiError } from "../api/client";
 import { useT } from "../i18n/t";
@@ -73,6 +74,8 @@ export default function ProfilePage() {
       />
 
       <CubeList />
+
+      <FriendsSection />
 
       <BadgeGrid />
 

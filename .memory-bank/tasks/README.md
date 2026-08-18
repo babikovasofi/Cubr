@@ -771,6 +771,36 @@ PLL-кейсов → скрамбл, который гарантированно
 - Отчёт: `swarm-report/oll-trainer-build.md`.
   PR: https://github.com/babikovasofi/Cubr/pull/25 — не смёржен, не задеплоен.
 
+## Друзья и подписки (V3, «Вызов друга в один клик») — PR #29, не смёржен
+
+Решает R5 (холодный старт). Ветка `feat/friends` от актуального `main`. Взаимные друзья по
+`public_handle` (заявка → принятие, никакого поиска по email/нику), «Вызов в один клик» из
+списка друзей поверх существующего `POST /duel/rooms`.
+
+- **Приватность (П10):** наружу только `public_handle`/«Аноним»/`friendship_id` — никогда
+  email/nickname/user UUID. Доказано `test_friend_list_has_no_pii` (аналог
+  `test_daily.py::test_board_valid_entry_deranked_no_pii`) на всех 4 list-эндпоинтах.
+- **Дубль пары A→B/B→A физически исключён БД-констрейнтом**, не проверкой в коде: упорядоченная
+  пара `(user_low_id, user_high_id)` + `CHECK user_low_id < user_high_id` + `UNIQUE(pair)`;
+  `test_pair_row_is_order_independent` вставляет зеркальную пару в обход сервиса и ловит
+  `IntegrityError`. Вставка через `session.begin_nested()` + перехват (приём `duel.create_room`),
+  не pre-check (TOCTOU).
+- `public_handle` стал регистронезависимо уникальным (миграция `0011`, частичный индекс
+  `WHERE public_handle IS NOT NULL` — NULL с NULL не конфликтуют); человекочитаемая ошибка
+  `HANDLE_TAKEN` вместо 500 (пре-чек + race-guard в `UserManager.update()`).
+- **4 эскалированных решения** (пользователь недоступна, решил координатор,
+  зафиксированы с обоснованием в `swarm-report/friends-plan.md` → Decisions): коды ответа заявки
+  не унифицированы (public_handle публичен по своей природе, оракул не тот же класс, что email);
+  «вызов в один клик» без изображения уведомления, которого нет; без отдельной
+  ссылки-приглашения в друзья; orphaned-room lockout (П11) не чинится здесь — известный хвост
+  ниже в «Бэклог организационный».
+- Тесты: backend pytest **469** (+18, 1 skip — миграция требует живого Postgres, нет Docker),
+  frontend vitest **1688** (+18); ruff/ruff-format/mypy/tsc/eslint/prettier чисто. Входной чанк
+  312.11 → 314.02 kB (бюджет 320, порог не поднимался) — `i18n/en.ts` статически импортируется,
+  рост держали переиспользованием существующих строк перевода.
+- Отчёты: `swarm-report/friends-plan.md`, `swarm-report/friends-build.md`.
+  PR: https://github.com/babikovasofi/Cubr/pull/29 — не смёржен, не задеплоен.
+
 ## Planned (следующий фокус)
 - **Этап 6 — деплой на VPS (2026-08-18, ночной прогон)** ✅ живой прод, ⏳ настоящий домен.
   - **Хостинг сменился: собственный Selectel VPS**, не Railway/Vercel. Причина решения —
@@ -834,3 +864,8 @@ PLL-кейсов → скрамбл, который гарантированно
   вместе с дизайном, подпись под ними предупреждает о расхождении. Исторические `raw/` и
   `swarm-report/` не трогаем: это записи о прошлом.
 - Проверить свободен ли домен под имя Cubr до брендинга.
+- **Известный хвост, не чинится в friends-фиче (Decision #4, `swarm-report/friends-plan.md`):**
+  orphaned-room lockout в дуэлях — `app/services/duel.py::find_active_room` не учитывает
+  TTL/`open`-статус, и `DELETE /duel/rooms/{id}` не существует. Pre-existing баг сервиса
+  дуэлей, не привнесённый фичей друзей; фронтовое смягчение (409 → переход в существующую
+  комнату) не решает его физически.

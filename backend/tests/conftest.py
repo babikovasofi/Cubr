@@ -35,6 +35,7 @@ from app.models import (  # noqa: E402
     DailyChallenge,
     DuelParticipant,
     DuelRoom,
+    Friendship,
     OAuthAccount,
     Scramble,
     Solve,
@@ -114,6 +115,7 @@ async def test_engine() -> AsyncGenerator[AsyncEngine, None]:
                     DuelRoom.__table__,
                     DuelParticipant.__table__,
                     UserBadge.__table__,
+                    Friendship.__table__,
                 ],
             )
         )

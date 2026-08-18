@@ -28,6 +28,9 @@ from fastapi_users_db_sqlalchemy import SQLAlchemyUserDatabase
 from httpx_oauth.clients.google import GoogleOAuth2
 from pwdlib import PasswordHash
 from pwdlib.hashers.argon2 import Argon2Hasher
+from sqlalchemy import func, select
+from sqlalchemy.exc import IntegrityError
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import get_settings
 from app.db import get_user_db
@@ -84,6 +87,13 @@ async def google_email_verified(access_token: str) -> bool:
     return bool(data.get("email_verified", False))
 
 
+_HANDLE_TAKEN_DETAIL = {"code": "HANDLE_TAKEN", "reason": "Этот хэндл уже занят."}
+
+
+def _handle_taken_error() -> HTTPException:
+    return HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=_HANDLE_TAKEN_DETAIL)
+
+
 def _reject_bad_names(*values: object) -> None:
     """Stage 6 name filter — raises 400 with the SPA's `{code, reason}` shape.
 
@@ -106,6 +116,19 @@ def _reject_bad_names(*values: object) -> None:
 class UserManager(UUIDIDMixin, BaseUserManager[User, uuid.UUID]):
     reset_password_token_secret = settings.RESET_VERIFY_SECRET
     verification_token_secret = settings.RESET_VERIFY_SECRET
+
+    def __init__(
+        self,
+        user_db: SQLAlchemyUserDatabase[User, uuid.UUID],
+        password_helper: PasswordHelper | None = None,
+    ) -> None:
+        super().__init__(user_db, password_helper)
+        # `BaseUserManager.user_db` is typed as the abstract `BaseUserDatabase`
+        # (no `.session`) — stash the concrete session here so the
+        # `HANDLE_TAKEN` pre-check/race-guard in `update()` below has a
+        # properly-typed `AsyncSession` to query/rollback, instead of reaching
+        # through `self.user_db` (which mypy can't see `.session` on).
+        self._session: AsyncSession = user_db.session
 
     async def validate_password(self, password: str, user: schemas.UC | User) -> None:
         # Same check on every path that SETS a password — register, the
@@ -148,7 +171,41 @@ class UserManager(UUIDIDMixin, BaseUserManager[User, uuid.UUID]):
             getattr(user_update, "nickname", None),
             getattr(user_update, "public_handle", None),
         )
-        return await super().update(user_update, user, safe, request)
+        # Friends feature (`app.models.user`'s `uq_user_public_handle_lower`):
+        # `public_handle` is now case-insensitively unique. Pre-check BEFORE
+        # the write so a normal collision gets the same human `{code, reason}`
+        # shape as CUBE_LIMIT/NAME_* instead of a bare DB error. `None`/blank
+        # means "not being set / being cleared" (see `_normalize_public_handle`
+        # in `app.schemas.user`) — never pre-checked, or clearing to NULL or
+        # leaving the field out entirely would false-positive against every
+        # other handle-less user.
+        new_handle = getattr(user_update, "public_handle", None)
+        if isinstance(new_handle, str) and new_handle:
+            # `User.id` (via `.__table__.c`, not the bare attribute):
+            # fastapi-users' base table declares `id` `if TYPE_CHECKING:
+            # id: UUID_ID`, which shadows the real mapped column for mypy —
+            # same workaround `app.services.funnel` already uses for
+            # `is_verified`.
+            existing = await self._session.execute(
+                select(User.__table__.c.id).where(
+                    func.lower(User.public_handle) == new_handle.strip().lower(),
+                    User.__table__.c.id != user.id,
+                )
+            )
+            if existing.scalar_one_or_none() is not None:
+                raise _handle_taken_error()
+        # Race guard: two concurrent PATCHes both pass the pre-check above,
+        # then both write — the UNIQUE index catches the loser as an
+        # `IntegrityError` at commit (inside `user_db.update()`), mapped to
+        # the SAME `HANDLE_TAKEN` shape rather than a raw 500. The session's
+        # transaction is aborted at that point, so it must be rolled back
+        # before it can be used again (e.g. by a later test/request on the
+        # same connection).
+        try:
+            return await super().update(user_update, user, safe, request)
+        except IntegrityError as exc:
+            await self._session.rollback()
+            raise _handle_taken_error() from exc
 
     async def on_after_register(self, user: User, request: Request | None = None) -> None:
         # Kick off email verification right after sign-up. `request_verify`

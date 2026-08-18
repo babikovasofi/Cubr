@@ -121,6 +121,15 @@ class Settings(BaseSettings):
     # the current one — see app.services.duel.series_chain.
     DUEL_SERIES_GAP_SECONDS: int = 3600
 
+    # --- Friends (mutual, added by public_handle only) ---
+    # Ordinary per-IP throttle applied to every /friends/* route.
+    FRIENDS_RATE_LIMIT: str = "60/minute"
+    # Additional per-CALLING-USER throttle on POST /friends/requests only
+    # (app.services.ratelimit.user_rate_limit) — an IP-keyed limit alone is
+    # not a defense against probing which public_handles exist, since
+    # rotating IP (or a second worker) resets it; this is keyed by user.id.
+    FRIEND_REQUEST_RATE_LIMIT: str = "10/minute"
+
     # --- Process topology ---
     # Duel rooms live in one process's memory (app.services.duel_manager) — no
     # Redis/shared-state backing this MVP brick. main.py's startup lifespan
