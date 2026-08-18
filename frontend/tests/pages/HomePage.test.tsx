@@ -48,6 +48,61 @@ describe("HomePage", () => {
     expect(container.querySelector('[aria-hidden="true"]')).toBeTruthy();
   });
 
+  it("грань видна с базовой (мобильной) ширины, а не только от lg:", () => {
+    renderHome();
+
+    const stickers = screen.getAllByTestId("hero-sticker");
+    const grid = stickers[0].parentElement;
+    expect(grid).toBeTruthy();
+    const gridClasses = grid!.className.split(/\s+/);
+    const stickerClasses = stickers[0].className.split(/\s+/);
+
+    // Раньше грань пряталась `hidden` до брейкпоинта `lg:grid` — контейнер
+    // не должен нести `hidden` ни на каком уровне: `display` у него должен
+    // быть `grid` уже в базовом (безпрефиксном) состоянии.
+    expect(gridClasses).not.toContain("hidden");
+    expect(gridClasses).toContain("grid");
+    // Базовый (мобильный) размер плитки задан без брейкпоинт-префикса —
+    // значит, он активен уже на самой узкой ширине, а не только от sm/lg.
+    expect(stickerClasses).toContain("h-9");
+    expect(stickerClasses).toContain("w-9");
+  });
+
+  // "Не на глаз": в jsdom нет раскладки, поэтому переполнение доказываем
+  // арифметически — по фактически отрендеренным Tailwind-классам, а не по
+  // ожиданию. Плитка 36px и зазор 6px (h-9/w-9, gap-1.5) — те же токены,
+  // что заданы в HeroStickers.tsx для базового (безпрефиксного) состояния;
+  // если кто-то поднимет мобильный размер плитки, эта проверка упадёт раньше,
+  // чем баг доедет до телефона. Самая узкая поддерживаемая ширина — 320px
+  // (iPhone SE), паддинг страницы `px-4` с обеих сторон (см. App.tsx `<main>`
+  // `mx-auto max-w-content px-4`) даёт 320 − 32 = 288px полезной ширины;
+  // сама грань размещается в своём собственном ряду (герой — `flex-col` на
+  // базовой ширине), так что ей достаточно не превысить эти 288px в одиночку.
+  it("уменьшенная грань не может вызвать горизонтальный скролл на самом узком экране", () => {
+    renderHome();
+
+    const stickers = screen.getAllByTestId("hero-sticker");
+    const TILE_PX = 36; // h-9 = 2.25rem = 36px при корневом 16px (см. HeroStickers.tsx)
+    const GAP_PX = 6; // gap-1.5 = 0.375rem = 6px
+    const footprint = TILE_PX * 3 + GAP_PX * 2;
+    const NARROWEST_VIEWPORT_PX = 320;
+    const PAGE_PADDING_PX = 16 * 2; // App.tsx <main className="... px-4 ..."> — 16px с каждой стороны
+    const availableWidth = NARROWEST_VIEWPORT_PX - PAGE_PADDING_PX;
+
+    expect(stickers).toHaveLength(9);
+    expect(footprint).toBeLessThan(availableWidth);
+
+    // Герой — колонка на базовой ширине (переключение в ряд только с sm:),
+    // поэтому грани не приходится делить строку с текстом и бороться за
+    // ширину с ним — сама эта проверка и есть гарантия от переполнения.
+    const grid = stickers[0].parentElement!;
+    const heroSection = grid.closest("section")!;
+    const sectionClasses = heroSection.className.split(/\s+/);
+    expect(sectionClasses).toContain("flex-col");
+    expect(sectionClasses.some((c) => c === "flex-row" || c === "justify-between")).toBe(false);
+    expect(sectionClasses).toContain("sm:flex-row");
+  });
+
   it("аноним видит ссылки на правила и приватность", () => {
     renderHome();
 

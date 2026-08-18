@@ -13,6 +13,15 @@
 // это знак-иллюстрация, тот же класс, что логотип.
 //
 // prefers-reduced-motion: таймеры не заводятся вовсе, остаётся статичная грань.
+//
+// Размер плитки отзывчивый (мобильный/sm/lg), а не фиксированный: грань видна
+// на любой ширине, но на телефоне — уменьшенной копией. При уменьшении тени и
+// радиус в 3px/14px «на телефоне» выглядят чугунно (несоразмерно 36px-плитке),
+// поэтому оба масштабируются вместе с плиткой — §4 держит только требование
+// «≈22% стороны» для радиуса, жёсткая тень 2px на мобильной плитке держит тот
+// же характер, что 3px `shadow-sticker` на больших. lg-уровень (64px, 14px,
+// `shadow-sticker`) byte-for-byte тот же, что был раньше, — на десктопе
+// ничего не меняется.
 
 import { useEffect, useState } from "react";
 
@@ -90,7 +99,7 @@ export default function HeroStickers({ className = "" }: { className?: string })
   return (
     <div
       aria-hidden
-      className={`grid grid-cols-3 gap-2.5 ${className}`}
+      className={`grid shrink-0 grid-cols-3 items-start gap-1.5 sm:gap-2 lg:gap-2.5 ${className}`}
       style={{ transform: "rotate(-4deg)" }}
       data-solved={frame.solved ? "true" : "false"}
     >
@@ -99,7 +108,10 @@ export default function HeroStickers({ className = "" }: { className?: string })
           key={i}
           data-testid="hero-sticker"
           className={[
-            "h-16 w-16 rounded-tile border-2 border-ink shadow-sticker",
+            // 36px на телефоне → 48px от sm (640px) → 64px (исходный размер) от lg (1024px).
+            "h-9 w-9 rounded-sm border-2 border-ink shadow-[2px_2px_0_var(--ink)]",
+            "sm:h-12 sm:w-12 sm:rounded-md sm:shadow-sticker",
+            "lg:h-16 lg:w-16 lg:rounded-tile",
             "transition-[background-color,transform] duration-300 ease-spring",
           ].join(" ")}
           // Наклон и подскок — одним inline-transform: класс-скейл Tailwind тут

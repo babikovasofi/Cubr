@@ -99,10 +99,14 @@ function Landing() {
   const handheld = useIsHandheld();
   return (
     <div className="flex flex-col gap-12">
-      {/* Герой: текст слева, живая грань кубика в пустоте справа. Декор —
-          на узких экранах просто снимается, ничего не теряется. */}
-      <section className="flex items-center justify-between gap-10">
-        <div className="flex flex-col gap-5">
+      {/* Герой: текст слева, живая грань кубика в пустоте справа — от sm
+          (640px). На телефоне ширины на пару в ряд не хватает, поэтому грань
+          не жмёт текст, а спускается под него уменьшенной копией
+          (items-start вместо stretch: и текст, и грань размером в свой
+          контент, а не в 100% ширины — так плитки не разъезжает по всей
+          строке). */}
+      <section className="flex flex-col items-start gap-6 sm:flex-row sm:items-center sm:justify-between sm:gap-8 lg:gap-10">
+        <div className="flex min-w-0 flex-col gap-5">
           <h1 className="max-w-[18ch] font-sans text-h1 text-ink">
             {t("Дуэли по сборке кубика. Судит камера.")}
           </h1>
@@ -131,7 +135,7 @@ function Landing() {
             </p>
           )}
         </div>
-        <HeroStickers className="hidden shrink-0 pr-6 lg:grid" />
+        <HeroStickers className="sm:pr-4 lg:pr-6" />
       </section>
 
       <section className="flex flex-col gap-4">
