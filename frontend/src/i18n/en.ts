@@ -646,19 +646,25 @@ export const EN: Record<string, string> = {
   "Съёмка {n} не опознана: её центр в {de} от цвета {face} (допустимо {max}). Либо одна и та же грань показана дважды, либо в рамку попал не кубик. Покажи шесть РАЗНЫХ граней, каждую — центром в рамку.":
     "Capture {n} was not recognised: its centre is {de} away from the colour {face} (at most {max} is allowed). Either the same face was shown twice, or what got into the frame was not the cube. Show six DIFFERENT faces, each with its centre in the frame.",
 
-  // --- тренажёр PLL (plan: ll-trainer) — case ids (Aa, Ub, G-perm, …) are
-  // international notation and are NOT translated here on purpose. ---
-  "Тренажёр PLL": "PLL trainer",
-  "21 случай последнего слоя, скрамбл под конкретный случай — без аккаунта.":
-    "All 21 last-layer cases, a scramble for the exact case you pick — no account needed.",
+  // --- тренажёр PLL/OLL (plan: ll-trainer, extended for OLL) — case ids
+  // (Aa, Ub, G-perm, OLL1..OLL57, Sune, Antisune, …) are international
+  // notation and are NOT translated here on purpose. ---
+  "Тренажёр последнего слоя": "Last-layer trainer",
+  "78 случаев OLL и PLL, скрамбл под конкретный случай — без аккаунта.":
+    "78 OLL and PLL cases, a scramble for the exact case you pick — no account needed.",
   "Выбери один или несколько случаев — получишь скрамбл, который гарантированно ставит кубик именно в этот случай. Без сборки, без камеры: собери скрамбл руками и сверься с ответом.":
     "Pick one or several cases and get a scramble guaranteed to land the cube in exactly that case. No camera, no solving here — apply the scramble by hand and check yourself against the answer.",
+  "Набор случаев": "Case set",
+  "PLL (перестановка)": "PLL (permutation)",
+  "OLL (ориентация)": "OLL (orientation)",
   "Все 21": "All 21",
+  "Все 57": "All 57",
   "Только рёбра": "Edges only",
   "Только углы": "Corners only",
   "Соседняя пара": "Adjacent swap",
   "По диагонали": "Diagonal swap",
   "G-перестановки": "G-perms",
+  Смешанные: "Mixed",
   "Хват кубика": "Grip",
   "Обычный хват": "Fixed grip",
   "Любой хват": "Any grip",
