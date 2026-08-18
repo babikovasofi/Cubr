@@ -10,6 +10,7 @@ import Spinner from "../components/Spinner";
 import BadgeGrid from "../components/BadgeGrid";
 import SolveProgressChart from "../components/SolveProgressChart";
 import GoalCard from "../profile/GoalCard";
+import CoachCard from "../profile/CoachCard";
 import { currentAo5, AVERAGE_SIZE } from "../profile/average";
 import ShowcaseForm from "../profile/ShowcaseForm";
 import SegmentedToggle from "../components/SegmentedToggle";
@@ -298,6 +299,10 @@ function History() {
       {state.kind === "ok" ? <GoalCard solves={state.solves} /> : null}
 
       {state.kind === "ok" ? <CurrentAverage solves={state.solves} /> : null}
+
+      {/* Коуч — тоже текстовый вывод перед графиком, тем же порядком, что и цель:
+          сначала «что это значит», потом визуализация «как это выглядело». */}
+      {state.kind === "ok" ? <CoachCard solves={state.solves} /> : null}
 
       {state.kind === "ok" ? (
         <section className="flex flex-col gap-3">
