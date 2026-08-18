@@ -383,3 +383,38 @@ describe("useAccuracySession — honesty barrier", () => {
     expect(result.current.buildExport()).not.toContain("Последний брак");
   });
 });
+
+// Три дропа подряд — это и есть случай, ради которого брак начали запоминать.
+// Кнопка «Копировать отчёт» гасла ровно в нём: считанных чтений нет, условий в
+// прогоне нет, значит копировать «нечего». Отчёт обязан быть доступен, пока
+// есть хоть одна причина отказа.
+describe("отчёт доступен и без единого засчитанного чтения", () => {
+  it("после брака сессия отдаёт его текст наружу", async () => {
+    const uniform = (c: string): string[] => Array.from({ length: 9 }, () => c);
+    readerStub.calibrated = true;
+    readerStub.collectingAccuracy = true;
+    readerStub.pushAccuracyFace.mockResolvedValue({
+      kind: "complete",
+      rawFaceGrids: ["U", "R", "F", "D", "L", "B"].map(uniform),
+      productFaceGrids: ["U", "R", "F", "D", "L", "B"].map(uniform),
+      rawCenterFaces: null,
+      rawCenterOffenders: [{ capture: 5, face: "B", de: 55.6, relative: true, own: "F", ownDE: 4 }],
+      cellDiags: [],
+      fitDiags: [],
+      resolved: null,
+    });
+
+    const { result } = renderHook(() => useAccuracySession());
+    await act(async () => result.current.setMode("solved"));
+    await act(async () => result.current.setGrip("picture"));
+    result.current.videoRef.current = {} as HTMLVideoElement;
+    expect(result.current.lastDropText).toBeNull();
+
+    await act(async () => {
+      await result.current.captureFace();
+    });
+
+    expect(result.current.lastReport).toBeNull(); // считанных чтений нет
+    expect(result.current.lastDropText).toContain("не опознана");
+  });
+});

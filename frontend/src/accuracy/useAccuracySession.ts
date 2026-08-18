@@ -111,6 +111,15 @@ export interface AccuracySession {
   excludeLast: () => void;
   // Results.
   lastReport: AccuracyReport | null;
+  /**
+   * Текст последнего брака — им же управляется доступность «Копировать отчёт».
+   *
+   * Кнопка гасла, когда в прогоне не было ни одного СЧИТАННОГО чтения, — то
+   * есть ровно в том случае, ради которого брак и начали запоминать: три дропа
+   * подряд, копировать нечего, отчёт недоступен. Диагностика, до которой нельзя
+   * дотянуться, не диагностика.
+   */
+  lastDropText: string | null;
   lastProductReport: AccuracyReport | null;
   run: AccuracyRun;
   runVersion: number;
@@ -635,6 +644,7 @@ export function useAccuracySession(): AccuracySession {
     cancelCapture,
     excludeLast,
     lastReport,
+    lastDropText,
     lastProductReport,
     run: runRef.current,
     runVersion,

@@ -247,7 +247,10 @@ export default function AccuracyControls({ session }: AccuracyControlsProps) {
         </div>
 
         <div className="flex flex-wrap gap-2">
-          <Button onClick={onCopy} disabled={gate.conditions.length === 0 && !session.lastReport}>
+          <Button
+            onClick={onCopy}
+            disabled={gate.conditions.length === 0 && !session.lastReport && !session.lastDropText}
+          >
             {copied ? "Скопировано ✓" : "Копировать отчёт"}
           </Button>
           <Button onClick={session.resetRun} className="bg-surface-2 text-ink">
