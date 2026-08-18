@@ -389,3 +389,38 @@ describe("colorBalanceRu", () => {
     expect(formatRawGrids(grids).split("\n")[0]).toContain("Ячейки съёмок");
   });
 });
+
+describe("formatRawGrids — блик и сетка в одном месте", () => {
+  const g = (s: string): string[] => s.split("");
+  const diag = (kept: number): CellDiag => ({
+    rgb: [200, 200, 200] as [number, number, number],
+    kept,
+    best: "U",
+    bestDE: 3,
+    second: "D",
+    secondDE: 40,
+  });
+
+  // Блик на ПОЛОВИНЕ ячейки не дотягивает до CELL_MIN_KEPT_FRAC, счётчик
+  // «выбито бликом» молчит — а цвет уже тянет к белому. Живой прогон
+  // 2026-08-19: синего 6 из 9 при заведомо здоровых эталонах.
+  it("печатает худшую ячейку по доле выживших пикселей", () => {
+    const diags = Array.from({ length: 9 }, () => diag(0.9));
+    diags[3] = diag(0.4); // блик съел больше половины, но флага нет
+    const out = formatRawGrids([g("UUUUUUUUU")], diags);
+    expect(out).toContain("худшая ячейка выжила на 40%");
+    expect(out).not.toContain("выбито бликом");
+  });
+
+  it("прикладывает строку подгонки сетки, когда она передана", () => {
+    const out = formatRawGrids([g("UUUUUUUUU")], undefined, [
+      { gain: 5, used: true, gap: 0, edge: 41 },
+    ]);
+    expect(out).toContain("Сетка по съёмкам");
+    expect(out).toContain("0/41");
+  });
+
+  it("без подгонки строку про сетку не выдумывает", () => {
+    expect(formatRawGrids([g("UUUUUUUUU")])).not.toContain("Сетка по съёмкам");
+  });
+});

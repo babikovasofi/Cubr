@@ -23,6 +23,7 @@ import { config } from "./config";
 import { pinRotationsByPhysics, rotateGrid } from "./cubeGrid";
 import { SOLVED, FACE_ORDER, type Face, type Facelet } from "./cubeState";
 import { deltaE, rgb2lab } from "./colors";
+import { fitSpreadRu } from "./guide";
 
 export interface StickerResult {
   index: number;
@@ -451,6 +452,7 @@ export function colorBalanceRu(grids: readonly (readonly string[])[]): string | 
 export function formatRawGrids(
   grids: readonly (readonly string[])[],
   diags?: readonly CellDiag[],
+  fits?: readonly FaceFitDiag[],
 ): string {
   const lines: string[] = [];
   // Баланс идёт ПЕРВЫМ: он один отвечает на вопрос «чтение вообще возможно?»,
@@ -473,14 +475,26 @@ export function formatRawGrids(
     if (capDiags && capDiags.length === 9) {
       const worst = Math.max(...capDiags.map((d) => d.bestDE));
       const blown = capDiags.filter((d) => d.kept < config.CELL_MIN_KEPT_FRAC).length;
+      // Худшая ячейка по доле выживших пикселей, а не только счётчик выбитых.
+      // Порог `CELL_MIN_KEPT_FRAC` ловит ячейку, которую блик съел целиком; блик
+      // на ПОЛОВИНЕ ячейки его не достигает, но цвет уже тянет к белому — и
+      // именно так тёмно-синяя наклейка становится белой, не подняв ни одного
+      // флага. Живой прогон 2026-08-19: синего 6 из 9 при здоровых эталонах.
+      const minKept = Math.min(...capDiags.map((d) => d.kept));
       tail =
         `  [центр ΔE ${capDiags[4].bestDE.toFixed(1)}` +
         `, макс по ячейкам ${worst.toFixed(1)}` +
+        `, худшая ячейка выжила на ${(minKept * 100).toFixed(0)}%` +
         (blown ? `, выбито бликом ${blown}` : "") +
         "]";
     }
     lines.push(`  ${cap + 1}: ${rows.join(" | ")}${tail}`);
   });
+  // Как легла сетка — часть той же картины: «ячейка прочиталась белой» и «сетка
+  // на этой грани ничего не нашла» объясняют друг друга. Раньше эта строка
+  // печаталась ровно у одного отказа из шести, и у остальных пяти читателю
+  // приходилось гадать о геометрии по буквам.
+  if (fits && fits.length > 0) lines.push(`  ${fitSpreadRu([...fits])}`);
   return lines.join("\n");
 }
 

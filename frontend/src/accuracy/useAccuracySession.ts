@@ -268,9 +268,15 @@ export function useAccuracySession(): AccuracySession {
   const dropRead = (
     text: string,
     reason: DropReason,
-    capture?: { grids: readonly (readonly string[])[]; diags: readonly CellDiag[] },
+    capture?: {
+      grids: readonly (readonly string[])[];
+      diags: readonly CellDiag[];
+      fits: readonly FaceFitDiag[];
+    },
   ): void => {
-    const full = capture ? `${text}\n${formatRawGrids(capture.grids, capture.diags)}` : text;
+    const full = capture
+      ? `${text}\n${formatRawGrids(capture.grids, capture.diags, capture.fits)}`
+      : text;
     setCaptureError(full);
     setLastDropText(full);
     appendDrop(runRef.current, conditionRef.current, reason);
@@ -346,7 +352,7 @@ export function useAccuracySession(): AccuracySession {
           dropRead(
             "Кубик прочитан как СОБРАННЫЙ, а эталон — скрамбл. Похоже, скрамбл не собран на кубике: собери его по шагам слева (белый центр вверх, зелёный центр к себе) и сними чтение заново.",
             "mis-scramble",
-            { grids: r.rawFaceGrids, diags: r.cellDiags },
+            { grids: r.rawFaceGrids, diags: r.cellDiags, fits: r.fitDiags },
           );
           bump();
           return;
@@ -396,7 +402,7 @@ export function useAccuracySession(): AccuracySession {
                 .filter(Boolean)
                 .join(" "),
               "assign",
-              { grids: r.rawFaceGrids, diags: r.cellDiags },
+              { grids: r.rawFaceGrids, diags: r.cellDiags, fits: r.fitDiags },
             );
             bump();
             return;
@@ -410,6 +416,7 @@ export function useAccuracySession(): AccuracySession {
               dropRead(`Грани не опознаны по центрам: ${pic.reason}.`, "assign", {
                 grids: r.rawFaceGrids,
                 diags: r.cellDiags,
+                fits: r.fitDiags,
               });
               bump();
               return;
@@ -419,7 +426,7 @@ export function useAccuracySession(): AccuracySession {
                 `Поворот граней не определился по физике кубика (${pic.reason}). ` +
                   "Чтение не засчитано: подбирать поворот под ответ протокол запрещает. Переснимай грани.",
                 "ambiguous",
-                { grids: r.rawFaceGrids, diags: r.cellDiags },
+                { grids: r.rawFaceGrids, diags: r.cellDiags, fits: r.fitDiags },
               );
               bump();
               return;
@@ -440,6 +447,7 @@ export function useAccuracySession(): AccuracySession {
             dropRead(`Грани не опознаны по центрам: ${free.reason}.`, "assign", {
               grids: r.rawFaceGrids,
               diags: r.cellDiags,
+              fits: r.fitDiags,
             });
             bump();
             return;
@@ -467,7 +475,7 @@ export function useAccuracySession(): AccuracySession {
             `Цвета прочитаны верно (${54 - lenient.mismatches}/54 с точностью до поворота), но кубик был показан в другой ориентации, ` +
               "поэтому чтение не засчитано. Держи белый центр вверху и зелёный к себе, грани показывай по подсказкам, не переворачивая кубик между шагами.",
             "orientation",
-            { grids: r.rawFaceGrids, diags: r.cellDiags },
+            { grids: r.rawFaceGrids, diags: r.cellDiags, fits: r.fitDiags },
           );
           bump();
           return;
