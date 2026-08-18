@@ -57,6 +57,10 @@ class Settings(BaseSettings):
 
     # --- Rate limiting ---
     AUTH_RATE_LIMIT: str = "10/minute"
+    # Login attempts against a single ACCOUNT (keyed by the email being
+    # attacked), on top of AUTH_RATE_LIMIT's per-IP window — otherwise an
+    # attacker spraying guesses from rotating IPs never gets throttled.
+    LOGIN_ACCOUNT_RATE_LIMIT: str = "10/minute"
     EMAIL_RATE_LIMIT: str = "3/hour"
     SCRAMBLE_RATE_LIMIT: str = "60/minute"
     TOURNAMENT_RATE_LIMIT: str = "60/minute"

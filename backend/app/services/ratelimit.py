@@ -86,6 +86,53 @@ def email_rate_limit(limit: str) -> Callable[[Request], Awaitable[None]]:
     return dependency
 
 
+def login_account_rate_limit(limit: str) -> Callable[[Request], Awaitable[None]]:
+    """Dependency: throttle `/auth/login` by the *target account*, not IP.
+
+    `ip_rate_limit`/`AUTH_RATE_LIMIT` counts attempts per client IP — an
+    attacker spraying guesses at ONE account from a hundred rotating IPs
+    never trips it. This counts per account (the form's `username` field,
+    i.e. the email being attacked) regardless of source IP.
+
+    Mounted on the whole fastapi-users auth router (login *and* logout share
+    one router — see app.routers.auth), so this checks the request path
+    itself and is a no-op off `/login`: logout has no target account, and
+    counting it against the IP-fallback bucket would let logout traffic
+    spuriously trip an unrelated account's limit.
+    """
+    item = parse(limit)
+
+    async def dependency(request: Request) -> None:
+        if not request.url.path.endswith("/login"):
+            return
+        username = await _extract_login_username(request)
+        if username is None:
+            # No account to key on (malformed body) — the IP limit above
+            # still covers this request; don't rate-limit an empty key.
+            return
+        key = f"login-account:{username}"
+        if not await _window.hit(item, key):
+            _raise(item, _client_ip)
+
+    return dependency
+
+
+async def _extract_login_username(request: Request) -> str | None:
+    """Read the `username` form field (OAuth2PasswordRequestForm's email) for
+    `/auth/login`, without consuming it for downstream parsing — Starlette
+    caches parsed form data on the request, so reading it here is safe (same
+    reasoning as `_extract_email` for JSON bodies)."""
+    try:
+        form = await request.form()
+    except Exception:
+        return None
+    value = form.get("username")
+    if isinstance(value, str):
+        value = value.strip().lower()
+        return value or None
+    return None
+
+
 async def _extract_email(request: Request) -> str | None:
     """Read the `email` field from a JSON body without consuming it for downstream.
 

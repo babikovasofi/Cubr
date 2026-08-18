@@ -9,6 +9,7 @@ os.environ.setdefault("SCRAMBLE_SIGN_SECRET", "p9Lm3Fq6Ts-unit-scramble-sign-key
 os.environ.setdefault("DUEL_SIGN_SECRET", "h5Yv1Kd8Wq-unit-duel-sign-key-0123456789abcdefzz")
 os.environ.setdefault("APP_ENV", "local")
 os.environ.setdefault("AUTH_RATE_LIMIT", "10/minute")
+os.environ.setdefault("LOGIN_ACCOUNT_RATE_LIMIT", "10/minute")
 os.environ.setdefault("EMAIL_RATE_LIMIT", "3/hour")
 
 from collections.abc import AsyncGenerator  # noqa: E402

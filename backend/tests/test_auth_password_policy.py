@@ -1,13 +1,14 @@
 """Integration coverage for the server-side password policy: registration,
-password reset, PATCH /users/me, and the "old weak passwords still log in"
-compatibility guarantee.
+password reset, PATCH /users/me, the per-account login rate limit, and the
+"old weak passwords still log in" compatibility guarantee.
 
 Unit coverage of the rule logic itself lives in `tests/test_password_policy.py`.
 """
 
-from httpx import AsyncClient
+from httpx import ASGITransport, AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
+from app.main import app
 from app.models import User
 from app.services.auth import password_helper
 from tests.conftest import EmailSpy
@@ -142,3 +143,73 @@ async def test_preexisting_weak_password_can_still_login(
         "/auth/login", data={"username": "legacy@example.com", "password": "123"}
     )
     assert resp.status_code == 204, resp.text
+
+
+# --- per-account login rate limit (rule 5) ----------------------------------
+
+
+def _client_from_ip(ip: str) -> AsyncClient:
+    """A fresh AsyncClient hitting the same `app` from a distinct fake
+    source IP — `app.dependency_overrides` set by the `client` fixture
+    already applies (same `app` object), so no separate DB wiring needed."""
+    transport = ASGITransport(app=app, client=(ip, 1))
+    return AsyncClient(transport=transport, base_url="http://test")
+
+
+async def test_login_account_rate_limit_trips_across_different_ips(
+    client: AsyncClient, email_spy: EmailSpy
+) -> None:
+    email = "victim@example.com"
+    await _register(client, email)
+
+    statuses: list[int] = []
+    for i in range(11):
+        async with _client_from_ip(f"10.1.0.{i + 1}") as c:
+            resp = await c.post(
+                "/auth/login", data={"username": email, "password": "wrong-password-here"}
+            )
+            statuses.append(resp.status_code)
+
+    # LOGIN_ACCOUNT_RATE_LIMIT=10/minute: the first 10 (each from a brand new
+    # IP, so AUTH_RATE_LIMIT's per-IP window never fires) must NOT be
+    # account-limited; the 11th must be.
+    assert 429 not in statuses[:10], statuses
+    assert statuses[10] == 429, statuses
+
+
+async def test_login_account_rate_limit_is_per_account_not_per_ip(
+    client: AsyncClient, email_spy: EmailSpy
+) -> None:
+    victim = "victim2@example.com"
+    other = "bystander@example.com"
+    await _register(client, victim)
+    await _register(client, other)
+
+    # Exhaust the account limit for `victim`, each attempt from its own IP
+    # (so the shared IP limiter never trips and can't explain a 429).
+    for i in range(10):
+        async with _client_from_ip(f"10.2.0.{i + 1}") as c:
+            resp = await c.post(
+                "/auth/login", data={"username": victim, "password": "wrong-password-here"}
+            )
+            assert resp.status_code != 429, (i, resp.text)
+
+    # `other`, from a brand-new IP, is a different account: unaffected.
+    async with _client_from_ip("10.2.0.99") as c:
+        resp = await c.post("/auth/login", data={"username": other, "password": STRONG_PASSWORD})
+        assert resp.status_code == 204, resp.text
+
+
+async def test_login_account_rate_limit_does_not_apply_to_logout(
+    client: AsyncClient, email_spy: EmailSpy
+) -> None:
+    email = "logout-guy@example.com"
+    await _register(client, email)
+    resp = await client.post("/auth/login", data={"username": email, "password": STRONG_PASSWORD})
+    assert resp.status_code == 204, resp.text
+
+    # Several logouts in a row from the same client must not be limited by
+    # the account bucket (it only ever applies to /auth/login).
+    for _ in range(3):
+        resp = await client.post("/auth/logout")
+        assert resp.status_code in (204, 401), resp.text

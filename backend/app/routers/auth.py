@@ -32,24 +32,27 @@ from app.services.auth import (
     get_user_manager,
     google_oauth_client,
 )
-from app.services.ratelimit import email_rate_limit, ip_rate_limit
+from app.services.ratelimit import email_rate_limit, ip_rate_limit, login_account_rate_limit
 from app.schemas.user import UserCreate, UserRead, UserUpdate
 
 settings = get_settings()
 
 _ip_limit = Depends(ip_rate_limit(settings.AUTH_RATE_LIMIT))
 _email_limit = Depends(email_rate_limit(settings.EMAIL_RATE_LIMIT))
+_login_account_limit = Depends(login_account_rate_limit(settings.LOGIN_ACCOUNT_RATE_LIMIT))
 
 _CSRF_COOKIE = "cubr_oauth_csrf"
 
 router = APIRouter()
 
-# /auth/login, /auth/logout — IP rate limited.
+# /auth/login, /auth/logout — IP rate limited; /login is ALSO rate limited
+# per target account (login_account_rate_limit no-ops off the /login path,
+# so /logout only ever sees the IP limit).
 router.include_router(
     fastapi_users.get_auth_router(auth_backend),
     prefix="/auth",
     tags=["auth"],
-    dependencies=[_ip_limit],
+    dependencies=[_ip_limit, _login_account_limit],
 )
 
 # /auth/register — IP + per-target-email rate limited (sends verification mail).
