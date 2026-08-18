@@ -51,7 +51,7 @@ beforeEach(() => {
 });
 
 describe("ProfilePage — public_handle field", () => {
-  it("renders 'Публичное имя в турнире' input with public notice", () => {
+  it("renders 'Публичное имя' input with public notice", () => {
     updateMeMock.mockResolvedValue(undefined);
     useAuthStoreMock.mockImplementation((selector) => {
       const state = {
@@ -67,13 +67,11 @@ describe("ProfilePage — public_handle field", () => {
       </BrowserRouter>,
     );
 
-    expect(screen.getByLabelText("Публичное имя в турнире")).toBeTruthy();
+    expect(screen.getByLabelText("Публичное имя")).toBeTruthy();
 
-    // Public notice text
-    expect(
-      screen.getByText(/Это имя увидят другие участники турнира в таблице недели/),
-    ).toBeTruthy();
-    expect(screen.getByText(/Оставь поле пустым — и там будет стоять «Аноним»/)).toBeTruthy();
+    // Public notice text — honest about every surface this name reaches.
+    expect(screen.getByText(/в списке друзей и в таблицах турнира и скрамбла дня/)).toBeTruthy();
+    expect(screen.getByPlaceholderText("Не задано — покажем как «Аноним»")).toBeTruthy();
   });
 
   it("saves public_handle via PATCH /users/me when form submitted", async () => {
@@ -92,7 +90,7 @@ describe("ProfilePage — public_handle field", () => {
       </BrowserRouter>,
     );
 
-    const input = screen.getByLabelText("Публичное имя в турнире") as HTMLInputElement;
+    const input = screen.getByLabelText("Публичное имя") as HTMLInputElement;
     expect(input.value).toBe("SpeedCuber");
 
     // Change the value
@@ -132,7 +130,7 @@ describe("ProfilePage — public_handle field", () => {
       </BrowserRouter>,
     );
 
-    const input = screen.getByLabelText("Публичное имя в турнире") as HTMLInputElement;
+    const input = screen.getByLabelText("Публичное имя") as HTMLInputElement;
 
     // Clear the value
     await act(async () => {
@@ -171,7 +169,7 @@ describe("ProfilePage — public_handle field", () => {
       </BrowserRouter>,
     );
 
-    const input = screen.getByLabelText("Публичное имя в турнире") as HTMLInputElement;
+    const input = screen.getByLabelText("Публичное имя") as HTMLInputElement;
     await act(async () => {
       fireEvent.change(input, { target: { value: "Updated" } });
     });
@@ -203,7 +201,7 @@ describe("ProfilePage — public_handle field", () => {
       </BrowserRouter>,
     );
 
-    const input = screen.getByLabelText("Публичное имя в турнире") as HTMLInputElement;
+    const input = screen.getByLabelText("Публичное имя") as HTMLInputElement;
     await act(async () => {
       fireEvent.change(input, { target: { value: "мудак" } });
     });
@@ -234,7 +232,7 @@ describe("ProfilePage — public_handle field", () => {
       </BrowserRouter>,
     );
 
-    const input = screen.getByLabelText("Публичное имя в турнире") as HTMLInputElement;
+    const input = screen.getByLabelText("Публичное имя") as HTMLInputElement;
     expect(input.value).toBe("");
   });
 });

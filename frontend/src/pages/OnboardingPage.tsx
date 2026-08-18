@@ -1,18 +1,29 @@
-// Onboarding (plan §B): 3 steps — intro, camera check (reuses useCamera+useHands),
-// and cube registration (CubeRegisterWizard → first cube becomes primary). Every
-// step is skippable; finishing marks the local onboarded flag. The cube step is
-// skippable too — the profile isn't consumed in solo yet, so it's not a play gate.
+// Onboarding (plan §B): 4 steps — intro, camera check (reuses useCamera+useHands),
+// cube registration (CubeRegisterWizard → first cube becomes primary), and public
+// name (public_handle, П10). Every step is skippable; finishing marks the local
+// onboarded flag. The cube step is skippable too — the profile isn't consumed in
+// solo yet, so it's not a play gate.
+//
+// Public name is deliberately the LAST step, not folded into an existing one:
+// it is the one field in the whole product that makes a person's name visible
+// to others (friends list, tournament/daily boards — see FriendsSection/
+// TournamentStandings/DailyBoard), so it earns its own honest pitch rather than
+// riding along with the camera check or cube registration, which are both about
+// hardware, not publicity.
 
-import { useState } from "react";
+import { useState, type FormEvent } from "react";
 import { useNavigate } from "react-router-dom";
 import Button from "../components/Button";
 import CameraStage from "../solo/CameraStage";
 import CubeRegisterWizard from "../cubes/CubeRegisterWizard";
+import PublicHandleField from "../profile/PublicHandleField";
 import { useCameraCheck } from "../onboarding/useCameraCheck";
 import { markOnboarded } from "../auth/onboarding";
+import { useAuthStore } from "../store/authStore";
+import { ApiError } from "../api/client";
 import { useT } from "../i18n/t";
 
-const STEPS = ["Знакомство", "Проверка камеры", "Регистрация кубика"] as const;
+const STEPS = ["Знакомство", "Проверка камеры", "Регистрация кубика", "Публичное имя"] as const;
 
 export default function OnboardingPage() {
   const t = useT();
@@ -25,8 +36,9 @@ export default function OnboardingPage() {
   }
 
   // Camera steps (1 «Проверка камеры», 2 «Регистрация») need a wide container so
-  // the live preview isn't squeezed to a tiny column; the intro stays calm/narrow.
-  const containerWidth = step >= 1 ? "max-w-5xl" : "max-w-2xl";
+  // the live preview isn't squeezed to a tiny column; the intro and the public
+  // name step are both a calm single form field, so they stay narrow.
+  const containerWidth = step === 1 || step === 2 ? "max-w-5xl" : "max-w-2xl";
 
   return (
     <div className={`mx-auto flex w-full ${containerWidth} flex-col gap-6`}>
@@ -51,7 +63,8 @@ export default function OnboardingPage() {
 
       {step === 0 ? <IntroStep onNext={() => setStep(1)} /> : null}
       {step === 1 ? <CameraStep onNext={() => setStep(2)} onBack={() => setStep(0)} /> : null}
-      {step === 2 ? <CubeStep onFinish={finish} onBack={() => setStep(1)} /> : null}
+      {step === 2 ? <CubeStep onNext={() => setStep(3)} onBack={() => setStep(1)} /> : null}
+      {step === 3 ? <PublicHandleStep onFinish={finish} onBack={() => setStep(2)} /> : null}
 
       <button
         type="button"
@@ -156,7 +169,7 @@ function CameraStep({ onNext, onBack }: { onNext: () => void; onBack: () => void
   );
 }
 
-function CubeStep({ onFinish, onBack }: { onFinish: () => void; onBack: () => void }) {
+function CubeStep({ onNext, onBack }: { onNext: () => void; onBack: () => void }) {
   const t = useT();
   return (
     <StepCard title={t("Регистрация кубика")}>
@@ -165,7 +178,7 @@ function CubeStep({ onFinish, onBack }: { onFinish: () => void; onBack: () => vo
           "Сними цвет-профиль своего кубика — это первый и основной кубик. Можно пропустить и добавить позже в профиле.",
         )}
       </p>
-      <CubeRegisterWizard defaultPrimary onDone={onFinish} onCancel={onFinish} />
+      <CubeRegisterWizard defaultPrimary onDone={onNext} onCancel={onNext} />
       <div className="flex flex-wrap items-center gap-3">
         <button
           type="button"
@@ -176,12 +189,73 @@ function CubeStep({ onFinish, onBack }: { onFinish: () => void; onBack: () => vo
         </button>
         <button
           type="button"
-          onClick={onFinish}
+          onClick={onNext}
           className="font-sans text-small font-bold text-warning underline"
         >
           {t("Пропустить регистрацию")}
         </button>
       </div>
+    </StepCard>
+  );
+}
+
+// Публичное имя (public_handle, П10) — единственное поле, которое видит кто-то
+// кроме владельца. Один и тот же «Далее»/submit сохраняет имя, если оно
+// набрано, и просто идёт дальше, если поле пустое — отдельной кнопки
+// «Пропустить» с приглушённым текстом здесь нет: она была бы тёмным паттерном
+// (реальный CTA виден, а отказ спрятан), а так пропуск — это буквально то же
+// самое действие, что и продолжение. Ошибка (фильтр имён/занятый хэндл)
+// держит человека на шаге, а не проглатывается.
+function PublicHandleStep({ onFinish, onBack }: { onFinish: () => void; onBack: () => void }) {
+  const t = useT();
+  const updateMe = useAuthStore((s) => s.updateMe);
+  const [handle, setHandle] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function onSubmit(e: FormEvent) {
+    e.preventDefault();
+    const trimmed = handle.trim();
+    if (trimmed === "") {
+      onFinish();
+      return;
+    }
+    setBusy(true);
+    setError(null);
+    try {
+      await updateMe({ public_handle: trimmed });
+      onFinish();
+    } catch (err) {
+      setError(
+        err instanceof ApiError ? err.message : t("Не удалось сохранить имя. Попробуй ещё раз."),
+      );
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <StepCard title={t("Публичное имя")}>
+      <p className="font-sans text-body text-muted">
+        {t(
+          "Заведи публичное имя — по нему тебя смогут найти и добавить в друзья, и оно появится в таблицах турнира и скрамбла дня вместо «Аноним». Можно задать или изменить его позже в профиле.",
+        )}
+      </p>
+      <form className="flex flex-col gap-4" onSubmit={onSubmit} noValidate>
+        <PublicHandleField value={handle} onChange={setHandle} error={error} />
+        <div className="flex flex-wrap items-center gap-3">
+          <button
+            type="button"
+            onClick={onBack}
+            className="font-sans text-small font-bold text-muted"
+          >
+            {t("← Назад")}
+          </button>
+          <Button type="submit" disabled={busy}>
+            {busy ? t("Сохраняю…") : t("Далее")}
+          </Button>
+        </div>
+      </form>
     </StepCard>
   );
 }
