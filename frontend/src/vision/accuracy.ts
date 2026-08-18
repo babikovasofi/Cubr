@@ -362,6 +362,14 @@ export interface CellDiag {
   /** Второй по близости эталон и ΔE до него. */
   second: string;
   secondDE: number;
+  /**
+   * Доля пикселей ячейки в гамме кожи (colors.skinFraction), 0..1.
+   *
+   * Мерится, а не выводится из расстояния до «среднего телесного»: кожа лежит
+   * рядом с оранжевой наклейкой в Lab, и сравнение ΔE честно отвечает
+   * «оранжевый» на палец. Разделяет их хрома в YCbCr, а не близость в Lab.
+   */
+  skin?: number;
 }
 
 /**
@@ -554,14 +562,29 @@ export function formatReport(
     lines.push(`  без отрыва от второго кандидата (< ${config.STICKER_MARGIN_MIN}): ${tight}`);
     lines.push(`  не похожих ни на один цвет кубика (ΔE > ${config.STICKER_MAX_DELTA_E}): ${far}`);
     lines.push(`  медианный ΔE до ближайшего эталона: ${medianDE.toFixed(1)}`);
-    // Скептик (LOW): «кожа в ячейках — следствие съехавшей сетки» была
-    // недоказанной посылкой. Число вместо декларации: сколько из 54 ячеек
-    // реально ближе к телесному тону, чем к любому из шести эталонов кубика —
-    // палец/ладонь в кадре даёт именно такой промах, и его нельзя чинить
-    // порогом STICKER_MAX_DELTA_E (out of scope, см. план).
-    const skinLab = rgb2lab(config.FACE_FIT_SKIN_RGB);
-    const skinLike = diags.filter((d) => deltaE(rgb2lab(d.rgb), skinLab) < d.bestDE).length;
-    lines.push(`  ближе к телесному тону, чем к эталону кубика: ${skinLike}`);
+    // Пальцы в кадре — измеренная величина, а не догадка по расстоянию.
+    //
+    // Раньше здесь считалось «ячейка ближе к среднему телесному тону, чем к
+    // своему эталону», и это заведомо занижало счёт: кожа ближе к ОРАНЖЕВОЙ
+    // наклейке, чем к среднему телесному, поэтому закрытая пальцем ячейка в
+    // старый счётчик часто не попадала. Теперь берётся доля пикселей ячейки в
+    // гамме кожи (YCbCr), посчитанная на самом кадре.
+    const measured = diags.filter((d) => typeof d.skin === "number");
+    if (measured.length > 0) {
+      const touched = measured.filter((d) => (d.skin ?? 0) > config.CELL_SKIN_FRAC_MAX).length;
+      const grazed = measured.filter(
+        (d) => (d.skin ?? 0) > 0.1 && (d.skin ?? 0) <= config.CELL_SKIN_FRAC_MAX,
+      ).length;
+      lines.push(
+        `  закрытых пальцем (кожи больше ${(config.CELL_SKIN_FRAC_MAX * 100).toFixed(0)}%): ${touched}` +
+          `, задетых краем пальца: ${grazed}`,
+      );
+    } else {
+      // Старая оценка остаётся для отчётов, снятых до появления замера.
+      const skinLab = rgb2lab(config.FACE_FIT_SKIN_RGB);
+      const skinLike = diags.filter((d) => deltaE(rgb2lab(d.rgb), skinLab) < d.bestDE).length;
+      lines.push(`  ближе к телесному тону, чем к эталону кубика: ${skinLike}`);
+    }
   }
   if (fits?.length) {
     const fellBack = fits.filter((f) => !f.used).length;

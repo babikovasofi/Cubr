@@ -349,7 +349,7 @@ export function useAccuracySession(): AccuracySession {
           bump();
           return;
         }
-        if (r.reason === "not-a-face" || r.reason === "no-lattice") {
+        if (r.reason === "not-a-face" || r.reason === "no-lattice" || r.reason === "finger") {
           retakesRef.current.set(r.reason, (retakesRef.current.get(r.reason) ?? 0) + 1);
           setCaptureError(r.diag ?? faceUnreadableRu());
           bump();
@@ -597,12 +597,25 @@ export function useAccuracySession(): AccuracySession {
       parts.push(lastDropText);
       parts.push("");
     }
+    // Состояние камеры — часть условия замера, а не любопытство. Если ручные
+    // режимы не поддержаны (Chrome на macOS их для большинства камер не даёт),
+    // автобаланс белого продолжает гулять МЕЖДУ калибровкой и чтением, и
+    // расхождение эталонов от сессии к сессии объясняется этим, а не кубиком.
+    const lock = camera.lockState();
+    parts.push(
+      `Камера: экспозиция ${lock.exposure ? "зафиксирована" : "авто"}, ` +
+        `баланс белого ${lock.whiteBalance ? "зафиксирован" : "авто"}` +
+        (lock.supported ? "" : " (ручные режимы не поддерживаются этой камерой/браузером)") +
+        ".",
+    );
+    parts.push("");
     parts.push("=== Сводка прогона ===");
     if (retakesRef.current.size > 0) {
       const names: Record<string, string> = {
         "wrong-face": "показана не та грань",
         "not-a-face": "в рамке не кубик",
         "no-lattice": "нет решётки",
+        finger: "палец на грани",
       };
       const list = [...retakesRef.current.entries()]
         .map(([k, n]) => `${names[k] ?? k}: ${n}`)

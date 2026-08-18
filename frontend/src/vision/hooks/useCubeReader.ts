@@ -13,6 +13,7 @@ import {
   cellWeight,
   deltaE,
   robustCellColor,
+  skinFraction,
   medianAcrossFrames,
   median,
   normalizeFaceByCenter,
@@ -47,6 +48,8 @@ export interface FaceSample {
   lab: Lab[]; // same, in Lab
   /** Доля пикселей, переживших отбраковку бликов/теней в каждой ячейке (0..1). */
   kept: number[];
+  /** Доля пикселей ячейки в гамме кожи (0..1) — палец на грани. */
+  skin: number[];
   /** Как легла сетка: выигрыш подгонки, приняли ли её, контраст щелей. */
   fit: FaceFitDiag;
   /** Область, которой грань реально нарезана — чтобы пачка кадров делила одну. */
@@ -142,6 +145,7 @@ export function readFace(
   const rgb: RGB[] = [];
   const lab: Lab[] = [];
   const kept: number[] = [];
+  const skin: number[] = [];
   for (let row = 0; row < 3; row++) {
     for (let col = 0; col < 3; col++) {
       const cx = xEdges[col];
@@ -150,6 +154,9 @@ export function readFace(
       const cellH = yEdges[row + 1] - cy;
       const data = ctx.getImageData(cx, cy, cellW, cellH).data;
       const cell = robustCellColor(data, cellW, cellH, centerFrac);
+      // Тем же окном, что и цвет: палец, попавший в край ячейки, — это соседняя
+      // наклейка чужой рукой, а не эта ячейка.
+      skin.push(skinFraction(data, cellW, cellH, centerFrac));
       kept.push(cell.kept);
       rgb.push(cell.rgb);
       lab.push(rgb2lab(cell.rgb));
@@ -159,6 +166,7 @@ export function readFace(
     rgb,
     lab,
     kept,
+    skin,
     fit: { gain, used, gap, edge, margin, decided },
     region: { x: ox, y: oy, side },
   };
@@ -453,7 +461,7 @@ export type AccuracyCapture =
   | {
       kind: "unreadable";
       diag?: string;
-      reason?: "not-a-face" | "no-lattice" | "no-lattice-late" | "wrong-face";
+      reason?: "not-a-face" | "no-lattice" | "no-lattice-late" | "wrong-face" | "finger";
     }
   | {
       kind: "complete";
@@ -499,7 +507,7 @@ export type VerifyResult =
   | {
       kind: "unreadable";
       diag?: string;
-      reason?: "not-a-face" | "no-lattice" | "no-lattice-late" | "wrong-face";
+      reason?: "not-a-face" | "no-lattice" | "no-lattice-late" | "wrong-face" | "finger";
     } // свет/резкость/уверенность/не кубик/нет решётки — diag объясняет что именно
   | { kind: "assign" } // two faces classified to the same center
   | { kind: "ambiguous" } // multiple legal rotations
@@ -584,6 +592,9 @@ async function readFaceBurst(
   // Надёжность ячейки — медиана по кадрам: разовый блик не должен ни завалить
   // ячейку, ни притвориться, что всё хорошо.
   const kept = rgb.map((_, i) => median(shots.map((s) => s.kept[i] ?? 0)));
+  // Тоже медиана по кадрам: рука дрожит, и один кадр с краем пальца не должен
+  // ни забраковать грань, ни спрятать палец, лежащий на ней все пять кадров.
+  const skin = rgb.map((_, i) => median(shots.map((s) => s.skin[i] ?? 0)));
   // Телеметрия подгонки — тоже по медиане кадров; `used` берём большинством,
   // чтобы одна дрогнувшая рука не переписала вердикт по всей грани.
   // Телеметрия — от кадра, который ИСКАЛ сетку: остальные её только применяли,
@@ -597,7 +608,7 @@ async function readFaceBurst(
     margin: shots[0].fit.margin,
     decided: shots[0].fit.decided,
   };
-  return { rgb, lab: rgb.map((c) => rgb2lab(c)), kept, fit };
+  return { rgb, lab: rgb.map((c) => rgb2lab(c)), kept, skin, fit };
 }
 
 /**
@@ -621,6 +632,7 @@ function cellDiagnostics(faces: FaceSample[], refs: Refs): CellDiag[] {
         bestDE: ranked[0].de,
         second: ranked[1].name,
         secondDE: ranked[1].de,
+        skin: face.skin[c] ?? 0,
       });
     }
   }
@@ -887,6 +899,20 @@ export function useCubeReader(workRef: React.RefObject<HTMLCanvasElement | null>
     const medianDE = faceMedianDE(face.lab, refs);
     if (medianDE > config.FACE_MAX_MEDIAN_DE) {
       return { kind: "unreadable", diag: notACubeFaceRu(medianDE), reason: "not-a-face" };
+    }
+
+    // Палец на грани. Проверяется РАНЬШЕ решётки и центра: закрытая наклейка
+    // портит и то, и другое, и сообщать надо о причине, а не о следствии.
+    const fingers = face.skin
+      .map((f, i) => ({ i, f }))
+      .filter((c) => c.f > config.CELL_SKIN_FRAC_MAX);
+    if (fingers.length > 0) {
+      const worst = fingers.reduce((a, b) => (b.f > a.f ? b : a));
+      return {
+        kind: "unreadable",
+        reason: "finger",
+        diag: fingerOnFaceRu(fingers.length, worst.f * 100),
+      };
     }
 
     // Решётка этой съёмки против решётки уже снятых граней. Цветовые замки выше

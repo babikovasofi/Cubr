@@ -202,6 +202,56 @@ export interface RobustCell {
   kept: number;
 }
 
+/**
+ * Доля пикселей ячейки, попавших в гамму КОЖИ (0..1).
+ *
+ * Зачем отдельный признак, когда уже есть расстояние до эталонов. Палец на
+ * грани — не «непохожий цвет»: телесный тон лежит близко к оранжевой наклейке,
+ * argmin честно выбирает ближайший цвет кубика, и ячейка уходит в счёт как
+ * уверенно прочитанный оранжевый. Живой прогон 2026-08-19: три-четыре таких
+ * ячейки на чтение, все ошибки red↔orange в ту же сторону (R→L 3, L→R 0) —
+ * это не путаница красного с оранжевым, это пальцы.
+ *
+ * Правило — классическое ограничение по хроме в YCbCr (Chai & Ngan): кожа
+ * любого оттенка и любой освещённости держится в узком прямоугольнике
+ * 77 ≤ Cb ≤ 127 и 133 ≤ Cr ≤ 173, потому что цвет кожи задаётся меланином и
+ * гемоглобином, а яркость уходит в Y и из решения выпадает. Проверено на
+ * живых цветах этой сессии: пальцы попадают, все шесть эталонов кубика — нет.
+ * Ближе всех оранжевый (Cb 76.8 — на границе), но его спасает Cr 197 при
+ * потолке 173, то есть решает не одно условие, а пара.
+ *
+ * Считается по тем же центральным `centerFrac` ячейки, что и цвет: край ячейки
+ * законно захватывает соседнюю наклейку, и штрафовать за это нельзя.
+ */
+export function skinFraction(
+  pixels: Uint8ClampedArray | number[],
+  w: number,
+  h: number,
+  centerFrac: number = config.CELL_CENTER_FRAC,
+): number {
+  const marginX = Math.floor((w * (1 - centerFrac)) / 2);
+  const marginY = Math.floor((h * (1 - centerFrac)) / 2);
+  let skin = 0;
+  let total = 0;
+  for (let y = marginY; y < h - marginY; y++) {
+    for (let x = marginX; x < w - marginX; x++) {
+      const i = (y * w + x) * 4;
+      const r = pixels[i];
+      const g = pixels[i + 1];
+      const b = pixels[i + 2];
+      // Rec. 601 — та же матрица, которой камеры и кодеки считают YCbCr.
+      const yy = 0.299 * r + 0.587 * g + 0.114 * b;
+      const cb = 128 + 0.564 * (b - yy);
+      const cr = 128 + 0.713 * (r - yy);
+      total += 1;
+      if (cb >= config.SKIN_CB_MIN && cb <= config.SKIN_CB_MAX) {
+        if (cr >= config.SKIN_CR_MIN && cr <= config.SKIN_CR_MAX) skin += 1;
+      }
+    }
+  }
+  return total === 0 ? 0 : skin / total;
+}
+
 export function robustCellColor(
   pixels: Uint8ClampedArray | number[],
   w: number,

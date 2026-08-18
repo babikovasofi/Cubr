@@ -49,7 +49,13 @@ vi.mock("../../src/vision/hooks/useCubeReader", () => ({
   useCubeReader: () => readerStub,
 }));
 vi.mock("../../src/vision/hooks/useCamera", () => ({
-  useCamera: () => ({ start: vi.fn(), stop: vi.fn(), isLive: () => false }),
+  useCamera: () => ({
+    start: vi.fn(),
+    stop: vi.fn(),
+    isLive: () => false,
+    // Состояние замка камеры печатается в отчёте как условие замера.
+    lockState: () => ({ exposure: false, whiteBalance: false, supported: false }),
+  }),
   CameraError: class CameraError extends Error {
     kind = "denied";
   },
@@ -470,5 +476,50 @@ describe("строгая хватка требует порядок граней
       await result.current.captureFace();
     });
     expect(readerStub.beginAccuracy).toHaveBeenLastCalledWith(false);
+  });
+});
+
+// Палец на грани — ошибка условия съёмки, а не зрения: наклейка физически
+// закрыта. Лечится пересъёмкой одной грани, как «не грань кубика», и обязан
+// попасть в счётчик — иначе неограниченная пересъёмка станет способом тихо
+// улучшить замер.
+describe("палец на грани", () => {
+  it("просит переснять одну грань и попадает в счётчик пересъёмок", async () => {
+    readerStub.calibrated = true;
+    readerStub.collectingAccuracy = true;
+    readerStub.pushAccuracyFace.mockResolvedValue({
+      kind: "unreadable",
+      reason: "finger",
+      diag: "Палец на грани: закрытых ячеек 2 (худшая — на 98%).",
+    });
+    readerStub.resetAccuracy.mockClear();
+
+    const { result } = renderHook(() => useAccuracySession());
+    await act(async () => result.current.setMode("solved"));
+    result.current.videoRef.current = {} as HTMLVideoElement;
+    await act(async () => {
+      await result.current.captureFace();
+    });
+
+    expect(result.current.captureError).toContain("Палец на грани");
+    expect(readerStub.resetAccuracy).not.toHaveBeenCalled();
+    const out = result.current.buildExport();
+    expect(out).not.toContain("Последний брак");
+    expect(out).toContain("палец на грани: 1");
+  });
+});
+
+// Замок камеры — часть условия замера. Chrome на macOS ручные режимы для
+// большинства камер не даёт, и тогда автобаланс белого гуляет МЕЖДУ калибровкой
+// и чтением: расхождение эталонов от сессии к сессии (min ΔE R–L 16.2 / 16.1 /
+// 14.7 / 13.5) объясняется этим, а не кубиком. Отчёт обязан называть состояние,
+// а не молчать о нём.
+describe("состояние камеры в отчёте", () => {
+  it("говорит прямо, что режимы автоматические и почему", () => {
+    const { result } = renderHook(() => useAccuracySession());
+    const out = result.current.buildExport();
+    expect(out).toContain("экспозиция авто");
+    expect(out).toContain("баланс белого авто");
+    expect(out).toContain("не поддерживаются");
   });
 });
