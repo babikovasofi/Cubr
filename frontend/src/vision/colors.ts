@@ -625,6 +625,119 @@ export function normalizeFaceByCenter(faceRGB: RGB[], centerRef: Lab): RGB[] {
 }
 
 /** Simulate a global illuminant change: linear-sRGB per-channel gain on an sRGB color. */
+/** Матрица 3×3 в линейном RGB, по строкам. */
+export type ColorMatrix = readonly [
+  readonly [number, number, number],
+  readonly [number, number, number],
+  readonly [number, number, number],
+];
+
+export const IDENTITY_MATRIX: ColorMatrix = [
+  [1, 0, 0],
+  [0, 1, 0],
+  [0, 0, 1],
+];
+
+/**
+ * Цветовая коррекция по нескольким известным образцам: матрица 3×3, переводящая
+ * НАБЛЮДАЕМЫЕ цвета в ЭТАЛОННЫЕ (метод наименьших квадратов в линейном RGB).
+ *
+ * Зачем матрица, когда есть `vonKriesGain`. Тот — диагональ: три числа, по
+ * одному на канал, и он умеет только растянуть каналы по отдельности. Этого
+ * достаточно, когда свет меняет яркость, и мало, когда камера меняет СМЕСЬ
+ * каналов — а именно это делает автобаланс белого, и отключить его на большей
+ * части связок нельзя (Chrome на macOS ручной режим для типичной камеры не
+ * даёт). Матрица правит и поворот цветов, а не только их масштаб.
+ *
+ * Откуда шесть образцов. У прочитанного кубика известны ЦЕНТРЫ: центр не
+ * двигает ни один ход, значит после раскладки съёмок по граням мы знаем шесть
+ * пар «наблюдалось → должно быть». Это мини-мишень ColorChecker, снятая тем же
+ * кадром, в том же свете. Ответ (цвета остальных 48 наклеек) при этом не
+ * используется — коррекция считается ТОЛЬКО по центрам.
+ *
+ * Регуляризация к единичной матрице обязательна. Шесть точек в трёхмерном
+ * пространстве бывают почти вырожденными (тёмный кубик, узкий свет), и
+ * несглаженный МНК тогда выдаёт матрицу с огромными коэффициентами, которая
+ * идеально ложится на шесть образцов и разносит остальные 48. `ridge` — доля
+ * от масштаба задачи, а не абсолютное число: иначе порог пришлось бы менять
+ * вместе с экспозицией.
+ */
+export function fitColorMatrix(
+  observed: readonly RGB[],
+  target: readonly RGB[],
+  ridge = 0.05,
+): ColorMatrix {
+  const n = Math.min(observed.length, target.length);
+  // Меньше четырёх образцов — задача недоопределена настолько, что регуляризация
+  // просто вернёт единичную матрицу; честнее не делать вид, что коррекция была.
+  if (n < 4) return IDENTITY_MATRIX;
+
+  const X = observed.slice(0, n).map(linRGB);
+  const Y = target.slice(0, n).map(linRGB);
+
+  // Нормальные уравнения: XᵀX (3×3) и Xᵀy (3) для каждого выходного канала.
+  const xtx = [
+    [0, 0, 0],
+    [0, 0, 0],
+    [0, 0, 0],
+  ];
+  for (const x of X) {
+    for (let i = 0; i < 3; i++) for (let j = 0; j < 3; j++) xtx[i][j] += x[i] * x[j];
+  }
+  const scale = (xtx[0][0] + xtx[1][1] + xtx[2][2]) / 3;
+  const lambda = ridge * (scale > 0 ? scale : 1);
+
+  const rows: [number, number, number][] = [];
+  for (let k = 0; k < 3; k++) {
+    const a = [
+      [xtx[0][0] + lambda, xtx[0][1], xtx[0][2]],
+      [xtx[1][0], xtx[1][1] + lambda, xtx[1][2]],
+      [xtx[2][0], xtx[2][1], xtx[2][2] + lambda],
+    ];
+    // Правая часть тянет решение к k-й строке единичной матрицы — то есть «без
+    // данных ничего не меняем».
+    const b = [0, 0, 0];
+    for (let s = 0; s < n; s++) for (let i = 0; i < 3; i++) b[i] += X[s][i] * Y[s][k];
+    b[k] += lambda;
+    const w = solve3(a, b);
+    rows.push(w ?? [k === 0 ? 1 : 0, k === 1 ? 1 : 0, k === 2 ? 1 : 0]);
+  }
+  return [rows[0], rows[1], rows[2]];
+}
+
+/** Гаусс с частичным выбором ведущего элемента; `null` — матрица вырождена. */
+function solve3(a: number[][], b: number[]): [number, number, number] | null {
+  const m = [
+    [a[0][0], a[0][1], a[0][2], b[0]],
+    [a[1][0], a[1][1], a[1][2], b[1]],
+    [a[2][0], a[2][1], a[2][2], b[2]],
+  ];
+  for (let col = 0; col < 3; col++) {
+    let pivot = col;
+    for (let r = col + 1; r < 3; r++) {
+      if (Math.abs(m[r][col]) > Math.abs(m[pivot][col])) pivot = r;
+    }
+    if (Math.abs(m[pivot][col]) < 1e-12) return null;
+    [m[col], m[pivot]] = [m[pivot], m[col]];
+    for (let r = 0; r < 3; r++) {
+      if (r === col) continue;
+      const f = m[r][col] / m[col][col];
+      for (let c = col; c < 4; c++) m[r][c] -= f * m[col][c];
+    }
+  }
+  return [m[0][3] / m[0][0], m[1][3] / m[1][1], m[2][3] / m[2][2]];
+}
+
+/** Применить матрицу коррекции к цвету (вход и выход — sRGB 0..255). */
+export function applyColorMatrix(rgb: RGB, m: ColorMatrix): RGB {
+  const [r, g, b] = linRGB(rgb);
+  return delinRGB([
+    m[0][0] * r + m[0][1] * g + m[0][2] * b,
+    m[1][0] * r + m[1][1] * g + m[1][2] * b,
+    m[2][0] * r + m[2][1] * g + m[2][2] * b,
+  ]);
+}
+
 export function applyLightGain(rgb: RGB, g: [number, number, number]): RGB {
   const lin = linRGB(rgb);
   return delinRGB([lin[0] * g[0], lin[1] * g[1], lin[2] * g[2]]);

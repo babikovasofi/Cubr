@@ -14,6 +14,9 @@ import {
   deltaE,
   robustCellColor,
   skinFraction,
+  fitColorMatrix,
+  applyColorMatrix,
+  lab2rgb,
   medianAcrossFrames,
   median,
   normalizeFaceByCenter,
@@ -380,6 +383,35 @@ function classifyWithQuota(
   return out;
 }
 
+/**
+ * Цветовая коррекция всего чтения по шести известным центрам.
+ *
+ * Центр не двигает ни один ход, поэтому после раскладки съёмок по граням мы
+ * знаем шесть пар «наблюдалось → должно быть» — мини-мишень, снятая этим же
+ * кадром в этом же свете. По ним считается матрица 3×3 (см.
+ * colors.fitColorMatrix) и применяется ко всем 54 ячейкам.
+ *
+ * Зачем это нужно именно здесь. Ручной баланс белого недоступен на большинстве
+ * связок браузер+камера (в частности Chrome на macOS), значит автоматика гуляет
+ * МЕЖДУ калибровкой и чтением. Диагональное усиление по белому такой дрейф
+ * правит лишь частично: автобаланс меняет смесь каналов, а не только их
+ * масштаб.
+ *
+ * Раскладка не сошлась — коррекции нет. Гадать, какая съёмка какой гранью была,
+ * чтобы построить по этой догадке коррекцию, значит чинить цвет предположением
+ * о цвете.
+ */
+function correctByCentres(samples: FaceSample[], refs: Refs, faces: Face[] | null): FaceSample[] {
+  if (!faces || faces.length !== samples.length) return samples;
+  const observed = samples.map((s) => s.rgb[4]);
+  const target = faces.map((f) => lab2rgb(refs[f]));
+  const m = fitColorMatrix(observed, target);
+  return samples.map((s) => {
+    const rgb = s.rgb.map((c) => applyColorMatrix(c, m));
+    return { ...s, rgb, lab: rgb.map((c) => rgb2lab(c)) };
+  });
+}
+
 /** Пер-грань нормировка света по собственному центру каждой снятой грани. */
 export function normalizeSamples(samples: FaceSample[], refs: Refs): Lab[][] {
   return samples.map((sample) => {
@@ -400,7 +432,16 @@ function resolveSixFaces(samples: FaceSample[], refs: Refs): SixFaceResolve {
   // точности выравнивание обязано браться из данных, не из подпорок.
   const rawCenters = assignFacesByCenter(rawLabs, refs);
 
-  const labs = normalizeSamples(samples, refs);
+  // ПРОДУКТОВЫЙ путь: сперва общая цветовая коррекция по шести центрам, потом
+  // пер-грань нормировка света. Порядок не переставим: матрица правит смесь
+  // каналов (то, что делает автобаланс белого камеры и чего диагональ не умеет),
+  // а нормировка добирает разницу освещённости между гранями — тень на одной
+  // грани матрица общего вида не видит, она общая на всё чтение.
+  //
+  // Гейта это НЕ касается: он меряет `rawFaceGrids`, посчитанные выше без
+  // единой подпорки. Здесь считается то, что видит человек в соло.
+  const corrected = correctByCentres(samples, refs, rawCenters.ok ? rawCenters.faces : null);
+  const labs = normalizeSamples(corrected, refs);
   const assign = assignFacesByCenter(labs, refs);
   const productFaceGrids = classifyWithQuota(
     labs,
