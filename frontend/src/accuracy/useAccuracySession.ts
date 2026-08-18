@@ -339,7 +339,17 @@ export function useAccuracySession(): AccuracySession {
         // грани, поэтому и обходятся одинаково: остальные снятые грани целы,
         // дроп не пишется. Отличаются они только текстом причины, и он приходит
         // готовым из пайплайна.
-        if (r.reason === "not-a-face" || r.reason === "no-lattice" || r.reason === "wrong-face") {
+        // «Показана не та грань» — дроп со своей причиной, а не пересъёмка:
+        // проверка не отличает человеческую ошибку от промаха зрения по центру,
+        // см. `DropReason` в accuracyRun.ts. Остальные два отказа смотрят на
+        // структуру кадра, а не на цвет, и потому пересъёмку заслуживают.
+        if (r.reason === "wrong-face") {
+          dropRead(r.diag ?? faceUnreadableRu(), "wrong-face");
+          reader.resetAccuracy();
+          bump();
+          return;
+        }
+        if (r.reason === "not-a-face" || r.reason === "no-lattice") {
           retakesRef.current.set(r.reason, (retakesRef.current.get(r.reason) ?? 0) + 1);
           setCaptureError(r.diag ?? faceUnreadableRu());
           bump();

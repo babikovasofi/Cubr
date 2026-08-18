@@ -574,3 +574,25 @@ describe("latticeVerdict — замок на съёмку мимо грани", 
     expect(latticeVerdict(face, rest, 0.6).collapsed).toBe(true); // 0.5 < 0.6
   });
 });
+
+describe("latticeVerdict — медиана без округления", () => {
+  // Округление до целого выключало замок ровно там, где он нужен: у монолитного
+  // кубика контрасты живут в единицах, и соседи со щелями 0.3 и 0.6 давали
+  // округлённую медиану 0 — `comparable` становился false, замок молчал.
+  it("не глохнет на дробной медиане около нуля", () => {
+    const v = latticeVerdict({ gap: 0.05, edge: 1 }, [
+      { gap: 0.3, edge: 40 },
+      { gap: 0.6, edge: 42 },
+    ]);
+    expect(v.gapMedian).toBeCloseTo(0.45, 5);
+    expect(v.collapsed).toBe(true);
+  });
+
+  it("на чётном числе соседей берёт полусумму, а не округление вверх", () => {
+    const v = latticeVerdict({ gap: 1, edge: 1 }, [
+      { gap: 3.4, edge: 40 },
+      { gap: 3.6, edge: 40 },
+    ]);
+    expect(v.gapMedian).toBeCloseTo(3.5, 5); // не 4
+  });
+});

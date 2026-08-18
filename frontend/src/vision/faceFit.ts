@@ -682,6 +682,23 @@ export interface LatticeVerdict {
  * ни за что. Щели у такой грани на месте. И наоборот: у stickerless щелей почти
  * нет, но цвета через границу меняются. Обвал ОБОИХ разом — это уже не грань.
  */
+/**
+ * Медиана БЕЗ округления, в отличие от `colors.median`.
+ *
+ * Та округляет до целого — для RGB это правильно, а здесь нет: контрасты у
+ * монолитного кубика живут в единицах, порог `FACE_FIT_COLLAPSE_FRAC`
+ * откалиброван по значениям с двумя знаками, и на чётном числе соседей (их
+ * бывает 2 и 4 — замок работает по уже снятым граням) округление даёт до 15%
+ * относительной ошибки. Опаснее всего вниз: соседи со щелями 0.3 и 0.6 дают
+ * округлённую медиану 0, `comparable` становится false, и замок молча
+ * выключается ровно на stickerless — на кубике, ради которого написан.
+ */
+function exactMedian(values: readonly number[]): number {
+  const s = [...values].sort((a, b) => a - b);
+  const mid = Math.floor(s.length / 2);
+  return s.length % 2 ? s[mid] : (s[mid - 1] + s[mid]) / 2;
+}
+
 export function latticeVerdict(
   face: { gap: number; edge?: number },
   others: readonly { gap: number; edge?: number }[],
@@ -689,8 +706,8 @@ export function latticeVerdict(
 ): LatticeVerdict {
   const edges = others.map((o) => o.edge).filter((e): e is number => typeof e === "number");
   const gaps = others.map((o) => o.gap);
-  const edgeMedian = edges.length ? median(edges) : 0;
-  const gapMedian = gaps.length ? median(gaps) : 0;
+  const edgeMedian = edges.length ? exactMedian(edges) : 0;
+  const gapMedian = gaps.length ? exactMedian(gaps) : 0;
   const edgeRatio = edgeMedian > 0 && typeof face.edge === "number" ? face.edge / edgeMedian : 1;
   const gapRatio = gapMedian > 0 ? face.gap / gapMedian : 1;
   // Меньше двух соседей — медиана ещё не медиана, а случайное число; молчим.

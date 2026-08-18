@@ -422,7 +422,7 @@ describe("отчёт доступен и без единого засчитан�
 // Показанная не та грань — ошибка условия замера, а не зрения. Она обязана
 // стоить пересъёмки ОДНОЙ грани, а не девяти ошибок в гейте.
 describe("строгая хватка требует порядок граней", () => {
-  it("«не та грань» не бракует чтение и не пишет дроп", async () => {
+  it("«не та грань» уходит в дроп, а не в тихую пересъёмку", async () => {
     readerStub.calibrated = true;
     readerStub.collectingAccuracy = true;
     readerStub.pushAccuracyFace.mockResolvedValue({
@@ -440,11 +440,15 @@ describe("строгая хватка требует порядок граней
     });
 
     expect(result.current.captureError).toContain("жёлтым центром");
-    expect(readerStub.resetAccuracy).not.toHaveBeenCalled();
-    expect(result.current.buildExport()).not.toContain("Последний брак");
-    // Пересъёмка мимо гейта — но НЕ мимо отчёта: иначе замер можно тихо
-    // улучшить, отказываясь от неудобных съёмок.
-    expect(result.current.buildExport()).toContain("показана не та грань: 1");
+    // ДРОП, а не пересъёмка. Проверка знает о показанной грани только цвет её
+    // центра и потому не отличает ошибку человека от промаха зрения по центру
+    // (red↔orange — главный hotspot R1). Пересъёмка выбрасывала бы такие
+    // съёмки мимо числителя И знаменателя, то есть умела бы только улучшать
+    // цифру гейта; дроп кладёт их в знаменатель и в drop-rate.
+    const out = result.current.buildExport();
+    expect(out).toContain("wrong-face");
+    expect(out).toContain("Последний брак");
+    expect(out).not.toContain("показана не та грань: 1");
   });
 
   it("порядок требуется только строгой хваткой", async () => {
