@@ -504,3 +504,83 @@ describe("A7/anti-запор: decided на существующих стикер
     expect(fit.decided).toBe(true);
   });
 });
+
+/**
+ * Тот же монолитный кубик, но на СВЕТЛОМ столе, а не на телесном фоне.
+ *
+ * Живой отказ 2026-08-19 случился именно так: правая и нижняя трети сетки
+ * ушли на белую столешницу, пять ячеек прочитались белыми с ΔE 2–4, а
+ * подгонка отчиталась «ПОДОГНАНА, выигрыш 30.7». Телесный фон этого не
+ * воспроизводит: кожа далека от эталонов, и стоимость её честно наказывает.
+ */
+function stickerlessOnWhiteTable(size: number, off: number, cellSize: number): Patch {
+  const data = new Uint8ClampedArray(size * size * 4);
+  const faceSide = cellSize * 3;
+  const table: RGB = [232, 232, 230];
+  for (let y = 0; y < size; y++) {
+    for (let x = 0; x < size; x++) {
+      let c: RGB = table;
+      if (x >= off && x < off + faceSide && y >= off && y < off + faceSide) {
+        const col = Math.min(2, Math.floor((x - off) / cellSize));
+        const row = Math.min(2, Math.floor((y - off) / cellSize));
+        c = REF_RGB[FACE_LABELS[row * 3 + col]];
+      }
+      const i = (y * size + x) * 4;
+      data[i] = c[0];
+      data[i + 1] = c[1];
+      data[i + 2] = c[2];
+      data[i + 3] = 255;
+    }
+  }
+  return { data, size };
+}
+
+describe("подгонка не уезжает с монолитного кубика на светлый стол", () => {
+  const OFF = 48;
+  const CELL = 48;
+  const TRUE_SIDE = CELL * 3;
+
+  it("все девять ячеек читаются со своей наклейки, а не со стола", () => {
+    const patch = stickerlessOnWhiteTable(240, OFF, CELL);
+    const fit = fitFaceRegion(patch, REFS, config.CELL_CENTER_FRAC);
+    // Утверждается ПРОЧИТАННОЕ, а не координаты: перебор дискретен, точного
+    // попадания в пиксель от него требовать нельзя и не нужно. Нужно, чтобы
+    // выборочные окна девяти ячеек стояли на своих наклейках — это и есть то,
+    // ради чего подгонка существует, и ровно это ломалось в живом отказе.
+    expect(readCells(patch, fit.region)).toEqual([...FACE_LABELS]);
+  });
+
+  it("центр сетки совпадает с центром грани, а размер завышен не больше чем на ячейку", () => {
+    const patch = stickerlessOnWhiteTable(240, OFF, CELL);
+    const fit = fitFaceRegion(patch, REFS, config.CELL_CENTER_FRAC);
+
+    // Центр — то, что подгонка находит уверенно: промах здесь означает, что
+    // сетка стоит на другом объекте. Живой отказ давал сдвиг в четыре ячейки.
+    const centre = fit.region.x + fit.region.side / 2;
+    const trueCentre = OFF + TRUE_SIDE / 2;
+    expect(Math.abs(centre - trueCentre)).toBeLessThan(CELL / 3);
+    expect(Math.abs(fit.region.y + fit.region.side / 2 - trueCentre)).toBeLessThan(CELL / 3);
+
+    // Размер — то, что она находит хуже: на этой фикстуре выбирается 168 при
+    // истинных 144, то есть сетка на треть ячейки шире грани с каждой стороны.
+    // Свес ЗАФИКСИРОВАН здесь как известный остаток, а не как норма: выборочные
+    // окна ячеек (центральные 50%) при нём ещё стоят на наклейках — это
+    // проверяет тест выше, — но запаса почти нет, и на живом кадре с наклонённым
+    // кубиком он и съедается. Настоящее лечение — нормировать структурные
+    // слагаемые на их разброс по кандидатам, отдельной задачей.
+    expect(fit.region.side).toBeGreaterThanOrEqual(TRUE_SIDE);
+    expect(fit.region.side - TRUE_SIDE).toBeLessThanOrEqual(CELL / 2);
+  });
+
+  // Отдельным утверждением, потому что ломается это независимо: стоимость
+  // ВЕРНОЙ области не должна расти неограниченно из-за признака, которого у
+  // монолитного кубика физически нет. У stickerless окантовка бывает ярче
+  // наклейки, и незажатый штраф `gapTarget − contrast` тем больше, чем точнее
+  // сетка стоит на цветной наклейке.
+  it("верная область не дороже сетки, наполовину стоящей на столе", () => {
+    const patch = stickerlessOnWhiteTable(240, OFF, CELL);
+    const onFace = regionCost(patch, { x: OFF, y: OFF, side: TRUE_SIDE }, REFS);
+    const onTable = regionCost(patch, { x: OFF + CELL * 2, y: OFF + CELL, side: TRUE_SIDE }, REFS);
+    expect(onFace).toBeLessThan(onTable);
+  });
+});
