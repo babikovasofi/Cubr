@@ -418,3 +418,53 @@ describe("отчёт доступен и без единого засчитан�
     expect(result.current.lastDropText).toContain("не опознана");
   });
 });
+
+// Показанная не та грань — ошибка условия замера, а не зрения. Она обязана
+// стоить пересъёмки ОДНОЙ грани, а не девяти ошибок в гейте.
+describe("строгая хватка требует порядок граней", () => {
+  it("«не та грань» не бракует чтение и не пишет дроп", async () => {
+    readerStub.calibrated = true;
+    readerStub.collectingAccuracy = true;
+    readerStub.pushAccuracyFace.mockResolvedValue({
+      kind: "unreadable",
+      reason: "wrong-face",
+      diag: "Это грань с жёлтым центром (ΔE 1.4), а 5-й по протоколу снимается грань с оранжевым центром",
+    });
+    readerStub.resetAccuracy.mockClear();
+
+    const { result } = renderHook(() => useAccuracySession());
+    await act(async () => result.current.setMode("solved"));
+    result.current.videoRef.current = {} as HTMLVideoElement;
+    await act(async () => {
+      await result.current.captureFace();
+    });
+
+    expect(result.current.captureError).toContain("жёлтым центром");
+    expect(readerStub.resetAccuracy).not.toHaveBeenCalled();
+    expect(result.current.buildExport()).not.toContain("Последний брак");
+    // Пересъёмка мимо гейта — но НЕ мимо отчёта: иначе замер можно тихо
+    // улучшить, отказываясь от неудобных съёмок.
+    expect(result.current.buildExport()).toContain("показана не та грань: 1");
+  });
+
+  it("порядок требуется только строгой хваткой", async () => {
+    readerStub.calibrated = true;
+    readerStub.collectingAccuracy = false;
+    readerStub.beginAccuracy.mockClear();
+
+    const { result } = renderHook(() => useAccuracySession());
+    await act(async () => result.current.setMode("solved"));
+    result.current.videoRef.current = {} as HTMLVideoElement;
+
+    await act(async () => {
+      await result.current.captureFace();
+    });
+    expect(readerStub.beginAccuracy).toHaveBeenLastCalledWith(true);
+
+    await act(async () => result.current.setGrip("free"));
+    await act(async () => {
+      await result.current.captureFace();
+    });
+    expect(readerStub.beginAccuracy).toHaveBeenLastCalledWith(false);
+  });
+});

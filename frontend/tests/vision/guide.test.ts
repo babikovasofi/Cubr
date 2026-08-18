@@ -6,6 +6,7 @@ import {
   cameraDeniedRu,
   modelFailedRu,
   fitSpreadRu,
+  wrongFaceRu,
   type GuideSnapshot,
 } from "../../src/vision/guide";
 
@@ -176,5 +177,23 @@ describe("fitSpreadRu — оба признака решётки", () => {
     expect(out).toContain("1:подогнана 7.");
     // Дробь есть только в заголовке строки, но не в самом числе съёмки.
     expect(out).not.toContain("7/");
+  });
+});
+
+describe("wrongFaceRu — показали не ту грань", () => {
+  // Живой прогон 2026-08-19: пятой вместо оранжевой показали жёлтую, и зрению
+  // записали девять ошибок, которых оно не делало (45/45 превратились в 45/54).
+  it("называет обе грани цветом, а не буквой, и место в порядке", () => {
+    const out = wrongFaceRu("L", "D", 5, 26.4, 1.4);
+    expect(out).toContain("жёлтым центром");
+    expect(out).toContain("оранжевым центром");
+    expect(out).toContain("5-й");
+    expect(out).toContain("U R F D L B");
+  });
+
+  it("печатает оба расстояния — по ним видно, насколько уверен отказ", () => {
+    const out = wrongFaceRu("L", "D", 5, 26.4, 1.4);
+    expect(out).toContain("26.4");
+    expect(out).toContain("1.4");
   });
 });

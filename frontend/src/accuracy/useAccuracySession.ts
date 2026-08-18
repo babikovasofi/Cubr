@@ -167,6 +167,16 @@ export function useAccuracySession(): AccuracySession {
   // drop 100% — и ни одного числа о том, что именно развалилось. Диагностика
   // обязана уезжать в буфер вместе с гейтом, иначе её пересказывают руками.
   const [lastDropText, setLastDropText] = useState<string | null>(null);
+  // Сколько раз съёмку отклонили пересъёмкой, а не дропом (не та грань, не
+  // кубик, нет решётки).
+  //
+  // ЧЕСТНОСТЬ. Пересъёмка не попадает ни в числитель, ни в знаменатель гейта —
+  // и это ровно тот механизм, которым замер можно незаметно улучшить: если
+  // зрение стабильно путает центр красной грани с оранжевым, отказ «покажи
+  // нужную грань» будет молча выбрасывать неудобные съёмки, а точность полезет
+  // вверх. Поэтому счётчик печатается в отчёте: одна-две пересъёмки за прогон —
+  // человек ошибся гранью, двадцать — врёт зрение, и цифре гейта верить нельзя.
+  const retakesRef = useRef<Map<string, number>>(new Map());
   const [lastReport, setLastReport] = useState<AccuracyReport | null>(null);
   // Второй счёт того же чтения — продуктовым путём (нормировка света + квоты).
   // Гейт по нему НЕ считается: его планка стоит на сыром зрении.
@@ -303,7 +313,8 @@ export function useAccuracySession(): AccuracySession {
       return;
     }
     if (!reader.collectingAccuracy) {
-      reader.beginAccuracy();
+      // Порядок граней требуется только строгой хваткой — она на нём и стоит.
+      reader.beginAccuracy(grip === "fixed");
       return;
     }
     const v = videoRef.current;
@@ -328,8 +339,10 @@ export function useAccuracySession(): AccuracySession {
         // грани, поэтому и обходятся одинаково: остальные снятые грани целы,
         // дроп не пишется. Отличаются они только текстом причины, и он приходит
         // готовым из пайплайна.
-        if (r.reason === "not-a-face" || r.reason === "no-lattice") {
+        if (r.reason === "not-a-face" || r.reason === "no-lattice" || r.reason === "wrong-face") {
+          retakesRef.current.set(r.reason, (retakesRef.current.get(r.reason) ?? 0) + 1);
           setCaptureError(r.diag ?? faceUnreadableRu());
+          bump();
           return;
         }
         // Отказ, который сам себя объясняет, печатается ОДИН. Общая присказка
@@ -526,6 +539,7 @@ export function useAccuracySession(): AccuracySession {
 
   const resetRun = (): void => {
     runRef.current = new Map();
+    retakesRef.current = new Map();
     lastReadKeyRef.current = null;
     setLastDropText(null);
     setLastReport(null);
@@ -574,6 +588,20 @@ export function useAccuracySession(): AccuracySession {
       parts.push("");
     }
     parts.push("=== Сводка прогона ===");
+    if (retakesRef.current.size > 0) {
+      const names: Record<string, string> = {
+        "wrong-face": "показана не та грань",
+        "not-a-face": "в рамке не кубик",
+        "no-lattice": "нет решётки",
+      };
+      const list = [...retakesRef.current.entries()]
+        .map(([k, n]) => `${names[k] ?? k}: ${n}`)
+        .join(", ");
+      parts.push(
+        `Пересъёмок (в гейт не идут — ни в числитель, ни в знаменатель): ${list}. ` +
+          "Много пересъёмок одного вида = замер искажён отказами инструмента, а не измерен.",
+      );
+    }
     parts.push(formatRunSummary(runRef.current));
 
     const refs = reader.getProfile();

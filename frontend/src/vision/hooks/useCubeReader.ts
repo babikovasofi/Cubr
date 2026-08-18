@@ -32,7 +32,7 @@ import {
   latticeVerdict,
   type FitRegion,
 } from "../faceFit";
-import { notACubeFaceRu, latticeCollapsedRu, latticeCollapsedLateRu } from "../guide";
+import { notACubeFaceRu, latticeCollapsedRu, latticeCollapsedLateRu, wrongFaceRu } from "../guide";
 import {
   assignFacesByCenter,
   resolveRotations,
@@ -450,7 +450,11 @@ export type AccuracyCapture =
   // отдельный случай: сняли не кубик. Он не портит уже снятые грани и лечится
   // одним действием, поэтому вызывающий переспрашивает ЭТУ грань, а не бракует
   // всё чтение.
-  | { kind: "unreadable"; diag?: string; reason?: "not-a-face" | "no-lattice" | "no-lattice-late" }
+  | {
+      kind: "unreadable";
+      diag?: string;
+      reason?: "not-a-face" | "no-lattice" | "no-lattice-late" | "wrong-face";
+    }
   | {
       kind: "complete";
       rawFaceGrids: Face[][]; // 6 × 9 сырое чтение в фиксированном порядке URFDLB
@@ -492,7 +496,11 @@ export type VerifyResult =
   | { kind: "ok" }
   | { kind: "mismatch"; face: string; count: number }
   | { kind: "illegal" } // read is not a legal cube
-  | { kind: "unreadable"; diag?: string; reason?: "not-a-face" | "no-lattice" | "no-lattice-late" } // свет/резкость/уверенность/не кубик/нет решётки — diag объясняет что именно
+  | {
+      kind: "unreadable";
+      diag?: string;
+      reason?: "not-a-face" | "no-lattice" | "no-lattice-late" | "wrong-face";
+    } // свет/резкость/уверенность/не кубик/нет решётки — diag объясняет что именно
   | { kind: "assign" } // two faces classified to the same center
   | { kind: "ambiguous" } // multiple legal rotations
   | { kind: "resolve" }; // no legal rotation combo
@@ -531,7 +539,7 @@ export interface CubeReader {
   // gate, raw grids exposed pre-resolve. Independent of the verify collector.
   accFacesLength: number; // 0..6, of the in-flight accuracy collector
   collectingAccuracy: boolean;
-  beginAccuracy: () => void;
+  beginAccuracy: (enforceOrder?: boolean) => void;
   pushAccuracyFace: (video: HTMLVideoElement) => Promise<AccuracyCapture>;
   resetAccuracy: () => void;
 }
@@ -639,6 +647,10 @@ export function useCubeReader(workRef: React.RefObject<HTMLCanvasElement | null>
   // признака решётки законно слабые, и бесконечный отказ превратил бы харнесс в
   // тупик. Один раз просим переснять, второй — принимаем как есть.
   const latticeRefusedRef = useRef<Set<number>>(new Set());
+  // Требовать ли порядок граней U R F D L B. Только строгая хватка его задаёт;
+  // в свободной и «по картинке» человек показывает грани как удобно, и
+  // требовать там порядок значило бы мерить память, а не зрение.
+  const enforceOrderRef = useRef(false);
   // Сколько раз подряд грань отклонена по неуверенности (см. пороги в config).
   const lowConfidenceRef = useRef(0);
 
@@ -840,9 +852,10 @@ export function useCubeReader(workRef: React.RefObject<HTMLCanvasElement | null>
 
   // ---- Accuracy collector (fixed capture order URFDLB) ----------------------
 
-  const beginAccuracy = (): void => {
+  const beginAccuracy = (enforceOrder = false): void => {
     accCollectorRef.current = [];
     latticeRefusedRef.current = new Set();
+    enforceOrderRef.current = enforceOrder;
     setAccFacesLength(0);
     setCollectingAccuracy(true);
   };
@@ -899,6 +912,27 @@ export function useCubeReader(workRef: React.RefObject<HTMLCanvasElement | null>
     }
 
     const de = deltaE(face.lab[4], refs[expectedColor]);
+    // Показали не ту грань — при строгой хватке это отказ, а не замечание.
+    //
+    // Отличаем от уехавшего света по направлению, а не по величине: свет уводит
+    // центр далеко от ВСЕХ эталонов сразу, чужая грань садится ТОЧНО на другой.
+    // Поэтому мало «далеко от ожидаемого» — нужно ещё «уверенно близко к
+    // чужому», иначе отказ начнёт срабатывать на дрейфе, ради терпимости к
+    // которому проверку и сделали совещательной.
+    const own = argminRef(face.lab[4], refs);
+    const ownDE = deltaE(face.lab[4], refs[own]);
+    if (
+      enforceOrderRef.current &&
+      own !== expectedColor &&
+      de > config.CENTER_OUTLIER_DE &&
+      ownDE * 2 < de
+    ) {
+      return {
+        kind: "unreadable",
+        reason: "wrong-face",
+        diag: wrongFaceRu(expectedColor, own, faceIndex + 1, de, ownDE),
+      };
+    }
     // Drift is ADVISORY, not a block: on a real webcam the center can legitimately
     // drift > CENTER_DRIFT_DE (auto-WB/exposure) and refusing the capture just stops
     // any data from ever being collected. Capture the face anyway and surface the
