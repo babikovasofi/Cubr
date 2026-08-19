@@ -4,6 +4,7 @@ import {
   formatReport,
   formatRawGrids,
   colorBalanceRu,
+  concentratedMismatchRu,
   type CellDiag,
 } from "../../src/vision/accuracy";
 import { SOLVED, FACE_ORDER, type Facelet } from "../../src/vision/cubeState";
@@ -422,5 +423,85 @@ describe("formatRawGrids — блик и сетка в одном месте", (
 
   it("без подгонки строку про сетку не выдумывает", () => {
     expect(formatRawGrids([g("UUUUUUUUU")])).not.toContain("Сетка по съёмкам");
+  });
+});
+
+describe("concentratedMismatchRu — почерк «спорит не зрение»", () => {
+  const clean = (best: string, bestDE: number): CellDiag => ({
+    rgb: [200, 200, 200] as [number, number, number],
+    kept: 1,
+    best,
+    bestDE,
+    second: "B",
+    secondDE: bestDE + 18,
+    skin: 0,
+  });
+
+  /** 54 диагностики, где перечисленным индексам задан свой ΔE. */
+  function diagsWith(overrides: Record<number, number>): CellDiag[] {
+    return Array.from({ length: 54 }, (_, i) => clean("U", overrides[i] ?? 2.5));
+  }
+
+  // Живая сессия 2026-08-20: чтение 49/54, все пять промахов на съёмке U,
+  // ΔE у них 1.1 / 1.5 / 2.8 / 2.3 / 4.3 — то есть цвета сняты безупречно.
+  it("узнаёт живой случай: пять промахов в одной съёмке с чистыми цветами", () => {
+    const truth = SOLVED.split("");
+    // Портим пять ячеек грани U в ЭТАЛОНЕ, чтение оставляем «правильным» —
+    // ровно та ситуация: камера видит одно, бумага ждёт другого.
+    for (const i of [0, 3, 6, 7, 8]) truth[i] = i === 8 ? "D" : "B";
+    const rep = scoreRead(SOLVED, truth.join(""));
+    const out = concentratedMismatchRu(
+      rep.stickers.filter((s) => !s.correct),
+      diagsWith({ 0: 1.1, 3: 1.5, 6: 2.8, 7: 2.3, 8: 4.3 }),
+    );
+    expect(out).toContain("все 5 промахов");
+    expect(out).toContain("грань U");
+    expect(out).toContain("не тот скрамбл");
+  });
+
+  it("молчит, когда промахи размазаны по кубику", () => {
+    const truth = SOLVED.split("");
+    // По одному промаху на четырёх разных гранях — это не почерк.
+    for (const i of [0, 12, 21, 30]) truth[i] = truth[i] === "U" ? "B" : "U";
+    const rep = scoreRead(SOLVED, truth.join(""));
+    expect(
+      concentratedMismatchRu(
+        rep.stickers.filter((s) => !s.correct),
+        diagsWith({}),
+      ),
+    ).toBeNull();
+  });
+
+  // Если цвета грязные — это как раз ошибка зрения, и утверждать обратное нельзя.
+  it("молчит, когда цвета в той же съёмке сняты грязно", () => {
+    const truth = SOLVED.split("");
+    for (const i of [0, 3, 6, 7, 8]) truth[i] = "B";
+    const rep = scoreRead(SOLVED, truth.join(""));
+    expect(
+      concentratedMismatchRu(
+        rep.stickers.filter((s) => !s.correct),
+        diagsWith({ 0: 21, 3: 19, 6: 24, 7: 18, 8: 30 }),
+      ),
+    ).toBeNull();
+  });
+
+  it("молчит на двух промахах: это шум, а не почерк", () => {
+    const truth = SOLVED.split("");
+    truth[0] = "B";
+    truth[1] = "B";
+    const rep = scoreRead(SOLVED, truth.join(""));
+    expect(
+      concentratedMismatchRu(
+        rep.stickers.filter((s) => !s.correct),
+        diagsWith({ 0: 1.2, 1: 1.4 }),
+      ),
+    ).toBeNull();
+  });
+
+  it("без диагностики ячеек ничего не утверждает", () => {
+    const truth = SOLVED.split("");
+    for (const i of [0, 3, 6, 7, 8]) truth[i] = "B";
+    const rep = scoreRead(SOLVED, truth.join(""));
+    expect(concentratedMismatchRu(rep.stickers.filter((s) => !s.correct))).toBeNull();
   });
 });

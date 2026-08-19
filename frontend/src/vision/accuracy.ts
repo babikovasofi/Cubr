@@ -506,6 +506,63 @@ export function formatRawGrids(
   return lines.join("\n");
 }
 
+/**
+ * Все промахи собрались в одной съёмке, и цвета в ней чистые — значит спорит не
+ * зрение, а содержимое грани.
+ *
+ * Живая сессия 2026-08-20, скрамбл-режим: два чтения по 49/54, и в обоих ВСЕ
+ * промахи сидят на съёмке U. Ячейки при этом сняты безупречно — ΔE до своего
+ * эталона 1.1…4.3, ни блика, ни выбитых пикселей. Классификатор не ошибался: он
+ * прочитал ровно те цвета, что были в кадре. Значит в кадре была не та грань,
+ * какую ждал эталон: либо скрамбл на кубике собран не тот, либо эту грань
+ * показали повёрнутой (при строгой хватке поворот грани — нарушение).
+ *
+ * Без этой строки человек видит «5 ошибок» и идёт чинить свет и калибровку —
+ * то есть ровно то, что здесь ни при чём.
+ *
+ * Пороги. `MIN` — меньше трёх промахов не образуют «почерка», это шум. `SHARE`
+ * — доля одной съёмки: 0.8 отделяет «всё в одной» от размазанного по кубику.
+ * `CLEAN_DE` — что считать чистым цветом: 8 вчетверо ниже
+ * `STICKER_MAX_DELTA_E` и вдвое выше типичной медианы здорового чтения (2–4).
+ */
+export function concentratedMismatchRu(
+  wrong: readonly StickerResult[],
+  diags?: readonly CellDiag[],
+): string | null {
+  const MIN = 3;
+  const SHARE = 0.8;
+  const CLEAN_DE = 8;
+  if (wrong.length < MIN) return null;
+
+  const byFace = new Map<string, StickerResult[]>();
+  for (const s of wrong) {
+    const list = byFace.get(s.face) ?? [];
+    list.push(s);
+    byFace.set(s.face, list);
+  }
+  let worst: { face: string; list: StickerResult[] } | null = null;
+  for (const [face, list] of byFace) {
+    if (!worst || list.length > worst.list.length) worst = { face, list };
+  }
+  if (!worst || worst.list.length < wrong.length * SHARE) return null;
+
+  // Чистота — по диагностике тех самых ячеек. Без неё утверждать нечего:
+  // грязные цвета означали бы как раз ошибку зрения, а не подмену содержимого.
+  if (!diags) return null;
+  const des = worst.list.map((s) => diags[s.index]?.bestDE).filter((d): d is number => d != null);
+  if (des.length !== worst.list.length) return null;
+  const worstDE = Math.max(...des);
+  if (worstDE > CLEAN_DE) return null;
+
+  return (
+    `Почерк: все ${wrong.length} промахов — в одной съёмке (грань ${worst.face}), и цвета в ней ` +
+    `сняты чисто (худший ΔE ${worstDE.toFixed(1)} при пороге «не цвет кубика» ` +
+    `${config.STICKER_MAX_DELTA_E}). Зрение прочитало то, что было в кадре, — значит в кадре ` +
+    "была не та грань, какую ждёт эталон: либо на кубике собран не тот скрамбл, либо эта грань " +
+    "показана повёрнутой. Свет и калибровку здесь чинить нечего."
+  );
+}
+
 /** Human-readable multi-line report string for printing to the page. */
 export function formatReport(
   rep: AccuracyReport,
@@ -540,6 +597,11 @@ export function formatReport(
       lines.push(
         `  ${s.face}[${s.cellInFace}] (idx ${s.index}): read ${s.read}, expected ${s.expected}${why}`,
       );
+    }
+    const verdict = concentratedMismatchRu(wrong, diags);
+    if (verdict) {
+      lines.push("");
+      lines.push(verdict);
     }
   }
   if (diags) {
