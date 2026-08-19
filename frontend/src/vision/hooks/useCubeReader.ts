@@ -139,7 +139,10 @@ export function readFace(
   // Тот же замер для НОВОГО признака — перепада цвета на внутренних границах.
   // На монолитном кубике `gap` уходит в ноль и в минус, и по одному ему нельзя
   // отличить «сетка села верно» от «сетка не нашла ничего».
-  const edge = edgeContrast(patch, { x: ox, y: oy, side }, centerFrac);
+  // Без третьего аргумента: полоса берётся из конфига, ТА ЖЕ, которой
+  // `regionCost` штрафует кандидатов. Раньше сюда уезжал `centerFrac`, и
+  // «контраст границ» в отчёте переставал объяснять выбор подгонки.
+  const edge = edgeContrast(patch, { x: ox, y: oy, side });
 
   // Distribute the pixel remainder so the whole fitted square is covered.
   const xEdges = [ox, ox + Math.round(side / 3), ox + Math.round((2 * side) / 3), ox + side];

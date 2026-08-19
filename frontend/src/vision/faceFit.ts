@@ -318,8 +318,16 @@ export function gapContrast(
 export function edgeContrast(
   patch: Patch,
   region: FitRegion,
-  bandFrac: number = config.FACE_FIT_GAP_BAND_FRAC,
+  // Именованный параметр, а не голое число, НАМЕРЕННО. У близнеца
+  // `gapContrast` третий аргумент — `centerFrac`, здесь — `bandFrac`; типы у
+  // обоих `number`, поэтому перепутанный аргумент компилировался молча. Так и
+  // произошло: `useCubeReader` передавал сюда `CELL_CENTER_FRAC = 0.5` вместо
+  // полосы 0.12, и телеметрия с замком мерили границы полосой, в четыре раза
+  // более широкой, чем та, которой штрафует `regionCost`. Объект делает такую
+  // подмену ошибкой типов, а не тихим расхождением величин.
+  opts: { bandFrac?: number } = {},
 ): number {
+  const bandFrac = opts.bandFrac ?? config.FACE_FIT_GAP_BAND_FRAC;
   const cw = region.side / 3;
   let total = 0;
   for (let row = 0; row < 3; row++) {
@@ -367,13 +375,28 @@ export function regionCost(
       const lab = rgb2lab(rgb);
       let best = Infinity;
       for (const name of COLOR_NAMES) best = Math.min(best, deltaE(lab, refs[name]));
-      // Недобор окантовки. Насыщается на gapTarget: у белой наклейки щели темнее
-      // её на сотню единиц, у синей — на десятки, и штрафовать синюю нельзя.
-      const deficit = Math.max(
-        0,
-        gapTarget - cellGapContrast(patch, x0, y0, w, h, luma(rgb), bandFrac, samples),
+      // Недобор окантовки, зажатый С ОБЕИХ сторон.
+      //
+      // Нижняя граница была всегда; верхней не было, и комментарий на этом
+      // месте утверждал «насыщается на gapTarget», хотя `max(0, target − c)`
+      // сверху не насыщается ни на чём. У монолитного кубика окантовка бывает
+      // ЯРЧЕ наклейки, contrast уходит в минус (живые −7.7, на синтетике до
+      // −52), и штраф растёт неограниченно — тем сильнее, чем точнее сетка
+      // стоит на цветной наклейке. На светлом столе это уводило подгонку с
+      // кубика на столешницу при `gain 31` и вердикте «ПОДОГНАНА».
+      //
+      // Верхний зажим на gapTarget возвращает слагаемому тот смысл, который у
+      // него и был заявлен: «щели нет» — фиксированная цена, одинаковая для
+      // кубика без корпуса и для ровного фона, и решает тогда признак границ,
+      // написанный ровно для этого случая.
+      const deficit = Math.min(
+        gapTarget,
+        Math.max(0, gapTarget - cellGapContrast(patch, x0, y0, w, h, luma(rgb), bandFrac, samples)),
       );
       // Недобор контраста границ — тот же приём, что и у щели, но по цвету.
+      // Верхний зажим тут избыточен (ΔE неотрицателен, значит недобор и так не
+      // превысит edgeTarget) и поставлен для симметрии смысла: «признака нет» —
+      // фиксированная цена, а не растущая.
       const deficitEdge = Math.max(
         0,
         edgeTarget -
