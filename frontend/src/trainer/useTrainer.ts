@@ -40,11 +40,22 @@ import {
 import { generateCaseScramble } from "./generate";
 
 export type TrainerSet = "pll" | "oll";
+
+/**
+ * Какой из двух экранов показан.
+ *
+ * «Просто» — набор целиком (все PLL, все OLL или всё вместе) и сам скрамбл;
+ * «Профи» — то же плюс поштучный выбор 78 случаев и хват. Это ОДНО состояние,
+ * показанное по-разному, а не два независимых экрана: выбор, сделанный в
+ * «Профи», переживает переключение и продолжает работать в «Просто».
+ */
+export type TrainerMode = "simple" | "pro";
 export type TrainerCaseId = PllCaseId | OllCaseId;
 
 const SETS_KEY = "cubr.trainer.sets";
 const CASES_KEY = "cubr.trainer.cases";
 const ANY_GRIP_KEY = "cubr.trainer.anyGrip";
+const MODE_KEY = "cubr.trainer.mode";
 
 const LEGACY_PLL_CASES_KEY = "cubr.trainer.pll.cases";
 const LEGACY_ANY_GRIP_KEY = "cubr.trainer.pll.anyGrip";
@@ -163,6 +174,35 @@ function writeAnyGrip(value: boolean): void {
   }
 }
 
+/**
+ * С какого экрана начать.
+ *
+ * Новичку — «Просто»: 78 чекбоксов перед первым скрамблом это стена, а не
+ * настройка. Но вернувшемуся человеку, у которого в хранилище лежит УЗКИЙ
+ * набор, спрятать его выбор нельзя — он его делал руками и придёт продолжать
+ * тренировать именно эти случаи. Такому открываем «Профи». Полный набор от
+ * узкого отличается по построению: он равен всем случаям своих наборов.
+ */
+function readMode(state: TrainerState): TrainerMode {
+  try {
+    if (typeof localStorage === "undefined") return "simple";
+    const raw = localStorage.getItem(MODE_KEY);
+    if (raw === "simple" || raw === "pro") return raw;
+    return state.selectedIds.length < allIdsFor(state.sets).length ? "pro" : "simple";
+  } catch {
+    return "simple";
+  }
+}
+
+function writeMode(mode: TrainerMode): void {
+  try {
+    if (typeof localStorage === "undefined") return;
+    localStorage.setItem(MODE_KEY, mode);
+  } catch {
+    // best-effort persistence only
+  }
+}
+
 interface Draw {
   caseId: TrainerCaseId;
   scramble: string;
@@ -176,6 +216,8 @@ function draw(ids: readonly TrainerCaseId[], anyGrip: boolean): Draw {
 }
 
 export interface UseTrainerResult {
+  mode: TrainerMode;
+  setMode: (mode: TrainerMode) => void;
   sets: readonly TrainerSet[];
   selectedIds: readonly TrainerCaseId[];
   anyGrip: boolean;
@@ -194,12 +236,15 @@ export interface UseTrainerResult {
   toggleSet: (set: TrainerSet) => void;
   toggleCase: (id: TrainerCaseId) => void;
   selectAll: () => void;
+  /** Взять наборы целиком — пресет «Все PLL» / «Все OLL» / «Всё вместе». */
+  selectSets: (sets: readonly TrainerSet[]) => void;
   selectPllGroup: (group: PllGroup) => void;
   selectOllGroup: (group: OllGroup) => void;
 }
 
-function readInitial(): { state: TrainerState; anyGrip: boolean } {
-  return { state: readState(), anyGrip: readAnyGrip() };
+function readInitial(): { state: TrainerState; anyGrip: boolean; mode: TrainerMode } {
+  const state = readState();
+  return { state, anyGrip: readAnyGrip(), mode: readMode(state) };
 }
 
 export function useTrainer(): UseTrainerResult {
@@ -210,6 +255,7 @@ export function useTrainer(): UseTrainerResult {
   const [init] = useState(readInitial);
   const [{ sets, selectedIds }, setState] = useState<TrainerState>(init.state);
   const [anyGrip, setAnyGrip] = useState<boolean>(init.anyGrip);
+  const [mode, setModeState] = useState<TrainerMode>(init.mode);
   const [current, setCurrent] = useState<Draw>(() => draw(init.state.selectedIds, init.anyGrip));
   const [revealed, setRevealed] = useState<boolean>(() => init.state.selectedIds.length === 1);
 
@@ -265,6 +311,16 @@ export function useTrainer(): UseTrainerResult {
     applySelection(sets, allIdsFor(sets));
   }
 
+  function selectSets(nextSets: readonly TrainerSet[]): void {
+    if (nextSets.length === 0) return; // пустой выбор нечем тянуть
+    applySelection([...nextSets], allIdsFor(nextSets));
+  }
+
+  function setMode(next: TrainerMode): void {
+    setModeState(next);
+    writeMode(next);
+  }
+
   function selectPllGroup(group: PllGroup): void {
     const pllIds = casesByGroup(group).map((c) => c.id) as TrainerCaseId[];
     const ollIds = selectedIds.filter(isOllId);
@@ -278,6 +334,8 @@ export function useTrainer(): UseTrainerResult {
   }
 
   return {
+    mode,
+    setMode,
     sets,
     selectedIds,
     anyGrip,
@@ -290,6 +348,7 @@ export function useTrainer(): UseTrainerResult {
     toggleSet,
     toggleCase,
     selectAll,
+    selectSets,
     selectPllGroup,
     selectOllGroup,
   };

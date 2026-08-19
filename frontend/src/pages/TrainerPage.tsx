@@ -12,8 +12,15 @@ import LastLayerDiagram from "../components/LastLayerDiagram";
 import OllDiagram from "../components/OllDiagram";
 import SegmentedToggle from "../components/SegmentedToggle";
 import { useT } from "../i18n/t";
-import { PLL_GROUPS, casesByGroup, type PllCaseId, type PllGroup } from "../trainer/pll";
 import {
+  ALL_CASE_IDS,
+  PLL_GROUPS,
+  casesByGroup,
+  type PllCaseId,
+  type PllGroup,
+} from "../trainer/pll";
+import {
+  ALL_OLL_CASE_IDS,
   OLL_GROUPS,
   ollCasesByGroup,
   getOllCase,
@@ -25,6 +32,7 @@ import {
   isOllId,
   useTrainer,
   type TrainerCaseId,
+  type TrainerMode,
   type TrainerSet,
 } from "../trainer/useTrainer";
 
@@ -167,11 +175,68 @@ function caseLabel(id: TrainerCaseId): string {
   return `${c.number} · ${c.name}`;
 }
 
+/**
+ * Пресеты «Просто»: набор целиком, одним нажатием.
+ *
+ * Закрывают подавляющее большинство заходов — человек садится тренировать
+ * «все PLL», а не семь конкретных случаев. Поштучный выбор никуда не делся,
+ * он живёт во вкладке «Профи» и работает с тем же состоянием.
+ */
+function PresetChips({
+  sets,
+  isWholeSelection,
+  onPick,
+}: {
+  sets: readonly TrainerSet[];
+  isWholeSelection: boolean;
+  onPick: (sets: readonly TrainerSet[]) => void;
+}) {
+  const t = useT();
+  const presets: { id: string; label: string; sets: TrainerSet[] }[] = [
+    { id: "pll", label: t("Все PLL"), sets: ["pll"] },
+    { id: "oll", label: t("Все OLL"), sets: ["oll"] },
+    { id: "both", label: t("Всё вместе"), sets: ["pll", "oll"] },
+  ];
+  const activeId = sets.length === 2 ? "both" : sets[0];
+  return (
+    <div role="group" aria-label={t("Что тренируем")} className="flex flex-wrap gap-2">
+      {presets.map((preset) => {
+        // Активен, только если набор взят ЦЕЛИКОМ: с прореженным вручную
+        // списком подсветка врала бы про то, что сейчас в барабане.
+        const active = preset.id === activeId && isWholeSelection;
+        return (
+          <button
+            key={preset.id}
+            type="button"
+            aria-pressed={active}
+            onClick={() => onPick(preset.sets)}
+            className={[
+              "rounded-full border-2 border-ink px-3.5 py-1.5 font-sans text-small font-bold",
+              active ? "bg-ink text-surface" : "bg-surface text-ink",
+            ].join(" ")}
+          >
+            {preset.label}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 export default function TrainerPage() {
   const t = useT();
   const trainer = useTrainer();
   const current = getAnyCase(trainer.caseId);
   const currentIsOll = isOllId(trainer.caseId);
+  // Взяты ли наборы целиком. От этого зависит подсветка пресета: с набором,
+  // прореженным вручную во вкладке «Профи», подсвеченный чип «Все PLL» врал бы
+  // про то, что сейчас в барабане.
+  const wholeSetsSelected =
+    trainer.selectedIds.length ===
+    trainer.sets.reduce(
+      (n, set) => n + (set === "pll" ? ALL_CASE_IDS.length : ALL_OLL_CASE_IDS.length),
+      0,
+    );
 
   // Space = next case, Enter = reveal answer — ignored while an interactive
   // element (a checkbox, a chip button) has focus, so the shortcuts don't
@@ -203,73 +268,95 @@ export default function TrainerPage() {
         </p>
       </div>
 
-      <section className="flex flex-col gap-3">
-        <SetToggle sets={trainer.sets} onToggle={trainer.toggleSet} />
+      <SegmentedToggle<TrainerMode>
+        value={trainer.mode}
+        onChange={trainer.setMode}
+        label={t("Экран")}
+        options={[
+          { value: "simple", label: t("Просто") },
+          { value: "pro", label: t("Профи") },
+        ]}
+      />
 
-        {trainer.sets.includes("pll") ? (
-          <section className="flex flex-col gap-3">
-            <h2 className="font-sans text-h3 text-ink">{t("PLL (перестановка)")}</h2>
-            <GroupChips
-              groups={PLL_GROUPS}
-              groupLabel={PLL_GROUP_LABEL}
-              onPick={trainer.selectPllGroup}
-              onAll={trainer.selectAll}
-              allLabel={t("Все 21")}
-            />
-            <div className="flex flex-col gap-2">
-              {PLL_GROUPS.map((group) => (
-                <CaseCheckboxGroup<PllCaseId>
-                  key={group}
-                  legend={t(PLL_GROUP_LABEL[group])}
-                  ids={casesByGroup(group).map((c) => c.id)}
-                  labelFor={(id) => id}
-                  selectedIds={trainer.selectedIds}
-                  onToggle={trainer.toggleCase}
-                />
-              ))}
-            </div>
-          </section>
-        ) : null}
-
-        {trainer.sets.includes("oll") ? (
-          <section className="flex flex-col gap-3">
-            <h2 className="font-sans text-h3 text-ink">{t("OLL (ориентация)")}</h2>
-            <GroupChips
-              groups={OLL_GROUPS}
-              groupLabel={OLL_GROUP_LABEL}
-              onPick={trainer.selectOllGroup}
-              onAll={trainer.selectAll}
-              allLabel={t("Все 57")}
-            />
-            <div className="flex flex-col gap-2">
-              {OLL_GROUPS.map((group) => (
-                <CaseCheckboxGroup<OllCaseId>
-                  key={group}
-                  legend={t(OLL_GROUP_LABEL[group])}
-                  ids={ollCasesByGroup(group).map((c) => c.id)}
-                  labelFor={(id) => caseLabel(id)}
-                  selectedIds={trainer.selectedIds}
-                  onToggle={trainer.toggleCase}
-                />
-              ))}
-            </div>
-          </section>
-        ) : null}
-      </section>
-
-      <section className="flex flex-wrap items-center gap-3">
-        <SegmentedToggle<GripMode>
-          value={trainer.anyGrip ? "any" : "fixed"}
-          onChange={(v) => {
-            if ((v === "any") !== trainer.anyGrip) trainer.toggleAnyGrip();
-          }}
-          label={t("Хват кубика")}
-          options={[
-            { value: "fixed", label: t("Обычный хват") },
-            { value: "any", label: t("Любой хват") },
-          ]}
+      {trainer.mode === "simple" ? (
+        <PresetChips
+          sets={trainer.sets}
+          isWholeSelection={wholeSetsSelected}
+          onPick={trainer.selectSets}
         />
-      </section>
+      ) : null}
+
+      {trainer.mode === "pro" ? (
+        <>
+          <section className="flex flex-col gap-3">
+            <SetToggle sets={trainer.sets} onToggle={trainer.toggleSet} />
+
+            {trainer.sets.includes("pll") ? (
+              <section className="flex flex-col gap-3">
+                <h2 className="font-sans text-h3 text-ink">{t("PLL (перестановка)")}</h2>
+                <GroupChips
+                  groups={PLL_GROUPS}
+                  groupLabel={PLL_GROUP_LABEL}
+                  onPick={trainer.selectPllGroup}
+                  onAll={trainer.selectAll}
+                  allLabel={t("Все 21")}
+                />
+                <div className="flex flex-col gap-2">
+                  {PLL_GROUPS.map((group) => (
+                    <CaseCheckboxGroup<PllCaseId>
+                      key={group}
+                      legend={t(PLL_GROUP_LABEL[group])}
+                      ids={casesByGroup(group).map((c) => c.id)}
+                      labelFor={(id) => id}
+                      selectedIds={trainer.selectedIds}
+                      onToggle={trainer.toggleCase}
+                    />
+                  ))}
+                </div>
+              </section>
+            ) : null}
+
+            {trainer.sets.includes("oll") ? (
+              <section className="flex flex-col gap-3">
+                <h2 className="font-sans text-h3 text-ink">{t("OLL (ориентация)")}</h2>
+                <GroupChips
+                  groups={OLL_GROUPS}
+                  groupLabel={OLL_GROUP_LABEL}
+                  onPick={trainer.selectOllGroup}
+                  onAll={trainer.selectAll}
+                  allLabel={t("Все 57")}
+                />
+                <div className="flex flex-col gap-2">
+                  {OLL_GROUPS.map((group) => (
+                    <CaseCheckboxGroup<OllCaseId>
+                      key={group}
+                      legend={t(OLL_GROUP_LABEL[group])}
+                      ids={ollCasesByGroup(group).map((c) => c.id)}
+                      labelFor={(id) => caseLabel(id)}
+                      selectedIds={trainer.selectedIds}
+                      onToggle={trainer.toggleCase}
+                    />
+                  ))}
+                </div>
+              </section>
+            ) : null}
+          </section>
+
+          <section className="flex flex-wrap items-center gap-3">
+            <SegmentedToggle<GripMode>
+              value={trainer.anyGrip ? "any" : "fixed"}
+              onChange={(v) => {
+                if ((v === "any") !== trainer.anyGrip) trainer.toggleAnyGrip();
+              }}
+              label={t("Хват кубика")}
+              options={[
+                { value: "fixed", label: t("Обычный хват") },
+                { value: "any", label: t("Любой хват") },
+              ]}
+            />
+          </section>
+        </>
+      ) : null}
 
       <section className="flex flex-col gap-3">
         <p
@@ -287,6 +374,12 @@ export default function TrainerPage() {
             </Button>
           ) : null}
         </div>
+
+        {trainer.mode === "simple" ? (
+          <p className="font-sans text-small text-muted">
+            {t("Нужны отдельные случаи, группы или тренировка с любым хватом — вкладка «Профи».")}
+          </p>
+        ) : null}
 
         {trainer.revealed ? (
           <div className="flex flex-col items-start gap-3 rounded-lg border-2 border-ink bg-surface p-4.5">

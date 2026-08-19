@@ -52,9 +52,21 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
+/**
+ * Отрисовать страницу и переключиться на «Профи».
+ *
+ * Поштучный выбор случаев, переключатель наборов и хват живут теперь во второй
+ * вкладке (первая — набор целиком и скрамбл). Тесты ниже проверяют ровно ту же
+ * логику, что и раньше, просто она на один клик глубже.
+ */
+function renderPro() {
+  render(<TrainerPage />);
+  fireEvent.click(screen.getByRole("radio", { name: "Профи" }));
+}
+
 describe("TrainerPage", () => {
   it("no selection (fresh localStorage) defaults to both sets, all cases", () => {
-    render(<TrainerPage />);
+    renderPro();
     expect(
       screen.getByRole("button", { name: "PLL (перестановка)" }).getAttribute("aria-pressed"),
     ).toBe("true");
@@ -99,7 +111,7 @@ describe("TrainerPage", () => {
   });
 
   it("a single-case PLL selection shows the name immediately, no reveal needed, and renders the PLL (not OLL) diagram", () => {
-    render(<TrainerPage />);
+    renderPro();
     // Turn OLL off, then deselect every PLL case but Ua.
     fireEvent.click(screen.getByRole("button", { name: "OLL (ориентация)" }));
     for (const id of ALL_CASE_IDS) {
@@ -118,7 +130,7 @@ describe("TrainerPage", () => {
   });
 
   it("a single-case OLL selection shows the name immediately and renders the binary OLL diagram", () => {
-    render(<TrainerPage />);
+    renderPro();
     fireEvent.click(screen.getByRole("button", { name: "PLL (перестановка)" })); // turn PLL off
     for (const id of ALL_OLL_CASE_IDS) {
       if (id === "OLL27") continue;
@@ -136,7 +148,7 @@ describe("TrainerPage", () => {
   });
 
   it("unchecking the last remaining case is a no-op", () => {
-    render(<TrainerPage />);
+    renderPro();
     fireEvent.click(screen.getByRole("button", { name: "OLL (ориентация)" })); // turn OLL off
     for (const id of ALL_CASE_IDS) {
       if (id === "Ua") continue;
@@ -149,7 +161,7 @@ describe("TrainerPage", () => {
   });
 
   it("turning off the last remaining set is a no-op", () => {
-    render(<TrainerPage />);
+    renderPro();
     fireEvent.click(screen.getByRole("button", { name: "OLL (ориентация)" })); // pll only now
     const pllToggle = screen.getByRole("button", { name: "PLL (перестановка)" });
     expect(pllToggle.getAttribute("aria-pressed")).toBe("true");
@@ -159,7 +171,7 @@ describe("TrainerPage", () => {
 
   it("selection and any-grip round-trip through localStorage (new keys)", () => {
     const data = stubStorage();
-    render(<TrainerPage />);
+    renderPro();
 
     fireEvent.click(screen.getByRole("checkbox", { name: "Ua" })); // deselect Ua
     expect(JSON.parse(data.get("cubr.trainer.cases")!)).not.toContain("Ua");
@@ -198,7 +210,7 @@ describe("TrainerPage", () => {
 
   it("a corrupt legacy PLL selection falls back to all 21 PLL cases, PLL-only", () => {
     stubStorage({ "cubr.trainer.pll.cases": "{not json" });
-    render(<TrainerPage />);
+    renderPro();
     expect(
       screen.getByRole("button", { name: "OLL (ориентация)" }).getAttribute("aria-pressed"),
     ).toBe("false");
@@ -230,6 +242,89 @@ describe("TrainerPage", () => {
   });
 });
 
+// Вкладки «Просто»/«Профи». Риск такого разделения известен — человек
+// выбирает не свой режим, а интерфейсов становится два. Снимается это тем, что
+// состояние ОДНО: «Профи» — надстройка над тем же набором, а не отдельный
+// экран со своей памятью. Тесты ниже проверяют именно это свойство, а не
+// наличие вкладок.
+describe("TrainerPage — два экрана, одно состояние", () => {
+  it("новичок попадает на «Просто»: скрамбл есть, стены из чекбоксов нет", () => {
+    render(<TrainerPage />);
+    expect((screen.getByRole("radio", { name: "Просто" }) as HTMLInputElement).checked).toBe(true);
+    expect(screen.getByLabelText("Скрамбл").textContent).toBeTruthy();
+    expect(screen.queryByRole("checkbox", { name: "Ua" })).toBeNull();
+    expect(screen.queryByRole("checkbox", { name: "27 · Sune" })).toBeNull();
+    // И тупика нет: подсказка говорит, где искать поштучный выбор.
+    expect(screen.getByText(/Нужны отдельные случаи/)).toBeTruthy();
+  });
+
+  it("пресет берёт набор целиком и подсвечивается", () => {
+    const data = stubStorage();
+    render(<TrainerPage />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Все OLL" }));
+
+    expect(JSON.parse(data.get("cubr.trainer.sets")!)).toEqual(["oll"]);
+    expect(JSON.parse(data.get("cubr.trainer.cases")!)).toHaveLength(ALL_OLL_CASE_IDS.length);
+    expect(screen.getByRole("button", { name: "Все OLL" }).getAttribute("aria-pressed")).toBe(
+      "true",
+    );
+    expect(screen.getByRole("button", { name: "Все PLL" }).getAttribute("aria-pressed")).toBe(
+      "false",
+    );
+  });
+
+  // Главное свойство: вкладка — это вид, а не отдельная память. Выбор,
+  // сделанный руками, переключение переживает.
+  it("сужённый в «Профи» выбор виден и после возврата на «Просто»", () => {
+    const data = stubStorage();
+    renderPro();
+
+    fireEvent.click(screen.getByRole("checkbox", { name: "Ua" })); // снять Ua
+    fireEvent.click(screen.getByRole("radio", { name: "Просто" }));
+    // На «Просто» ни один пресет не подсвечен: набор больше не взят целиком,
+    // и врать про это подсветкой нельзя.
+    expect(screen.getByRole("button", { name: "Все PLL" }).getAttribute("aria-pressed")).toBe(
+      "false",
+    );
+
+    fireEvent.click(screen.getByRole("radio", { name: "Профи" }));
+    expect((screen.getByRole("checkbox", { name: "Ua" }) as HTMLInputElement).checked).toBe(false);
+    expect(JSON.parse(data.get("cubr.trainer.cases")!)).not.toContain("Ua");
+  });
+
+  it("выбранная вкладка запоминается", () => {
+    const data = stubStorage();
+    renderPro();
+    expect(data.get("cubr.trainer.mode")).toBe("pro");
+
+    cleanup();
+    render(<TrainerPage />);
+    expect((screen.getByRole("radio", { name: "Профи" }) as HTMLInputElement).checked).toBe(true);
+  });
+
+  // Вернувшийся человек с узким набором собирал его руками и придёт продолжать
+  // именно эти случаи — прятать их за вкладкой нельзя.
+  it("узкий набор из хранилища открывается сразу в «Профи»", () => {
+    stubStorage({
+      "cubr.trainer.sets": JSON.stringify(["pll"]),
+      "cubr.trainer.cases": JSON.stringify(["Ua", "T"]),
+    });
+    render(<TrainerPage />);
+    expect((screen.getByRole("radio", { name: "Профи" }) as HTMLInputElement).checked).toBe(true);
+    expect((screen.getByRole("checkbox", { name: "T" }) as HTMLInputElement).checked).toBe(true);
+  });
+
+  it("полный набор из хранилища открывается в «Просто»", () => {
+    stubStorage({
+      "cubr.trainer.sets": JSON.stringify(["pll"]),
+      "cubr.trainer.cases": JSON.stringify([...ALL_CASE_IDS]),
+    });
+    render(<TrainerPage />);
+    expect((screen.getByRole("radio", { name: "Просто" }) as HTMLInputElement).checked).toBe(true);
+  });
+});
+
 describe("TrainerPage — §П5 zero network", () => {
   it("mounting and exercising every control makes 0 fetch calls", () => {
     const fetchSpy = vi.spyOn(globalThis, "fetch").mockImplementation(() => {
@@ -239,8 +334,12 @@ describe("TrainerPage — §П5 zero network", () => {
     render(<TrainerPage />);
     fireEvent.click(screen.getByRole("button", { name: "Следующий случай" }));
     fireEvent.click(screen.getByRole("button", { name: "Показать ответ" }));
-    fireEvent.click(screen.getByRole("checkbox", { name: "T" }));
+    // Оба экрана: пресеты «Просто», затем всё, что живёт в «Профи».
+    fireEvent.click(screen.getByRole("button", { name: "Все OLL" }));
+    fireEvent.click(screen.getByRole("radio", { name: "Профи" }));
     fireEvent.click(screen.getByRole("checkbox", { name: "27 · Sune" }));
+    fireEvent.click(screen.getByRole("button", { name: "PLL (перестановка)" }));
+    fireEvent.click(screen.getByRole("checkbox", { name: "T" }));
     fireEvent.click(screen.getByRole("radio", { name: "Любой хват" }));
     fireEvent.click(screen.getByRole("button", { name: "OLL (ориентация)" }));
     fireEvent.click(screen.getByRole("button", { name: "OLL (ориентация)" }));
