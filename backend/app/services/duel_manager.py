@@ -35,6 +35,7 @@ Timeout/grace/heartbeat semantics (userflow §5.4 / П6-5):
 """
 
 import asyncio
+import logging
 import time
 import uuid
 from collections.abc import Awaitable, Callable
@@ -44,6 +45,8 @@ from typing import Any, Protocol
 
 from app.services.duel import PlayerOutcome
 from app.services.scramble import random_scramble
+
+logger = logging.getLogger(__name__)
 
 _WAITING = "waiting"
 _PREP = "prep"
@@ -400,7 +403,28 @@ class ConnectionManager:
         outcome_a = outcome_for(room.player_a_id)
         outcome_b = outcome_for(room.player_b_id)
         room.phase = _FINISHED
-        winner_id = await self._on_finalize(room.room_id, outcome_a, outcome_b)
+        # Персист результата обязан быть НЕПРОБИВАЕМЫМ, потому что фаза уже
+        # переведена в finished, а строка в БД — ещё нет.
+        #
+        # Живой сценарий (ревью 2026-08-19): кадр finish с time_ms больше
+        # потолка INTEGER валил запись, исключение уходило наверх, `_cleanup`
+        # не выполнялся — комната навсегда оставалась `active`, оба участника
+        # `active`, partial-UNIQUE не давал создать новую, а ручки удаления
+        # комнаты нет. Один кадр запирал дуэли обоим игрокам насовсем.
+        # Верхняя граница в схемах (app.schemas.limits) закрывает конкретно
+        # тот вход; этот блок закрывает КЛАСС: любая будущая ошибка на записи
+        # результата освобождает комнату вместо того, чтобы её заклинить.
+        try:
+            winner_id = await self._on_finalize(room.room_id, outcome_a, outcome_b)
+        except Exception:
+            logger.exception("finalize failed for room %s, abandoning instead", room.room_id)
+            winner_id = None
+            try:
+                await self._on_abandon(room.room_id)
+            except Exception:
+                logger.exception(
+                    "abandon after failed finalize also failed for room %s", room.room_id
+                )
         await self.broadcast(
             room.room_id,
             {

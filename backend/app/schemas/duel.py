@@ -2,6 +2,7 @@ from typing import Literal
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
+from app.schemas.limits import MAX_SOLVE_MS
 
 PlayerSlot = Literal["a", "b"]
 # Coarse wire vocabulary for inbound `status_update` (frontend's
@@ -110,6 +111,6 @@ class WsFinishIn(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     type: Literal["finish"]
-    time_ms: int = Field(gt=0)
+    time_ms: int = Field(gt=0, le=MAX_SOLVE_MS)
     dnf: bool = False
     verify_frames_ok: bool = False

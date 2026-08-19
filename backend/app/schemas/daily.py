@@ -3,6 +3,7 @@ from typing import Literal
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
+from app.schemas.limits import MAX_SOLVE_MS
 
 AttemptStatus = Literal["started", "valid", "dnf"]
 
@@ -18,7 +19,7 @@ class DailyAttemptSubmit(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    time_ms: int = Field(gt=0)
+    time_ms: int = Field(gt=0, le=MAX_SOLVE_MS)
     status: Literal["valid", "dnf"] = "valid"
 
 
