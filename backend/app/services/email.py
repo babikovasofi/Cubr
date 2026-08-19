@@ -14,6 +14,25 @@ from app.config import Settings, get_settings
 
 logger = logging.getLogger("cubr.email")
 
+# Ключа нет — предупреждаем один раз за процесс, а не на каждое письмо: иначе
+# при живой регистрации предупреждение утонет в собственных повторах.
+_warned_unconfigured = False
+
+
+def _warn_unconfigured(provider: str) -> None:
+    global _warned_unconfigured
+    if _warned_unconfigured:
+        return
+    _warned_unconfigured = True
+    logger.warning(
+        "Email provider %r has no API key: verification and password-reset mail is "
+        "SILENTLY DISCARDED. Anyone who forgets their password cannot recover the "
+        "account. Set %s in the server .env.",
+        provider,
+        "BREVO_API_KEY" if provider == "brevo" else "RESEND_API_KEY",
+    )
+
+
 _RESEND_ENDPOINT = "https://api.resend.com/emails"
 _BREVO_ENDPOINT = "https://api.brevo.com/v3/smtp/email"
 
@@ -43,8 +62,25 @@ async def _post_brevo(settings: Settings, to: str, subject: str, html: str) -> N
         resp.raise_for_status()
 
 
+def _provider_key(settings: Settings) -> str:
+    return settings.BREVO_API_KEY if settings.EMAIL_PROVIDER == "brevo" else settings.RESEND_API_KEY
+
+
 async def _send(to: str, subject: str, html: str) -> None:
     settings = get_settings()
+
+    # Провайдер не настроен — сказать об этом ГРОМКО и один раз за процесс.
+    #
+    # Раньше пустой ключ уходил в обычный путь отправки, провайдер отвечал
+    # ошибкой авторизации, и она гасилась тем же except ниже. Снаружи это
+    # выглядело как работающая регистрация: 202, «письмо отправлено», и полная
+    # тишина. Ревью прода 2026-08-19 нашло состояние, в котором подтверждение
+    # адреса и восстановление пароля не работали ВООБЩЕ, и узнать об этом было
+    # неоткуда — ни строчки в логах, ни признака в ответе.
+    if not _provider_key(settings):
+        _warn_unconfigured(settings.EMAIL_PROVIDER)
+        return
+
     try:
         if settings.EMAIL_PROVIDER == "brevo":
             await _post_brevo(settings, to, subject, html)
@@ -52,7 +88,13 @@ async def _send(to: str, subject: str, html: str) -> None:
             await _post_resend(settings, to, subject, html)
     except (httpx.HTTPError, httpx.HTTPStatusError):
         # Never bubble a mail outage up into the auth request.
-        logger.exception("Failed to send %r email to %s", subject, to)
+        #
+        # Адрес получателя в сообщение НЕ подставляется. При ненастроенном
+        # провайдере падала каждая отправка, то есть каждая регистрация и каждый
+        # запрос сброса пароля клали чужую почту в docker-логи, которые лежат на
+        # диске VPS и в списке хранимых данных на странице приватности не
+        # упомянуты. Для разбора хватает темы письма и трассировки.
+        logger.exception("Failed to send %r email", subject)
 
 
 async def send_verification_email(to: str, token: str) -> None:
