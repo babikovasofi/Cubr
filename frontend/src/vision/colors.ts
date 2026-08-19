@@ -480,11 +480,23 @@ export function anchorDistances(
 export function minSeparation(
   refs: Refs,
   mode: DeltaEMode = config.DELTA_E_MODE,
+  /**
+   * Какой метрикой мерить. По умолчанию обычная; `deltaEClassify` отвечает на
+   * вопрос «а перепутает ли их КЛАССИФИКАТОР» — а он считает другой.
+   *
+   * Живой прогон 2026-08-20 показал, зачем это разделение. Синий снялся
+   * пересвеченным, RGB(88,162,255) вместо привычного RGB(0,100,210). По
+   * обычной метрике самая тесная пара осталась красный–оранжевый (16.8), и
+   * отчёт честно называл её. Но решает-то метрика выбора, а в ней самой
+   * тесной парой стала БЕЛЫЙ–СИНИЙ: 14.5 против 15.5 у красного с оранжевым.
+   * То есть человеку показывали не ту пару и не то число.
+   */
+  metric: (a: Lab, b: Lab, mode?: DeltaEMode) => number = deltaE,
 ): { de: number; a: ColorName; b: ColorName } {
   let best = { de: Infinity, a: COLOR_NAMES[0], b: COLOR_NAMES[1] };
   for (let i = 0; i < COLOR_NAMES.length; i++) {
     for (let j = i + 1; j < COLOR_NAMES.length; j++) {
-      const de = deltaE(refs[COLOR_NAMES[i]], refs[COLOR_NAMES[j]], mode);
+      const de = metric(refs[COLOR_NAMES[i]], refs[COLOR_NAMES[j]], mode);
       if (de < best.de) best = { de, a: COLOR_NAMES[i], b: COLOR_NAMES[j] };
     }
   }
@@ -503,13 +515,15 @@ export function minSeparation(
 export function nearestNeighbours(
   refs: Refs,
   mode: DeltaEMode = config.DELTA_E_MODE,
+  /** См. `minSeparation`: «с кем спутает» — вопрос к метрике выбора. */
+  metric: (a: Lab, b: Lab, mode?: DeltaEMode) => number = deltaE,
 ): Record<ColorName, { name: ColorName; de: number }> {
   const out = {} as Record<ColorName, { name: ColorName; de: number }>;
   for (const name of COLOR_NAMES) {
     let best = { name: COLOR_NAMES[0], de: Infinity };
     for (const other of COLOR_NAMES) {
       if (other === name) continue;
-      const de = deltaE(refs[name], refs[other], mode);
+      const de = metric(refs[name], refs[other], mode);
       if (de < best.de) best = { name: other, de };
     }
     out[name] = best;
@@ -560,7 +574,11 @@ export function checkCalibration(
     return { kind: "white-not-lightest", whiteL, lightest, lightestL: refs[lightest][0] };
   }
 
-  const sep = minSeparation(refs, mode);
+  // Замок «цвета слиплись» смотрит МЕТРИКОЙ ВЫБОРА, потому что вопрос ровно про
+  // неё: перепутает ли их классификатор. Обычная метрика на пересвеченном синем
+  // отвечала «нет» (16.8 у красного с оранжевым), пока решающая уже говорила
+  // «белый и синий в 14.5» — то есть замок охранял не то число.
+  const sep = minSeparation(refs, mode, deltaEClassify);
   if (sep.de < minSepDE) return { kind: "collapsed", a: sep.a, b: sep.b, de: sep.de };
   return null;
 }

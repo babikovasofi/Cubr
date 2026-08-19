@@ -9,6 +9,7 @@
 import { describe, it, expect } from "vitest";
 import {
   COLOR_NAMES,
+  checkCalibration,
   deltaE,
   deltaEClassify,
   minSeparation,
@@ -97,5 +98,50 @@ describe("stickerConfidence — две метрики в одном ответе
     const gap: RGB = [26, 28, 30];
     const face = Array.from({ length: 9 }, () => rgb2lab(gap));
     expect(faceMedianDE(face, REFS)).toBeGreaterThan(config.FACE_MAX_MEDIAN_DE);
+  });
+});
+
+// Эталоны прогона, где синий снялся ПЕРЕСВЕЧЕННЫМ: RGB(88,162,255) вместо
+// привычного RGB(0,100,210). Отдельная фикстура, потому что именно на ней
+// метрики расходятся в выводах, а не только в числах.
+const WASHED_REF_RGB: Record<string, RGB> = {
+  U: [183, 208, 224],
+  R: [255, 61, 61],
+  F: [0, 203, 114],
+  D: [200, 207, 61],
+  L: [255, 121, 48],
+  B: [88, 162, 255],
+};
+const WASHED_REFS = Object.fromEntries(
+  Object.entries(WASHED_REF_RGB).map(([k, v]) => [k, rgb2lab(v)]),
+) as unknown as Refs;
+
+describe("самая тесная пара эталонов", () => {
+  // Живой прогон 2026-08-20. Отчёт называл красный–оранжевый, а классификатор
+  // в это время был ближе всего к тому, чтобы спутать белый с синим.
+  it("обычная метрика и метрика выбора называют РАЗНЫЕ пары", () => {
+    const plain = minSeparation(WASHED_REFS);
+    const classify = minSeparation(WASHED_REFS, config.DELTA_E_MODE, deltaEClassify);
+
+    expect(`${plain.a}-${plain.b}`).toBe("R-L");
+    expect(`${classify.a}-${classify.b}`).toBe("U-B");
+    expect(classify.de).toBeLessThan(plain.de);
+  });
+
+  it("вердикт калибровки считается по метрике выбора", () => {
+    // Порог такой, что обычная метрика набор пропустила бы (16.8 > 16), а
+    // решающая — нет (14.5 < 16). Вердикт обязан следовать за решающей.
+    const problem = checkCalibration(WASHED_REFS, config.CALIB_WHITE_LIGHTNESS_SLACK, 16);
+    expect(problem?.kind).toBe("collapsed");
+    if (problem?.kind === "collapsed") {
+      expect([problem.a, problem.b].sort().join("-")).toBe("B-U");
+    }
+  });
+
+  it("здоровый набор проходит обе метрики", () => {
+    expect(checkCalibration(REFS)).toBeNull();
+    expect(minSeparation(REFS, config.DELTA_E_MODE, deltaEClassify).de).toBeGreaterThan(
+      config.CALIB_MIN_SEPARATION_DE,
+    );
   });
 });

@@ -45,6 +45,7 @@ import {
 } from "../vision/guide";
 import {
   COLOR_NAMES,
+  deltaEClassify,
   lab2rgb,
   anchorDistances,
   minSeparation,
@@ -630,8 +631,14 @@ export function useAccuracySession(): AccuracySession {
     const refs = reader.getProfile();
     if (refs) {
       const sep = minSeparation(refs);
+      // Второе число — той метрикой, которой чтение и решает (ослабленная
+      // светлота). Они расходятся, и расходятся содержательно: на пересвеченном
+      // синем обычная метрика называет самой тесной парой красный с оранжевым,
+      // а решающая — белый с синим. Печатать только первое значит показывать
+      // человеку не ту пару.
+      const sepClassify = minSeparation(refs, config.DELTA_E_MODE, deltaEClassify);
       const anchors = anchorDistances(refs);
-      const near = nearestNeighbours(refs);
+      const near = nearestNeighbours(refs, config.DELTA_E_MODE, deltaEClassify);
       const lines = ["", "=== Эталоны калибровки (что камера сняла как цвета) ==="];
       for (const n of COLOR_NAMES) {
         const lab = refs[n];
@@ -646,9 +653,10 @@ export function useAccuracySession(): AccuracySession {
       // расходилась с вердиктом (CALIB_MIN_SEPARATION_DE=10) — на 12.7 текст
       // пугал, вердикт пропускал, и человек не знал, какому числу верить.
       lines.push(
-        `  min попарный ΔE: ${sep.de.toFixed(1)} (${sep.a}–${sep.b}) ` +
-          `(порог вердикта ${config.CALIB_MIN_SEPARATION_DE} — ниже него эталоны слиплись, ` +
-          `камера не различает цвета)`,
+        `  min попарный ΔE: ${sep.de.toFixed(1)} (${sep.a}–${sep.b})` +
+          `, в метрике выбора: ${sepClassify.de.toFixed(1)} (${sepClassify.a}–${sepClassify.b})` +
+          ` — вердикт считается по второму (порог ${config.CALIB_MIN_SEPARATION_DE}: ниже него ` +
+          `классификатор эти два цвета путает). «Ближайший сосед» выше — тоже метрикой выбора.`,
       );
       // Расстояние до анкора само по себе НЕ повод отказать: на живой камере
       // рабочие синий/зелёный уходили от анкора дальше, чем испорченный белый.
