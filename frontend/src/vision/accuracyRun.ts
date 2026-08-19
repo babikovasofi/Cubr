@@ -29,6 +29,12 @@ export const WILSON_Z = 1.96;
 /** Minimum scored reads before a condition may return a verdict (significance). */
 export const MIN_READS = 20;
 
+/**
+ * Значение `ConditionKey.mode`, означающее санити-прогон (собранный кубик).
+ * Вынесено в константу, потому что от него зависит, идёт ли условие в гейт.
+ */
+export const SANITY_MODE = "solved";
+
 /** A condition fails if more than this fraction of its reads were dropped. */
 export const MAX_DROP_RATE = 0.15;
 
@@ -134,6 +140,18 @@ export interface ConditionVerdict {
   dropRate: number;
   enoughReads: boolean;
   pass: boolean; // wilsonLower ≥ passFrac AND enoughReads AND dropRate ≤ MAX
+  /**
+   * Идёт ли условие в гейт. Санити (`mode === "solved"`) — НЕ идёт.
+   *
+   * На собранном кубике грань однотонная: красный никогда не лежит рядом с
+   * оранжевым в одном кадре, белый — рядом с жёлтым, и промах сетки на соседнюю
+   * наклейку того же цвета невидим. Санити доказывает, что установка жива, и
+   * ровно ничего не говорит про R1 — риск, ради которого гейт существует.
+   * Живая сессия 2026-08-20 показала, зачем это выносить в код: семь чистых
+   * санити-чтений подряд (378 наклеек, ноль ошибок) выглядели как движение к
+   * цели, а к цели не относились вовсе.
+   */
+  countsTowardGate: boolean;
 }
 
 export interface GateResult {
@@ -141,6 +159,8 @@ export interface GateResult {
   conditions: ConditionVerdict[];
   min: ConditionVerdict | null; // worst-condition verdict (drives the gate)
   passFrac: number;
+  /** Ни одного условия, идущего в гейт: сняты только санити. */
+  sanityOnly: boolean;
 }
 
 export interface HotspotCount {
@@ -302,6 +322,7 @@ export function conditionVerdict(
     nScored: acc.nScored,
     nDropped: acc.nDropped,
     dropRate,
+    countsTowardGate: !isSanityCondition(acc.key),
     enoughReads,
     pass,
   };
@@ -312,17 +333,26 @@ export function conditionVerdict(
  * EVERY condition passes. A pooled mean would let a strong condition mask a
  * failing one — forbidden.
  */
+/** Санити-условие: эталон — собранный кубик, адъяцентности не тестятся. */
+export function isSanityCondition(key: ConditionKey): boolean {
+  return key.mode === SANITY_MODE;
+}
+
 export function gatePass(
   run: AccuracyRun,
   passFrac: number = config.ACCURACY_PASS_FRAC,
 ): GateResult {
   const conditions = [...run.values()].map((acc) => conditionVerdict(acc, passFrac));
+  // Гейт считается ТОЛЬКО по условиям со скрамблом. Санити не входит ни в
+  // вердикт, ни в «худшее условие»: включить его значило бы позволить набрать
+  // красивую цифру на кубике, где спорных соседств не бывает.
+  const counted = conditions.filter((c) => c.countsTowardGate);
   let min: ConditionVerdict | null = null;
-  for (const c of conditions) {
+  for (const c of counted) {
     if (min === null || c.wilsonLower < min.wilsonLower) min = c;
   }
-  const pass = conditions.length > 0 && conditions.every((c) => c.pass);
-  return { pass, conditions, min, passFrac };
+  const pass = counted.length > 0 && counted.every((c) => c.pass);
+  return { pass, conditions, min, passFrac, sanityOnly: counted.length === 0 };
 }
 
 // --- Hotspots ----------------------------------------------------------------
@@ -391,6 +421,17 @@ export function formatRunSummary(
   lines.push(
     `Gate (min-over-conditions, Wilson-LB ≥ ${pct(passFrac)}): ${gate.pass ? "PASS" : "FAIL"}`,
   );
+  // Сказать это ПЕРВОЙ строкой после вердикта, а не спрятать в примечании:
+  // человек, набравший двадцать чистых санити-чтений, обязан узнать, что он
+  // измерил живость установки, а не то, ради чего гейт существует.
+  if (gate.sanityOnly && gate.conditions.length > 0) {
+    lines.push(
+      `Сняты только санити-условия (эталон «${SANITY_MODE}») — гейт по ним не закрывается ` +
+        "ни при каком числе чтений: на собранном кубике красный не лежит рядом с оранжевым, " +
+        "а белый — рядом с жёлтым, и адъяцентности (риск R1) остаются непроверенными. " +
+        "Нужны чтения в режиме «Известный скрамбл».",
+    );
+  }
   const dropReasonsOf = (r: AccuracyRun, key: ConditionKey): string => {
     const acc = r.get(condKeyString(key));
     const entries = Object.entries(acc?.dropReasons ?? {}).filter(([, n]) => n > 0);
@@ -406,10 +447,17 @@ export function formatRunSummary(
   for (const c of gate.conditions) {
     const k = c.key;
     const flags: string[] = [];
-    if (!c.enoughReads) flags.push(`нужно ≥${MIN_READS} чтений`);
-    if (c.dropRate > MAX_DROP_RATE) flags.push(`drop ${pct(c.dropRate)} > ${pct(MAX_DROP_RATE)}`);
+    // У санити «нужно ещё N чтений» — вредная подсказка: она обещает, что
+    // добор чтений что-то закроет. Не закроет.
+    if (!c.countsTowardGate) {
+      flags.push("санити: проверяет установку, в гейт не идёт");
+    } else {
+      if (!c.enoughReads) flags.push(`нужно ≥${MIN_READS} чтений`);
+      if (c.dropRate > MAX_DROP_RATE) flags.push(`drop ${pct(c.dropRate)} > ${pct(MAX_DROP_RATE)}`);
+    }
+    const verdict = c.countsTowardGate ? (c.pass ? "PASS" : "FAIL") : "САНИТИ";
     lines.push(
-      `  [${c.pass ? "PASS" : "FAIL"}] ${k.mode} | ${k.grip} | ${k.light} | ${k.cube} | ${k.person} | ${k.calib}: ` +
+      `  [${verdict}] ${k.mode} | ${k.grip} | ${k.light} | ${k.cube} | ${k.person} | ${k.calib}: ` +
         `${pct(c.fraction)} (Wilson-LB ${pct(c.wilsonLower)}), ` +
         `n=${c.nScored}, drop=${c.nDropped} (${pct(c.dropRate)})` +
         // Гистограмма причин копилась с первого дня и никуда не печаталась.
@@ -424,8 +472,8 @@ export function formatRunSummary(
     const m = gate.min;
     lines.push("");
     lines.push(
-      `Худшее условие: ${m.key.mode} | ${m.key.grip} | ${m.key.light} | ${m.key.cube} | ${m.key.person} — ` +
-        `Wilson-LB ${pct(m.wilsonLower)}`,
+      `Худшее условие (из идущих в гейт): ${m.key.mode} | ${m.key.grip} | ${m.key.light} | ` +
+        `${m.key.cube} | ${m.key.person} — Wilson-LB ${pct(m.wilsonLower)}`,
     );
   }
   const hs = runHotspots(run);
