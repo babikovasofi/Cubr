@@ -22,7 +22,7 @@ from fastapi_users.authentication import (
     CookieTransport,
     JWTStrategy,
 )
-from fastapi_users.exceptions import InvalidPasswordException
+from fastapi_users.exceptions import InvalidPasswordException, UserAlreadyExists
 from fastapi_users.password import PasswordHelper
 from fastapi_users_db_sqlalchemy import SQLAlchemyUserDatabase
 from httpx_oauth.clients.google import GoogleOAuth2
@@ -239,6 +239,34 @@ class UserManager(UUIDIDMixin, BaseUserManager[User, uuid.UUID]):
         # Only trust associate-by-email / auto-verify when the provider actually
         # verified the address — otherwise this is an account-takeover vector.
         provider_verified = await google_email_verified(access_token)
+
+        # Второй замок, на другую половину той же атаки.
+        #
+        # Проверка выше отвечает за сторону Google. Но связывание по адресу
+        # смотрит и на НАШУ запись, а fastapi-users, найдя локального
+        # пользователя с тем же адресом, привязывает OAuth к нему, не спрашивая,
+        # подтверждён ли тот аккаунт. Отсюда классический pre-hijack:
+        # злоумышленник заранее регистрирует парольный аккаунт на чужой адрес
+        # (подтверждение адреса ничего не требует и в проде пока не работает
+        # вовсе — RESEND_API_KEY пуст), знает от него пароль; позже владелец
+        # адреса входит через Google, адреса совпадают — и его вход приземляется
+        # в аккаунт злоумышленника, вместе со сборками, дуэлями и профилем.
+        #
+        # Поэтому связываем по адресу ТОЛЬКО с подтверждённой локальной записью.
+        # Неподтверждённая — отказ с той же ошибкой, что и «адрес занят»: человек
+        # видит «войди паролем», а не молча попадает в чужой аккаунт.
+        #
+        # Аккаунт, УЖЕ связанный с этим провайдером, проверку не проходит: это
+        # не связывание, а повторный вход, и владение адресом доказано ровно тем
+        # же способом, что и в прошлый раз.
+        if associate_by_email:
+            existing = await self.user_db.get_by_email(account_email)
+            already_linked = existing is not None and any(
+                a.oauth_name == oauth_name for a in getattr(existing, "oauth_accounts", [])
+            )
+            if existing is not None and not already_linked and not existing.is_verified:
+                raise UserAlreadyExists()
+
         user = await super().oauth_callback(
             oauth_name,
             access_token,
