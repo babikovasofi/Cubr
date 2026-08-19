@@ -291,7 +291,13 @@ describe("auto-orientation (plan #6)", () => {
     expect(res.faces).toEqual([...FACE_ORDER]);
     // Сдвиг ощутимый: центры ушли далеко от эталонов, и всё равно все шесть
     // опознаны — потому что ушли ВМЕСТЕ.
-    expect(res.medianDE).toBeGreaterThan(15);
+    //
+    // Порог 10, а не 15, с тех пор как раскладка считается метрикой ВЫБОРА
+    // (colors.deltaEClassify, ослабленная светлота). Этот сдвиг — приглушённый
+    // свет, то есть почти чистая светлота, и метрика теперь оценивает его
+    // мягче: замерено 12.1 против 15.2 у обычной. Ослабление ровно такое и
+    // задумано; проверяемое поведение — «все шесть опознаны» — не изменилось.
+    expect(res.medianDE).toBeGreaterThan(10);
   });
 
   it("assignFacesByCenter still refuses the ONE capture that breaks ranks", () => {

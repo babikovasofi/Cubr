@@ -6,7 +6,7 @@ import {
   COLOR_NAMES,
   assignQuota,
   cellWeight,
-  deltaE,
+  deltaEClassify,
   rgb2lab,
   type ColorName,
   type Lab,
@@ -166,7 +166,11 @@ function costMatrix(
 ): { costs: number[][]; idx: number[] } {
   const idx: number[] = [];
   for (let i = 0; i < labs.length; i++) if (!skip.has(i)) idx.push(i);
-  return { costs: idx.map((i) => COLOR_NAMES.map((n) => deltaE(labs[i], refs[n]))), idx };
+  // Той же метрикой, что и сам `assignQuota` (выбор цвета — ослабленная
+  // светлота, colors.deltaEClassify). Считать «оптимум» одной метрикой, а
+  // алгоритм гонять по другой значит сравнивать разные задачи и получать
+  // «оптимум хуже жадности» на ровном месте.
+  return { costs: idx.map((i) => COLOR_NAMES.map((n) => deltaEClassify(labs[i], refs[n]))), idx };
 }
 
 describe("assignQuota on a real 54-sticker deck", () => {

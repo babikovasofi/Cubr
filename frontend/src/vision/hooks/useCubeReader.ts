@@ -14,6 +14,7 @@ import {
   deltaE,
   robustCellColor,
   skinFraction,
+  deltaEClassify,
   fitColorMatrix,
   applyColorMatrix,
   lab2rgb,
@@ -204,7 +205,9 @@ function argminRef(lab: Lab, refs: Refs): ColorName {
   let best = COLOR_NAMES[0];
   let bestD = Infinity;
   for (const name of COLOR_NAMES) {
-    const d = deltaE(lab, refs[name]);
+    // Метрика ВЫБОРА (ослабленная светлота, colors.deltaEClassify): вопрос
+    // «какой из шести», а не «наклейка ли это вообще».
+    const d = deltaEClassify(lab, refs[name]);
     if (d < bestD) {
       bestD = d;
       best = name;
@@ -276,11 +279,22 @@ export function stickerConfidence(
   lab: Lab,
   refs: Refs,
 ): { best: ColorName; margin: number; d: number } {
+  // ДВЕ метрики в одной функции, и это не небрежность.
+  //
+  // `best` и `margin` отвечают на вопрос «какой из шести и уверенно ли» —
+  // метрика выбора с ослабленной светлотой (colors.deltaEClassify), иначе
+  // ярко освещённая синяя наклейка «уверенно» окажется белой.
+  //
+  // `d` отвечает на другой вопрос — «принадлежит ли этот цвет кубику вообще»,
+  // и его решает как раз светлота: тёмная щель и серый стол отличаются от
+  // наклеек в первую очередь ею. Поэтому `d` считается обычной метрикой, и
+  // пороги `STICKER_MAX_DELTA_E` / `FACE_MAX_MEDIAN_DE`, калиброванные на ней,
+  // продолжают значить ровно то, что значили.
   let best: ColorName = COLOR_NAMES[0];
   let d1 = Infinity;
   let d2 = Infinity;
   for (const name of COLOR_NAMES) {
-    const d = deltaE(lab, refs[name]);
+    const d = deltaEClassify(lab, refs[name]);
     if (d < d1) {
       d2 = d1;
       d1 = d;
@@ -289,7 +303,7 @@ export function stickerConfidence(
       d2 = d;
     }
   }
-  return { best, margin: d2 - d1, d: d1 };
+  return { best, margin: d2 - d1, d: deltaE(lab, refs[best]) };
 }
 
 /**
@@ -467,7 +481,7 @@ function resolveSixFaces(samples: FaceSample[], refs: Refs): SixFaceResolve {
       // белый, выглядят в отчёте как «белый» и «оранжевый ΔE 37», и понять,
       // что камера увидела два белых, невозможно.
       own: samples.map((sm) => argminRef(sm.lab[4], refs) as Face),
-      ownDes: samples.map((sm) => deltaE(sm.lab[4], refs[argminRef(sm.lab[4], refs)])),
+      ownDes: samples.map((sm) => deltaEClassify(sm.lab[4], refs[argminRef(sm.lab[4], refs)])),
       rgb: samples.map((sm) => sm.rgb[4]),
     },
   };
@@ -664,9 +678,12 @@ function cellDiagnostics(faces: FaceSample[], refs: Refs): CellDiag[] {
   const out: CellDiag[] = [];
   for (const face of faces) {
     for (let c = 0; c < 9; c++) {
+      // Той же метрикой, что и решение: диагностика, посчитанная другой,
+      // печатала бы «прочитано U, а ближайший B» — ровно то враньё, из-за
+      // которого её однажды уже чинили.
       const ranked = COLOR_NAMES.map((name) => ({
         name: name as string,
-        de: deltaE(face.lab[c], refs[name]),
+        de: deltaEClassify(face.lab[c], refs[name]),
       })).sort((a, b) => a.de - b.de);
       const [r, g, b] = face.rgb[c];
       out.push({
