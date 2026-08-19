@@ -47,6 +47,9 @@ class UserRead(schemas.BaseUser[UUID]):
     # Витрина: видна только владельцу (публичных профилей нет).
     method: SolvingMethod | None = None
     cubing_since_year: int | None = None
+    # Прошёл ли человек онбординг. `null` — ещё нет, и фронт ведёт его по шагам.
+    # Отдаётся только владельцу (`/users/me`), как и остальные поля выше.
+    onboarded_at: datetime | None = None
 
 
 class UserCreate(schemas.BaseUserCreate):

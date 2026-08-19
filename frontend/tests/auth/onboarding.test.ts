@@ -1,8 +1,15 @@
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { postLoginPath } from "../../src/auth/onboarding";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { hasOnboarded, postLoginPath, syncOnboarded } from "../../src/auth/onboarding";
+import type { UserRead } from "../../src/api/auth";
+
+const markOnServer = vi.fn();
+vi.mock("../../src/api/auth", () => ({
+  markOnboardedOnServer: () => markOnServer(),
+}));
 
 // vitest runs in node (no DOM) — provide a minimal localStorage stub.
 beforeEach(() => {
+  markOnServer.mockReset();
   const store = new Map<string, string>();
   globalThis.localStorage = {
     getItem: (k: string) => store.get(k) ?? null,
@@ -18,23 +25,69 @@ afterEach(() => {
   delete (globalThis as { localStorage?: Storage }).localStorage;
 });
 
+function user(onboardedAt: string | null): UserRead {
+  return { onboarded_at: onboardedAt } as UserRead;
+}
+
 describe("postLoginPath", () => {
   it("returns a safe local next path", () => {
-    expect(postLoginPath("/profile")).toBe("/profile");
-    expect(postLoginPath("/solo?x=1")).toBe("/solo?x=1");
+    expect(postLoginPath("/profile", null)).toBe("/profile");
+    expect(postLoginPath("/solo?x=1", null)).toBe("/solo?x=1");
   });
 
   it("rejects open-redirect targets and falls back", () => {
-    localStorage.setItem("cubr_onboarded", "1"); // fallback = "/"
-    expect(postLoginPath("//evil.com")).toBe("/");
-    expect(postLoginPath("https://evil.com")).toBe("/");
-    expect(postLoginPath("http://evil.com")).toBe("/");
-    expect(postLoginPath("javascript:alert(1)")).toBe("/");
+    const done = user("2026-08-20T00:00:00Z");
+    expect(postLoginPath("//evil.com", done)).toBe("/");
+    expect(postLoginPath("https://evil.com", done)).toBe("/");
+    expect(postLoginPath("http://evil.com", done)).toBe("/");
+    expect(postLoginPath("javascript:alert(1)", done)).toBe("/");
   });
 
-  it("first-timer with no next goes to onboarding, returning user goes home", () => {
-    expect(postLoginPath(null)).toBe("/onboarding");
+  // Решение принимает СЕРВЕРНЫЙ признак. Локальный флаг отвечал на вопрос
+  // «показывали ли в этом браузере», из-за чего новый аккаунт в уже
+  // использованном браузере онбординг пропускал (поймано 2026-08-20 на первом
+  // входе через Google).
+  it("ведёт по серверному признаку, а не по флагу браузера", () => {
+    localStorage.setItem("cubr_onboarded", "1"); // чужой след в этом браузере
+    expect(postLoginPath(null, user(null))).toBe("/onboarding");
+    expect(postLoginPath(null, user("2026-08-20T00:00:00Z"))).toBe("/");
+  });
+
+  it("аноним без пользователя считается непрошедшим", () => {
+    expect(postLoginPath(null, null)).toBe("/onboarding");
+    expect(hasOnboarded(null)).toBe(false);
+  });
+});
+
+describe("syncOnboarded — перенос старого локального флага", () => {
+  it("отмечает на сервере того, кто проходил онбординг до серверного признака", async () => {
     localStorage.setItem("cubr_onboarded", "1");
-    expect(postLoginPath(null)).toBe("/");
+    const stamped = user("2026-08-20T00:00:00Z");
+    markOnServer.mockResolvedValue(stamped);
+
+    expect(await syncOnboarded(user(null))).toBe(stamped);
+    expect(markOnServer).toHaveBeenCalledTimes(1);
+  });
+
+  it("не трогает сервер, если локального следа нет", async () => {
+    const fresh = user(null);
+    expect(await syncOnboarded(fresh)).toBe(fresh);
+    expect(markOnServer).not.toHaveBeenCalled();
+  });
+
+  it("не трогает сервер, если признак уже стоит", async () => {
+    localStorage.setItem("cubr_onboarded", "1");
+    const done = user("2026-08-20T00:00:00Z");
+    expect(await syncOnboarded(done)).toBe(done);
+    expect(markOnServer).not.toHaveBeenCalled();
+  });
+
+  // Перенос — удобство, а не условие входа: упавшая сеть не должна ронять
+  // загрузку профиля.
+  it("ошибка переноса не ломает вход", async () => {
+    localStorage.setItem("cubr_onboarded", "1");
+    markOnServer.mockRejectedValue(new Error("network"));
+    const before = user(null);
+    expect(await syncOnboarded(before)).toBe(before);
   });
 });

@@ -19,6 +19,7 @@ import CubeRegisterWizard from "../cubes/CubeRegisterWizard";
 import PublicHandleField from "../profile/PublicHandleField";
 import { useCameraCheck } from "../onboarding/useCameraCheck";
 import { markOnboarded } from "../auth/onboarding";
+import { markOnboardedOnServer } from "../api/auth";
 import { useAuthStore } from "../store/authStore";
 import { ApiError } from "../api/client";
 import { useT } from "../i18n/t";
@@ -31,7 +32,14 @@ export default function OnboardingPage() {
   const [step, setStep] = useState(0);
 
   function finish() {
+    // Локальный ключ остаётся как кэш для переноса; решение принимает сервер,
+    // поэтому отмечаем и там. Отметка идемпотентна, ответ ждать незачем: если
+    // запрос не дойдёт, человек увидит онбординг ещё раз — это переживаемо, а
+    // застрявшая кнопка «Готово» нет.
     markOnboarded();
+    void markOnboardedOnServer()
+      .then((user) => useAuthStore.setState({ user }))
+      .catch(() => {});
     navigate("/", { replace: true });
   }
 

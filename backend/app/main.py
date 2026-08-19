@@ -12,6 +12,7 @@ from app.config import get_settings
 from app.routers import (
     auth,
     badges,
+    onboarding,
     cubes,
     daily,
     duel,
@@ -89,5 +90,6 @@ app.include_router(tournament.router)
 app.include_router(daily.router)
 app.include_router(duel.router)
 app.include_router(friends.router)
+app.include_router(onboarding.router)
 app.include_router(badges.router)
 app.include_router(funnel.router)

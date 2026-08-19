@@ -8,6 +8,7 @@
 
 import { create } from "zustand";
 import { ApiError } from "../api/client";
+import { syncOnboarded } from "../auth/onboarding";
 import * as authApi from "../api/auth";
 import type { UserRead, UserUpdate } from "../api/auth";
 
@@ -30,7 +31,11 @@ let bootstrapInFlight: Promise<void> | null = null;
 async function loadMe(set: (s: Partial<AuthState>) => void): Promise<void> {
   try {
     const user = await authApi.getMe();
-    set({ user, status: "authed" });
+    // Перенос старого локального флага онбординга на сервер — один раз, молча,
+    // и только для тех, кто проходил его до появления серверного признака.
+    // Ошибка переноса ничего не ломает: человек в худшем случае увидит
+    // онбординг ещё раз (см. auth/onboarding.ts).
+    set({ user: await syncOnboarded(user), status: "authed" });
   } catch (e) {
     if (e instanceof ApiError && e.status === 401) {
       set({ user: null, status: "anon" });
