@@ -23,6 +23,11 @@ export interface UserRead {
   // на бордах живёт лишь `public_handle`.
   method: SolvingMethod | null;
   cubing_since_year: number | null;
+  // Когда человек прошёл онбординг; null — ещё не проходил. Признак СЕРВЕРНЫЙ:
+  // локальный флаг отвечал на вопрос «показывали ли в этом браузере», из-за
+  // чего новый аккаунт в старом браузере онбординг пропускал, а тот же человек
+  // со второго устройства получал его заново.
+  onboarded_at: string | null;
 }
 
 /** Закрытый список: свободный текст тут ничего не добавляет. Зеркалит бэкенд. */
@@ -34,6 +39,11 @@ export interface UserUpdate {
   public_handle?: string | null;
   method?: SolvingMethod | null;
   cubing_since_year?: number | null;
+}
+
+/** Отметить онбординг пройденным. Идемпотентно: первая отметка выигрывает. */
+export function markOnboardedOnServer(): Promise<UserRead> {
+  return request<UserRead>("/users/me/onboarded", { method: "POST" });
 }
 
 export function register(email: string, password: string, nickname?: string): Promise<UserRead> {

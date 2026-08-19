@@ -36,7 +36,7 @@ export default function OAuthCallbackPage() {
       return;
     }
     refreshMe()
-      .then(() => navigate(postLoginPath(null), { replace: true }))
+      .then(() => navigate(postLoginPath(null, useAuthStore.getState().user), { replace: true }))
       .catch(() => setError(t("Вход прошёл, но не удалось загрузить профиль. Попробуй обновить.")));
   }, [ok, errCode, refreshMe, navigate]);
 
