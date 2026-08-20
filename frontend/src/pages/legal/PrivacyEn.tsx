@@ -9,7 +9,7 @@ import { Link } from "react-router-dom";
 import { DocPage, DocSection, DocList } from "../../components/DocPage";
 
 // TODO(stage 6, deploy): replace with the project's real mailbox on its own domain.
-const CONTACT_EMAIL = "privacy@cubr.app";
+const CONTACT_EMAIL = "privacy@cubr-game.ru";
 
 export default function PrivacyEn() {
   return (
