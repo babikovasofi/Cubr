@@ -4,6 +4,7 @@
 
 import { useEffect } from "react";
 import { create } from "zustand";
+import { useT } from "../i18n/t";
 
 export type ToastKind = "info" | "success" | "error";
 
@@ -38,10 +39,13 @@ const KIND_ACCENT: Record<ToastKind, string> = {
 };
 
 function ToastRow({ item }: { item: ToastItem }) {
+  const t = useT();
   const dismiss = useToastStore((s) => s.dismiss);
   useEffect(() => {
-    const t = setTimeout(() => dismiss(item.id), 4000);
-    return () => clearTimeout(t);
+    // `timer`, а не `t`: короткое имя занято переводчиком, и совпадение здесь
+    // сломало бы подпись кнопки молча — тип у обоих подходит по месту вызова.
+    const timer = setTimeout(() => dismiss(item.id), 4000);
+    return () => clearTimeout(timer);
   }, [item.id, dismiss]);
 
   return (
@@ -53,7 +57,7 @@ function ToastRow({ item }: { item: ToastItem }) {
       <button
         type="button"
         onClick={() => dismiss(item.id)}
-        aria-label="Закрыть"
+        aria-label={t("Закрыть")}
         className="ml-auto font-sans text-small font-bold text-muted"
       >
         ✕
