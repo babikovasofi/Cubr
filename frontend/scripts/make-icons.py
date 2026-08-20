@@ -56,25 +56,44 @@ def rounded_square(x: float, y: float, size: float, radius: float) -> object:
     return inside
 
 
+def geometry(size: float) -> dict[str, float]:
+    """Геометрия иконки в долях стороны — один источник для PNG и для SVG.
+
+    Раньше SVG был написан руками, и числа разошлись с этим скриптом: шаг ячеек
+    143 при размере 119 давал отступ 69 слева и 38 справа. PNG при этом был
+    симметричным, а во вкладке браузер показывает SVG — то есть кривым было
+    ровно то, что видно.
+    """
+    pad = size * 0.06  # поле вокруг корпуса
+    body = size - 2 * pad
+    border = body * 0.085  # рамка корпуса вокруг сетки
+    gap = body * 0.055  # шов между наклейками
+    cell = (body - 2 * border - 2 * gap) / 3
+    return {
+        "pad": pad,
+        "body": body,
+        "body_r": body * 0.22,
+        "border": border,
+        "gap": gap,
+        "cell": cell,
+        "cell_r": cell * 0.24,
+        "step": cell + gap,
+        "origin": pad + border,
+    }
+
+
 def render(size: int) -> bytearray:
     """RGBA-буфер иконки заданного размера."""
     big = size * SS
-    # Геометрия в долях стороны — чтобы иконка выглядела одинаково в 16 и в 512.
-    pad = big * 0.06  # поле вокруг корпуса
-    body = big - 2 * pad
-    body_r = body * 0.22
-    gap = body * 0.055  # шов между наклейками
-    border = body * 0.085  # рамка корпуса вокруг сетки
-    cell = (body - 2 * border - 2 * gap) / 3
-    cell_r = cell * 0.24
+    g = geometry(big)
 
-    in_body = rounded_square(pad, pad, body, body_r)
+    in_body = rounded_square(g["pad"], g["pad"], g["body"], g["body_r"])
     cells = []
     for r in range(3):
         for c in range(3):
-            cx = pad + border + c * (cell + gap)
-            cy = pad + border + r * (cell + gap)
-            cells.append((rounded_square(cx, cy, cell, cell_r), FACE[r][c]))
+            cx = g["origin"] + c * g["step"]
+            cy = g["origin"] + r * g["step"]
+            cells.append((rounded_square(cx, cy, g["cell"], g["cell_r"]), FACE[r][c]))
 
     # Накапливаем в размере ×4, потом усредняем блоками SS×SS.
     acc = [[(0, 0, 0, 0)] * big for _ in range(big)]
@@ -153,6 +172,37 @@ def write_ico(path: Path, png_bytes: bytes, size: int) -> None:
     path.write_bytes(header + entry + png_bytes)
 
 
+def write_svg(path: Path) -> None:
+    """SVG той же геометрии. Именно его показывает вкладка браузера."""
+    size = 512.0
+    g = geometry(size)
+    rects = []
+    for r in range(3):
+        for c in range(3):
+            x = g["origin"] + c * g["step"]
+            y = g["origin"] + r * g["step"]
+            colour = "#%02x%02x%02x" % FACE[r][c]
+            rects.append(
+                f'    <rect x="{x:.2f}" y="{y:.2f}" width="{g["cell"]:.2f}" '
+                f'height="{g["cell"]:.2f}" rx="{g["cell_r"]:.2f}" fill="{colour}"/>'
+            )
+    ink = "#%02x%02x%02x" % INK
+    body = "\n".join(rects)
+    path.write_text(
+        '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img"\n'
+        '     aria-label="Cubr">\n'
+        "  <!-- СГЕНЕРИРОВАНО scripts/make-icons.py — руками не править.\n"
+        "       Геометрия общая с PNG-версиями (см. geometry()), палитра — из\n"
+        "       src/index.css. Раскладка не собранная: одноцветный квадрат не\n"
+        "       читается как кубик. -->\n"
+        f'  <rect x="{g["pad"]:.2f}" y="{g["pad"]:.2f}" width="{g["body"]:.2f}" '
+        f'height="{g["body"]:.2f}" rx="{g["body_r"]:.2f}" fill="{ink}"/>\n'
+        f"{body}\n"
+        "</svg>\n",
+        encoding="utf-8",
+    )
+
+
 def main() -> None:
     public = Path(__file__).resolve().parent.parent / "public"
     public.mkdir(exist_ok=True)
@@ -163,6 +213,9 @@ def main() -> None:
 
     write_ico(public / "favicon.ico", (public / "favicon-32.png").read_bytes(), 32)
     print("wrote favicon.ico")
+
+    write_svg(public / "favicon.svg")
+    print("wrote favicon.svg")
 
 
 if __name__ == "__main__":

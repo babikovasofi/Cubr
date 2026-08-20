@@ -1,19 +1,17 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Cubr">
-  <!-- Грань кубика в палитре интерфейса (src/index.css) плюс классический
-       оранжевый, которого в токенах нет — ему негде было понадобиться.
-       Раскладка НЕ собранная: собранная грань это одноцветный квадрат, по
-       которому не понять, что это кубик. Геометрия совпадает с PNG-версиями,
-       см. scripts/make-icons.py. -->
-  <rect width="512" height="512" rx="99" fill="#221e17"/>
-  <g>
-    <rect x="69" y="69" width="119" height="119" rx="29" fill="#c41e3a"/>
-    <rect x="212" y="69" width="119" height="119" rx="29" fill="#fbf8f1"/>
-    <rect x="355" y="69" width="119" height="119" rx="29" fill="#0051ba"/>
-    <rect x="69" y="212" width="119" height="119" rx="29" fill="#ffcf00"/>
-    <rect x="212" y="212" width="119" height="119" rx="29" fill="#009e60"/>
-    <rect x="355" y="212" width="119" height="119" rx="29" fill="#ff5800"/>
-    <rect x="69" y="355" width="119" height="119" rx="29" fill="#0051ba"/>
-    <rect x="212" y="355" width="119" height="119" rx="29" fill="#ff5800"/>
-    <rect x="355" y="355" width="119" height="119" rx="29" fill="#fbf8f1"/>
-  </g>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img"
+     aria-label="Cubr">
+  <!-- СГЕНЕРИРОВАНО scripts/make-icons.py — руками не править.
+       Геометрия общая с PNG-версиями (см. geometry()), палитра — из
+       src/index.css. Раскладка не собранная: одноцветный квадрат не
+       читается как кубик. -->
+  <rect x="30.72" y="30.72" width="450.56" height="450.56" rx="99.12" fill="#221e17"/>
+    <rect x="69.02" y="69.02" width="108.13" height="108.13" rx="25.95" fill="#c41e3a"/>
+    <rect x="201.93" y="69.02" width="108.13" height="108.13" rx="25.95" fill="#fbf8f1"/>
+    <rect x="334.85" y="69.02" width="108.13" height="108.13" rx="25.95" fill="#0051ba"/>
+    <rect x="69.02" y="201.93" width="108.13" height="108.13" rx="25.95" fill="#ffcf00"/>
+    <rect x="201.93" y="201.93" width="108.13" height="108.13" rx="25.95" fill="#009e60"/>
+    <rect x="334.85" y="201.93" width="108.13" height="108.13" rx="25.95" fill="#ff5800"/>
+    <rect x="69.02" y="334.85" width="108.13" height="108.13" rx="25.95" fill="#0051ba"/>
+    <rect x="201.93" y="334.85" width="108.13" height="108.13" rx="25.95" fill="#ff5800"/>
+    <rect x="334.85" y="334.85" width="108.13" height="108.13" rx="25.95" fill="#fbf8f1"/>
 </svg>
