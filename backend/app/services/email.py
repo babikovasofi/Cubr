@@ -12,6 +12,7 @@ import re
 import httpx
 
 from app.config import Settings, get_settings
+from app.services import email_template
 
 logger = logging.getLogger("cubr.email")
 
@@ -38,17 +39,28 @@ _RESEND_ENDPOINT = "https://api.resend.com/emails"
 _BREVO_ENDPOINT = "https://api.brevo.com/v3/smtp/email"
 
 
-async def _post_resend(settings: Settings, to: str, subject: str, html: str) -> None:
+async def _post_resend(
+    settings: Settings, to: str, subject: str, html: str, text: str = ""
+) -> None:
     async with httpx.AsyncClient(timeout=10.0) as client:
         resp = await client.post(
             _RESEND_ENDPOINT,
             headers={"Authorization": f"Bearer {settings.RESEND_API_KEY}"},
-            json={"from": settings.EMAIL_FROM, "to": [to], "subject": subject, "html": html},
+            json={
+                "from": settings.EMAIL_FROM,
+                "to": [to],
+                "subject": subject,
+                "html": html,
+                # Текстовая часть рядом с HTML — не украшение: письмо без неё
+                # получает штраф у спам-фильтров, а часть людей читает почту в
+                # клиентах, которые HTML не показывают вовсе.
+                "text": text,
+            },
         )
         resp.raise_for_status()
 
 
-async def _post_brevo(settings: Settings, to: str, subject: str, html: str) -> None:
+async def _post_brevo(settings: Settings, to: str, subject: str, html: str, text: str = "") -> None:
     async with httpx.AsyncClient(timeout=10.0) as client:
         resp = await client.post(
             _BREVO_ENDPOINT,
@@ -58,6 +70,7 @@ async def _post_brevo(settings: Settings, to: str, subject: str, html: str) -> N
                 "to": [{"email": to}],
                 "subject": subject,
                 "htmlContent": html,
+                "textContent": text,
             },
         )
         resp.raise_for_status()
@@ -83,7 +96,7 @@ def _provider_key(settings: Settings) -> str:
     return settings.BREVO_API_KEY if settings.EMAIL_PROVIDER == "brevo" else settings.RESEND_API_KEY
 
 
-async def _send(to: str, subject: str, html: str) -> None:
+async def _send(to: str, subject: str, html: str, text: str = "") -> None:
     settings = get_settings()
 
     # Провайдер не настроен — сказать об этом ГРОМКО и один раз за процесс.
@@ -100,9 +113,9 @@ async def _send(to: str, subject: str, html: str) -> None:
 
     try:
         if settings.EMAIL_PROVIDER == "brevo":
-            await _post_brevo(settings, to, subject, html)
+            await _post_brevo(settings, to, subject, html, text)
         else:
-            await _post_resend(settings, to, subject, html)
+            await _post_resend(settings, to, subject, html, text)
     except httpx.HTTPStatusError as e:
         # Провайдер ОТВЕТИЛ и отказал — причина лежит в теле ответа, и только там.
         #
@@ -129,15 +142,57 @@ async def _send(to: str, subject: str, html: str) -> None:
         logger.exception("Failed to send %r email", subject)
 
 
+# Тексты писем. Держатся рядом друг с другом намеренно: два письма про доступ к
+# аккаунту должны звучать одним голосом, а разъезжаются они как раз тогда, когда
+# лежат в разных концах файла.
+#
+# «Если это были не вы» и срок жизни ссылки есть в обоих. Письмо про доступ без
+# этих двух фраз читается как фишинг — и справедливо.
+
+_VERIFY_HEADING = "Подтвердите адрес"
+_VERIFY_INTRO = (
+    "Остался один шаг: подтвердите почту, и аккаунт готов. "
+    "Дальше можно вызвать соперника по ссылке и собирать под камерой."
+)
+_RESET_HEADING = "Новый пароль"
+_RESET_INTRO = "Вы запросили смену пароля в Cubr. Задайте новый по кнопке ниже."
+
+
 async def send_verification_email(to: str, token: str) -> None:
     settings = get_settings()
     link = f"{settings.FRONTEND_URL}/verify?token={token}"
-    html = f'<p>Welcome to Cubr! Confirm your email:</p><p><a href="{link}">{link}</a></p>'
-    await _send(to, "Confirm your Cubr email", html)
+    expires = "Ссылка действует ограниченное время — если не успели, запросите новую на сайте."
+    html = email_template.render(
+        preheader="Подтвердите адрес, чтобы закончить регистрацию в Cubr.",
+        heading=_VERIFY_HEADING,
+        intro=_VERIFY_INTRO,
+        button_label="Подтвердить адрес",
+        link=link,
+        expires_note=expires,
+        ignore_note="Если регистрацию начинали не вы, просто удалите это письмо — аккаунт "
+        "останется неподтверждённым.",
+    )
+    text = email_template.to_plain_text(
+        heading=_VERIFY_HEADING, intro=_VERIFY_INTRO, link=link, expires_note=expires
+    )
+    await _send(to, "Подтвердите адрес — Cubr", html, text)
 
 
 async def send_reset_email(to: str, token: str) -> None:
     settings = get_settings()
     link = f"{settings.FRONTEND_URL}/reset-password?token={token}"
-    html = f'<p>Reset your Cubr password:</p><p><a href="{link}">{link}</a></p>'
-    await _send(to, "Reset your Cubr password", html)
+    expires = "Ссылка действует ограниченное время — если не успели, запросите новую на сайте."
+    html = email_template.render(
+        preheader="Ссылка для смены пароля в Cubr.",
+        heading=_RESET_HEADING,
+        intro=_RESET_INTRO,
+        button_label="Задать новый пароль",
+        link=link,
+        expires_note=expires,
+        ignore_note="Если пароль меняли не вы, ничего делать не нужно: без перехода по ссылке "
+        "старый пароль продолжает работать.",
+    )
+    text = email_template.to_plain_text(
+        heading=_RESET_HEADING, intro=_RESET_INTRO, link=link, expires_note=expires
+    )
+    await _send(to, "Новый пароль — Cubr", html, text)
