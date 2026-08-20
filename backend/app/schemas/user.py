@@ -50,6 +50,10 @@ class UserRead(schemas.BaseUser[UUID]):
     # Прошёл ли человек онбординг. `null` — ещё нет, и фронт ведёт его по шагам.
     # Отдаётся только владельцу (`/users/me`), как и остальные поля выше.
     onboarded_at: datetime | None = None
+    # Когда аккаунт заведён. Нужно фронту, чтобы отличить «человек существовал до
+    # появления серверного признака» от «аккаунт создан только что»: перенос
+    # старого локального флага применим только к первым (см. auth/onboarding.ts).
+    created_at: datetime | None = None
 
 
 class UserCreate(schemas.BaseUserCreate):

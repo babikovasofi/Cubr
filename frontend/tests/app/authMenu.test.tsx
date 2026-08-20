@@ -25,6 +25,7 @@ const USER = {
   method: null,
   cubing_since_year: null,
   onboarded_at: null,
+  created_at: null,
 };
 
 function renderApp() {

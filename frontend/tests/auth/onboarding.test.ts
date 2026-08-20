@@ -25,8 +25,9 @@ afterEach(() => {
   delete (globalThis as { localStorage?: Storage }).localStorage;
 });
 
-function user(onboardedAt: string | null): UserRead {
-  return { onboarded_at: onboardedAt } as UserRead;
+/** По умолчанию аккаунт СТАРЫЙ — перенос к таким и адресован. */
+function user(onboardedAt: string | null, createdAt = "2026-07-01T00:00:00Z"): UserRead {
+  return { onboarded_at: onboardedAt, created_at: createdAt } as UserRead;
 }
 
 describe("postLoginPath", () => {
@@ -79,6 +80,26 @@ describe("syncOnboarded — перенос старого локального �
     localStorage.setItem("cubr_onboarded", "1");
     const done = user("2026-08-20T00:00:00Z");
     expect(await syncOnboarded(done)).toBe(done);
+    expect(markOnServer).not.toHaveBeenCalled();
+  });
+
+  // Тот самый баг, ради которого добавлена проверка возраста аккаунта.
+  //
+  // Флаг лежит в БРАУЗЕРЕ и не знает, чей он. Первая версия переноса
+  // применяла его к любому загрузившемуся аккаунту, и первый же вход НОВЫМ
+  // аккаунтом в браузере с чужим следом мгновенно получал «пройдено»
+  // (поймано живьём 2026-08-20 на регистрации через Google).
+  it("НЕ отмечает аккаунт, созданный уже после переезда признака на сервер", async () => {
+    localStorage.setItem("cubr_onboarded", "1"); // чужой след в этом браузере
+    const fresh = user(null, "2026-08-20T09:00:00Z");
+    expect(await syncOnboarded(fresh)).toBe(fresh);
+    expect(markOnServer).not.toHaveBeenCalled();
+  });
+
+  it("без даты создания перенос не делается — ошибаемся в безопасную сторону", async () => {
+    localStorage.setItem("cubr_onboarded", "1");
+    const unknown = { onboarded_at: null, created_at: null } as UserRead;
+    expect(await syncOnboarded(unknown)).toBe(unknown);
     expect(markOnServer).not.toHaveBeenCalled();
   });
 
