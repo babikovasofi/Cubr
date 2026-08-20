@@ -134,13 +134,24 @@ function CalibratePanel({ s }: { s: Session }) {
   const total = 6;
 
   if (s.calibrateMode === "quick") {
-    const cube = s.selectedCubeName ? `«${s.selectedCubeName}»` : "кубика";
+    // Два ключа, а не один с подстановкой «кубика».
+    //
+    // Строка с именем и строка без него — разные предложения, а не одно с
+    // дыркой: подставлять слово-заглушку в шаблон значит переводить её вместе с
+    // шаблоном и получать «Cubr already knows the colours of кубика».
+    const named = s.selectedCubeName;
     return (
       <div className="flex flex-col gap-3 rounded-lg border-2 border-ink bg-surface p-4.5">
         <h3 className="font-sans text-h3 text-ink">{t("Твой кубик готов")}</h3>
         <p className="font-sans text-small text-muted">
-          Cubr уже знает цвета {cube} — можно сразу собирать, показывать его заново не нужно. Если
-          сильно поменялся свет — подстрой по одной белой грани.
+          {named
+            ? t(
+                "Cubr уже знает цвета «{cube}» — можно сразу собирать, показывать его заново не нужно. Если сильно поменялся свет — подстрой по одной белой грани.",
+                { cube: named },
+              )
+            : t(
+                "Cubr уже знает цвета твоего кубика — можно сразу собирать, показывать его заново не нужно. Если сильно поменялся свет — подстрой по одной белой грани.",
+              )}
         </p>
         <Button onClick={s.useSavedProfile}>{t("Использовать сохранённый профиль")}</Button>
         <button
