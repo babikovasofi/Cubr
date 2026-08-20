@@ -45,7 +45,7 @@ class Settings(BaseSettings):
     FRONTEND_URL: str = "http://localhost:5173"
 
     # --- Email delivery ---
-    EMAIL_FROM: str = "Cubr <no-reply@cubr.app>"
+    EMAIL_FROM: str = "Cubr <no-reply@cubr-game.ru>"
     EMAIL_PROVIDER: Literal["resend", "brevo"] = "resend"
     RESEND_API_KEY: str = ""
     BREVO_API_KEY: str = ""

@@ -7,6 +7,7 @@ so a down mailbox can never turn an auth request into a 500.
 """
 
 import logging
+import re
 
 import httpx
 
@@ -62,6 +63,22 @@ async def _post_brevo(settings: Settings, to: str, subject: str, html: str) -> N
         resp.raise_for_status()
 
 
+# Адреса внутри ответа провайдера. Тело цитируется в лог, а провайдер имеет
+# привычку возвращать адрес получателя внутри собственного текста ошибки — то
+# самое, что из логов и убирали.
+_EMAIL_IN_TEXT = re.compile(r"[\w.+-]+@[\w.-]+\.\w+")
+
+# Тело ответа режется: у провайдера оно короткое, но полагаться на это нельзя —
+# лог не место для страницы HTML, если провайдер вдруг отдаст её.
+_MAX_BODY = 300
+
+
+def _safe_body(text: str) -> str:
+    """Тело ответа провайдера, пригодное для лога: без адресов, ограниченной длины."""
+    redacted = _EMAIL_IN_TEXT.sub("<email>", text.strip())
+    return redacted[:_MAX_BODY] if len(redacted) <= _MAX_BODY else redacted[:_MAX_BODY] + "…"
+
+
 def _provider_key(settings: Settings) -> str:
     return settings.BREVO_API_KEY if settings.EMAIL_PROVIDER == "brevo" else settings.RESEND_API_KEY
 
@@ -86,14 +103,29 @@ async def _send(to: str, subject: str, html: str) -> None:
             await _post_brevo(settings, to, subject, html)
         else:
             await _post_resend(settings, to, subject, html)
-    except (httpx.HTTPError, httpx.HTTPStatusError):
-        # Never bubble a mail outage up into the auth request.
+    except httpx.HTTPStatusError as e:
+        # Провайдер ОТВЕТИЛ и отказал — причина лежит в теле ответа, и только там.
         #
-        # Адрес получателя в сообщение НЕ подставляется. При ненастроенном
-        # провайдере падала каждая отправка, то есть каждая регистрация и каждый
-        # запрос сброса пароля клали чужую почту в docker-логи, которые лежат на
-        # диске VPS и в списке хранимых данных на странице приватности не
-        # упомянуты. Для разбора хватает темы письма и трассировки.
+        # Живой разбор 2026-08-20: письма не уходили, в логах был голый
+        # `403 Forbidden`, а настоящая причина («The cubr-game.ru domain is not
+        # verified») пришла в теле. Её пришлось доставать руками, отдельным
+        # запросом к API провайдера. Статус без тела отвечает «не получилось»,
+        # но не отвечает «почему», а починка у каждой причины своя: домен без
+        # верификации, отправитель на чужом домене, исчерпанная квота.
+        logger.exception(
+            "Failed to send %r email: %s %s",
+            subject,
+            e.response.status_code,
+            _safe_body(e.response.text),
+        )
+    except httpx.HTTPError:
+        # Сеть/таймаут: ответа нет вовсе, цитировать нечего.
+        #
+        # Адрес получателя ни в одну из веток НЕ подставляется. При
+        # ненастроенном провайдере падала каждая отправка, то есть каждая
+        # регистрация и каждый запрос сброса пароля клали чужую почту в
+        # docker-логи, которые лежат на диске VPS и в списке хранимых данных на
+        # странице приватности не упомянуты.
         logger.exception("Failed to send %r email", subject)
 
 
