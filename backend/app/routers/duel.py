@@ -29,7 +29,16 @@ import logging
 import uuid
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException, Query, WebSocket, WebSocketDisconnect, status
+from fastapi import (
+    APIRouter,
+    Depends,
+    HTTPException,
+    Query,
+    Response,
+    WebSocket,
+    WebSocketDisconnect,
+    status,
+)
 from pydantic import ValidationError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -220,6 +229,37 @@ async def get_room(
     if room is None or user.id not in (room.player_a_id, room.player_b_id):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Duel room not found")
     return _room_read(room, user.id)
+
+
+@router.delete("/rooms/{room_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def leave_room(
+    room_id: uuid.UUID,
+    user: User = Depends(current_active_user),
+    session: AsyncSession = Depends(get_session),
+) -> Response:
+    """Освободиться из комнаты, не дожидаясь таймера.
+
+    Без этой ручки единственный выход из зависшей комнаты — ждать, пока она
+    протухнет (`find_active_room` отпускает такие сама). Час ожидания вместо
+    одного нажатия — плохая цена за нажатую не ту кнопку, а до сегодняшнего дня
+    выхода не было вовсе: partial-UNIQUE не давал создать вторую комнату, и
+    человек с зависшей не мог играть НИКОГДА.
+
+    Комната помечается брошенной, и освобождаются ОБА участника: соперник в
+    полупустой комнате не должен оставаться запертым из-за чужого ухода.
+
+    Завершённую не трогаем — там результат, а не подвешенное состояние. Ответ
+    всё равно 204: снаружи это одно и то же «меня в комнате больше нет», и
+    различать эти случаи клиенту незачем.
+    """
+    room = await session.get(DuelRoom, room_id)
+    if room is None or user.id not in (room.player_a_id, room.player_b_id):
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Duel room not found")
+
+    if room.status not in ("finished", "abandoned"):
+        await duel_service.abandon_room(session, room)
+        await session.commit()
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 @router.get("/rooms/{room_id}/h2h", response_model=DuelH2HRead)

@@ -28,6 +28,7 @@ from sqlalchemy.engine import CursorResult
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.config import get_settings
 from app.models.duel import DuelRoom
 from app.models.duel_participant import DuelParticipant
 
@@ -61,21 +62,82 @@ class DuelConflictError(Exception):
         super().__init__("User already has an active duel")
 
 
-async def find_active_room(session: AsyncSession, user_id: uuid.UUID) -> DuelRoom | None:
-    """SELECT the caller's currently-active duel room (via `DuelParticipant`), if any.
+def _room_is_stale(room: DuelRoom, now: datetime, invite_ttl: int, stale_after: int) -> bool:
+    """Комната, в которую уже нельзя вернуться, но участник в ней всё ещё активен.
+
+    Два случая, и оба наблюдаемы:
+
+    * **`open` дольше жизни приглашения.** Человек создал комнату, ссылку никто
+      не открыл. Приглашение протухло (`_invite_expired`), войти по нему
+      невозможно — а участник остался активным навсегда.
+    * **Любая незавершённая комната старше `stale_after`.** Состояние идущей
+      дуэли живёт в памяти процесса (см. `duel_manager`), и рестарт API его
+      теряет. Строка в базе при этом остаётся `active`, таймеры её больше
+      никогда не тронут, и комната зависает мёртвой.
+
+    Терминальные (`finished`/`abandoned`) сюда не попадают: там участники
+    деактивируются штатно, и статус — результат, а не подвешенное состояние.
+    """
+    if room.status in ("finished", "abandoned"):
+        return False
+    if room.status == "open" and _invite_expired(room, now, invite_ttl):
+        return True
+    return _as_utc(now) > _as_utc(room.created_at) + timedelta(seconds=stale_after)
+
+
+async def find_active_room(
+    session: AsyncSession,
+    user_id: uuid.UUID,
+    *,
+    now: datetime | None = None,
+    invite_ttl_seconds: int | None = None,
+    stale_after_seconds: int | None = None,
+) -> DuelRoom | None:
+    """Текущая активная комната участника — если в неё ещё можно вернуться.
 
     Backs the П11 conflict response AND the reconnect-if-you-already-have-one
     lookup. At most one row can ever match (the partial-UNIQUE index on
     `DuelParticipant` guarantees it) — `scalar_one_or_none` deliberately does
     NOT swallow a `MultipleResultsFound`, since that would indicate the
     constraint itself is broken, not a normal outcome to paper over.
+
+    ЗАСТРЯВШИЕ КОМНАТЫ ОСВОБОЖДАЮТСЯ ЗДЕСЬ. Раньше функция возвращала строку
+    как есть, и человек с протухшей комнатой получал 409 на каждую попытку
+    создать новую — навсегда, потому что ручки «удалить комнату» не
+    существовало. Партиал-UNIQUE, который защищает от двух дуэлей разом,
+    превращался в замок без ключа.
+
+    Освобождение делается ровно здесь, а не отдельной уборкой по расписанию, по
+    двум причинам: это единственная точка, через которую проходят и создание, и
+    переподключение, и человек чинится в тот момент, когда ему это нужно, а не
+    через час.
     """
     result = await session.execute(
         select(DuelRoom)
         .join(DuelParticipant, DuelParticipant.room_id == DuelRoom.id)
         .where(DuelParticipant.user_id == user_id, DuelParticipant.active.is_(True))
     )
-    return result.scalar_one_or_none()
+    room = result.scalar_one_or_none()
+    if room is None:
+        return None
+
+    settings = get_settings()
+    stale = _room_is_stale(
+        room,
+        now if now is not None else now_utc(),
+        invite_ttl_seconds if invite_ttl_seconds is not None else settings.DUEL_INVITE_TTL_SECONDS,
+        stale_after_seconds
+        if stale_after_seconds is not None
+        else settings.DUEL_ROOM_STALE_SECONDS,
+    )
+    if not stale:
+        return room
+
+    # Комната мертва: отпускаем участников и помечаем её брошенной, чтобы она
+    # не всплыла ни здесь, ни в истории как «идущая».
+    await abandon_room(session, room)
+    await session.flush()
+    return None
 
 
 async def create_room(session: AsyncSession, user_id: uuid.UUID) -> DuelRoom:
@@ -84,7 +146,14 @@ async def create_room(session: AsyncSession, user_id: uuid.UUID) -> DuelRoom:
     409s (`DuelConflictError`) if the caller already has an active duel —
     enforced by the `DuelParticipant` partial-UNIQUE race, not a pre-check
     (a pre-check alone would be TOCTOU-racy; see module docstring).
+
+    Вызов `find_active_room` перед вставкой — НЕ вернувшийся pre-check. Гонку
+    по-прежнему решает индекс; этот вызов нужен ради побочного действия: он
+    отпускает зависшую комнату (см. его докстринг). Без него человек с мёртвой
+    комнатой получал бы ошибку на первом нажатии и успех на втором — «нажми ещё
+    раз, и заработает» это не поведение, это издевательство.
     """
+    await find_active_room(session, user_id)
     try:
         async with session.begin_nested():
             room = DuelRoom(
@@ -160,6 +229,11 @@ async def join_room(
 
     if _invite_expired(room, effective_now, invite_ttl_seconds):
         raise DuelNotFoundError()
+
+    # Тот же ход, что и в `create_room`: отпустить СВОЮ зависшую комнату до
+    # вставки. Иначе человек с мёртвой комнатой не может даже принять чужое
+    # приглашение — а это самый частый способ попасть в дуэль.
+    await find_active_room(session, user_id, now=effective_now)
 
     try:
         async with session.begin_nested():
