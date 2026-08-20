@@ -9,10 +9,15 @@
          (Safari до 17, старые версии Firefox на Windows). Все четыре файла
          собираются одним скриптом из палитры интерфейса, см.
          scripts/make-icons.py — руками их не правят. -->
-    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png" />
-    <link rel="icon" href="/favicon.ico" sizes="32x32" />
-    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <!-- ?v= обязателен. Браузеры кешируют фавикон агрессивнее любого другого
+         ресурса и держат даже ОТРИЦАТЕЛЬНЫЙ ответ: тот, кто заходил на сайт до
+         появления иконки, получил 404 на /favicon.ico и будет показывать
+         букву-заглушку, пока адрес не изменится. Версию поднимать при каждой
+         смене картинки. -->
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg?v=1" />
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png?v=1" />
+    <link rel="icon" href="/favicon.ico?v=1" sizes="32x32" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png?v=1" />
     <!-- Цвет строки браузера на мобильных: тот же ink, что у корпуса на иконке. -->
     <meta name="theme-color" content="#221e17" />
     <meta
