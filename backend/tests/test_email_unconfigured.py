@@ -86,3 +86,107 @@ async def test_a_configured_provider_still_sends(monkeypatch: pytest.MonkeyPatch
 
     await email_service.send_verification_email("new@example.com", "tok")
     assert sent == [("new@example.com", "Confirm your Cubr email")]
+
+
+async def test_provider_rejection_quotes_the_reason(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    """Причина отказа лежит в ТЕЛЕ ответа, и только там.
+
+    Живой разбор 2026-08-20: письма не уходили, в логах был голый
+    `403 Forbidden`, а «The cubr-game.ru domain is not verified» пришло в теле —
+    и доставать это пришлось руками, отдельным запросом к API провайдера.
+    """
+
+    async def _rejected(*args: object, **kwargs: object) -> None:
+        request = httpx.Request("POST", "https://api.resend.com/emails")
+        response = httpx.Response(
+            403,
+            request=request,
+            text='{"statusCode":403,"message":"The cubr-game.ru domain is not verified."}',
+        )
+        raise httpx.HTTPStatusError("403", request=request, response=response)
+
+    monkeypatch.setattr(email_service, "_post_resend", _rejected)
+    monkeypatch.setattr(
+        email_service.get_settings(), "RESEND_API_KEY", "re_live_key", raising=False
+    )
+
+    with caplog.at_level(logging.ERROR, logger="cubr.email"):
+        await email_service.send_verification_email("someone@example.com", "tok")
+
+    assert "403" in caplog.text
+    assert "domain is not verified" in caplog.text
+
+
+async def test_a_reason_containing_an_address_is_redacted(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    """Провайдер любит вставлять адрес в собственный текст ошибки.
+
+    Цитировать тело целиком значило бы вернуть в логи ровно то, что из них
+    убирали.
+    """
+
+    async def _rejected(*args: object, **kwargs: object) -> None:
+        request = httpx.Request("POST", "https://api.resend.com/emails")
+        response = httpx.Response(
+            403,
+            request=request,
+            text="You can only send testing emails to your own address (victim@example.com)",
+        )
+        raise httpx.HTTPStatusError("403", request=request, response=response)
+
+    monkeypatch.setattr(email_service, "_post_resend", _rejected)
+    monkeypatch.setattr(
+        email_service.get_settings(), "RESEND_API_KEY", "re_live_key", raising=False
+    )
+
+    with caplog.at_level(logging.ERROR, logger="cubr.email"):
+        await email_service.send_reset_email("victim@example.com", "tok")
+
+    assert "only send testing emails" in caplog.text  # причина видна
+    assert "victim@example.com" not in caplog.text  # адрес — нет
+    assert "<email>" in caplog.text
+
+
+async def test_a_huge_body_is_truncated(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    """Лог — не место для страницы HTML, если провайдер вдруг отдаст её."""
+
+    async def _rejected(*args: object, **kwargs: object) -> None:
+        request = httpx.Request("POST", "https://api.resend.com/emails")
+        response = httpx.Response(500, request=request, text="x" * 5000)
+        raise httpx.HTTPStatusError("500", request=request, response=response)
+
+    monkeypatch.setattr(email_service, "_post_resend", _rejected)
+    monkeypatch.setattr(
+        email_service.get_settings(), "RESEND_API_KEY", "re_live_key", raising=False
+    )
+
+    with caplog.at_level(logging.ERROR, logger="cubr.email"):
+        await email_service.send_reset_email("someone@example.com", "tok")
+
+    assert len(caplog.text) < 1000
+    assert "…" in caplog.text
+
+
+async def test_a_network_failure_still_logs_without_a_body(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    """Ответа нет вовсе — цитировать нечего, но сбой обязан остаться видимым."""
+
+    async def _boom(*args: object, **kwargs: object) -> None:
+        raise httpx.ConnectError("provider unreachable")
+
+    monkeypatch.setattr(email_service, "_post_resend", _boom)
+    monkeypatch.setattr(
+        email_service.get_settings(), "RESEND_API_KEY", "re_live_key", raising=False
+    )
+
+    with caplog.at_level(logging.ERROR, logger="cubr.email"):
+        await email_service.send_reset_email("someone@example.com", "tok")
+
+    assert "Failed to send" in caplog.text
+    assert "someone@example.com" not in caplog.text
