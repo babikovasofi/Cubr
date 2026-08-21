@@ -8,8 +8,10 @@
 import { Link } from "react-router-dom";
 import { DocPage, DocSection, DocList } from "../../components/DocPage";
 
-// TODO(этап 6, деплой): заменить на реальный почтовый ящик проекта на своём домене.
-const CONTACT_EMAIL = "privacy@cubr.app";
+// Ящик на боевом домене. ПОЧТА НА НЕГО ДОЛЖНА ПРИНИМАТЬСЯ: страница обещает
+// удаление данных по запросу сюда, кнопки самоудаления нет. Отправку с домена
+// закрыл Resend (SPF/DKIM), приём писем — отдельная настройка у регистратора.
+const CONTACT_EMAIL = "privacy@cubr-game.ru";
 
 export default function PrivacyRu() {
   return (

@@ -45,7 +45,7 @@ class Settings(BaseSettings):
     FRONTEND_URL: str = "http://localhost:5173"
 
     # --- Email delivery ---
-    EMAIL_FROM: str = "Cubr <no-reply@cubr.app>"
+    EMAIL_FROM: str = "Cubr <no-reply@cubr-game.ru>"
     EMAIL_PROVIDER: Literal["resend", "brevo"] = "resend"
     RESEND_API_KEY: str = ""
     BREVO_API_KEY: str = ""
@@ -103,6 +103,15 @@ class Settings(BaseSettings):
     DUEL_INVITE_TTL_SECONDS: int = 86400
     # TTL of the WS session/reconnect token (app.services.duel_token) — generous,
     # covers a full duel plus reconnects (mirrors SCRAMBLE_TOKEN_TTL's rationale).
+    # Сколько живёт незавершённая комната, прежде чем считаться мёртвой.
+    #
+    # Состояние идущей дуэли лежит в памяти процесса (app.services.duel_manager),
+    # и рестарт API его теряет: строка в базе остаётся `active`, таймеры её
+    # больше не тронут, а участник — заперт, потому что partial-UNIQUE не даёт
+    # создать вторую. Два часа с запасом перекрывают самую длинную мыслимую
+    # дуэль (подготовка 3 минуты + сборка 10) и при этом не заставляют человека
+    # ждать сутки, как приглашение.
+    DUEL_ROOM_STALE_SECONDS: int = 7200
     DUEL_SESSION_TOKEN_TTL_SECONDS: int = 7200
     # Max time between the WS `start` broadcast and both players sending `ready`
     # before the room is force-finalized (whoever isn't ready -> dnf).

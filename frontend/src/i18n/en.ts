@@ -7,6 +7,8 @@
 // Дальше: профиль, соло-ритуал, дуэль, турнир и скрамбл дня, правила/приватность.
 
 export const EN: Record<string, string> = {
+  Закрыть: "Close",
+  "Кубик:": "Cube:",
   // --- шапка, футер, меню ---
   Войти: "Log in",
   Регистрация: "Sign up",
@@ -399,6 +401,10 @@ export const EN: Record<string, string> = {
   "Подстроить под свет (одна белая грань)": "Adjust to the light (one white face)",
   "Перекалибровать по 6 граням": "Recalibrate from 6 faces",
   "Твой кубик готов": "Your cube is ready",
+  "Cubr уже знает цвета «{cube}» — можно сразу собирать, показывать его заново не нужно. Если сильно поменялся свет — подстрой по одной белой грани.":
+    "Cubr already knows the colours of your {cube} — start solving, no need to show it again. If the light changed a lot, adjust with one white face.",
+  "Cubr уже знает цвета твоего кубика — можно сразу собирать, показывать его заново не нужно. Если сильно поменялся свет — подстрой по одной белой грани.":
+    "Cubr already knows your cube's colours — start solving, no need to show it again. If the light changed a lot, adjust with one white face.",
   "Эталон скрамбла не готов — обнови скрамбл на экране инструкции.":
     "The expected scramble state is not ready — refresh the scramble on the walkthrough screen.",
   "Сохраняю результат…": "Saving the result…",

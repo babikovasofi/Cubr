@@ -23,7 +23,7 @@ export default function CubeSelect() {
 
   return (
     <label className="flex items-center gap-2 font-sans text-small text-muted">
-      Кубик:
+      {t("Кубик:")}
       <select
         value={selectedCubeId ?? ""}
         onChange={(e) => setSelected(e.target.value || null)}

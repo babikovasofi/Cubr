@@ -50,6 +50,18 @@ class User(SQLAlchemyBaseUserTableUUID, Base):
     cups: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
     best_single_ms: Mapped[int | None] = mapped_column(Integer, nullable=True)
     best_ao5_ms: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    # Когда человек прошёл (или пропустил) онбординг. NULL — ещё не проходил.
+    #
+    # Признак СЕРВЕРНЫЙ, и это не педантизм. Раньше он жил в localStorage
+    # (`cubr_onboarded`), то есть отвечал на вопрос «показывали ли в ЭТОМ
+    # браузере», а не «проходил ли ЭТОТ человек». Отсюда два живых симптома:
+    # первый вход нового аккаунта в браузере, где онбординг уже проходили,
+    # молча уезжал на главную (поймано 2026-08-20 на первом входе через
+    # Google), а тот же человек со второго устройства получал онбординг заново.
+    onboarded_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         server_default=func.now(),

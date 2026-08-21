@@ -34,7 +34,9 @@ export default function LoginPage() {
     setUnverified(false);
     try {
       await login(email, password);
-      navigate(postLoginPath(params.get("next")), { replace: true });
+      // Пользователь уже загружен login() — решение «онбординг или главная»
+      // принимается по серверному признаку, а не по флагу браузера.
+      navigate(postLoginPath(params.get("next"), useAuthStore.getState().user), { replace: true });
     } catch (err) {
       if (err instanceof ApiError) {
         setError(t(err.message));

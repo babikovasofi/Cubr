@@ -4,6 +4,26 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Cubr</title>
+    <!-- Иконка вкладки. SVG первым: он резкий на любом экране и его берут все
+         современные браузеры. PNG и ICO — для тех, кто SVG-иконки не умеет
+         (Safari до 17, старые версии Firefox на Windows). Все четыре файла
+         собираются одним скриптом из палитры интерфейса, см.
+         scripts/make-icons.py — руками их не правят. -->
+    <!-- ?v= обязателен. Браузеры кешируют фавикон агрессивнее любого другого
+         ресурса и держат даже ОТРИЦАТЕЛЬНЫЙ ответ: тот, кто заходил на сайт до
+         появления иконки, получил 404 на /favicon.ico и будет показывать
+         букву-заглушку, пока адрес не изменится. Версию поднимать при каждой
+         смене картинки. -->
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg?v=2" />
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png?v=2" />
+    <link rel="icon" href="/favicon.ico?v=2" sizes="32x32" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png?v=2" />
+    <!-- Цвет строки браузера на мобильных: тот же ink, что у корпуса на иконке. -->
+    <meta name="theme-color" content="#221e17" />
+    <meta
+      name="description"
+      content="Cubr — дуэли по спидкубингу в браузере: соперник по ссылке, общий скрамбл, судья смотрит на кубик через камеру."
+    />
   </head>
   <body>
     <div id="root"></div>
