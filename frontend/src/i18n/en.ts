@@ -423,6 +423,32 @@ export const EN: Record<string, string> = {
     "The camera will not confirm the scramble — the timer arms unchecked.",
   "Камера не подтвердит сборку — результат сохранится с пометкой «без проверки».":
     "The camera will not confirm the solve — the result is saved as unchecked.",
+  "Руки или кубик пропали из кадра во время сборки. Попробуй ещё раз.":
+    "Your hands or the cube left the frame during the solve. Try again.",
+  "Готово! Хочешь ещё разброс — жми кнопку.": "Done! Want another scramble — hit the button.",
+  "Сессия истекла. Результат не потерян —": "The session expired. The result is not lost —",
+
+  // соло — карточка «что дальше» (result-screen next-card)
+  "Что дальше": "What's next",
+  "Считаю статистику…": "Crunching the numbers…",
+  "Не удалось посчитать сравнение со статистикой.": "Could not compute the comparison.",
+  "Эта попытка не защитана — сравнение появится у следующей засчитанной сборки.":
+    "This attempt wasn't counted — the comparison will show up after the next valid solve.",
+  "Сохрани ещё одну сборку — здесь появится сравнение со средним и рекордом.":
+    "Save one more solve, and a comparison with your average and record will show up here.",
+  "Быстрее своего среднего на {delta}.": "Faster than your average by {delta}.",
+  "Медленнее своего среднего на {delta}.": "Slower than your average by {delta}.",
+  "Ровно на уровне своего среднего.": "Right at your average.",
+  "На {delta} быстрее прежнего рекорда ({record}).":
+    "{delta} faster than your old record ({record}).",
+  "Ровно на уровне личного рекорда ({record}).": "Right at your personal record ({record}).",
+  "До личного рекорда {gap} ({record}).": "{gap} to your personal record ({record}).",
+  "Новый личный рекорд!": "New personal record!",
+  "Все обычные рубежи взяты — держишь {milestone}.":
+    "All the usual milestones are taken — you're holding {milestone}.",
+  "На рубеже {milestone} — нужно чуть быстрее.": "Right at {milestone} — need to go a bit faster.",
+  "До цели {milestone} осталось {gap}.": "{gap} left to your {milestone} goal.",
+  "Позвать на дуэль": "Call someone to a duel",
 
   // инструкция скрамбла
   Нотация: "Notation",
