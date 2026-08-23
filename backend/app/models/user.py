@@ -19,32 +19,38 @@ class User(SQLAlchemyBaseUserTableUUID, Base):
     ``is_verified`` from the fastapi-users base (adopted now so the 2.2 auth
     stage does not have to rewrite the table). App-specific columns below.
 
-    ``uq_user_public_handle_lower`` (friends feature, see ``app.models.
-    friendship``): a case-insensitive UNIQUE index on ``public_handle`` so
-    "add by handle" is unambiguous — without it two people could hold
-    handles differing only in case and a lookup by handle would be unable
-    to tell them apart. It is a PARTIAL index (``WHERE public_handle IS NOT
+    ``uq_user_handle_lower``: a case-insensitive UNIQUE index on ``handle``
+    so "add a friend by handle" (and every other by-name lookup — profile,
+    tournament/daily boards) is unambiguous — without it two people could
+    hold handles differing only in case and a lookup by handle would be
+    unable to tell them apart. It is a PARTIAL index (``WHERE handle IS NOT
     NULL``) on purpose: plain SQL ``UNIQUE`` never treats two ``NULL``s as
-    equal, but the partial predicate additionally guarantees that unset
-    handles are never even considered by the index, so any number of users
-    without a handle coexist with no conflict. This does NOT make profiles
-    public — ``public_handle`` stays opt-in/empty by default; the index only
-    makes an already-public field (Т10, shown on tournament/daily boards)
-    unambiguous to look up.
+    equal, but the partial predicate additionally guarantees that
+    handle-less users (mid-OAuth sign-up, or a password account that has not
+    chosen one yet) coexist with no conflict.
     """
 
-    # Nullable: OAuth sign-up (fastapi-users ``oauth_callback``) creates the row
-    # with only email/hashed_password/is_verified — the UserManager then derives
-    # a nickname. A NOT NULL nickname would make that INSERT fail.
-    nickname: Mapped[str | None] = mapped_column(String(length=64), nullable=True)
+    # Nullable: OAuth sign-up (fastapi-users `oauth_callback`) creates the row
+    # with only email/hashed_password/is_verified — the UserManager then
+    # derives a handle (a NOT NULL column would make that INSERT fail).
+    # Password sign-up leaves it unset until the person picks one; unset
+    # renders as "Аноним" on public boards (see
+    # `app.services.tournament.display_name_for`), never derived from email.
+    #
+    # ONE field doing what used to be two (`nickname` + `public_handle`):
+    # product decision 2026-08-24 — a private display name and a separate
+    # public "friend handle" confused people, since it was never obvious
+    # which one a screen meant. Now there is exactly one name, unique
+    # case-insensitively, shown everywhere (own header, friends, tournament/
+    # daily boards) with a leading "@" (a frontend rendering concern — the
+    # stored value itself carries no "@"). See migration
+    # `0013_single_user_handle` for how existing `nickname`/`public_handle`
+    # data was merged.
+    handle: Mapped[str | None] = mapped_column(String(length=64), nullable=True)
     avatar_url: Mapped[str | None] = mapped_column(String(length=512), nullable=True)
-    # Deliberately-set, opt-in display name for public surfaces (e.g. the
-    # weekly tournament standings board). Never derived from email/nickname —
-    # unset renders as "Аноним" (see app.services.tournament.display_name_for).
-    public_handle: Mapped[str | None] = mapped_column(String(length=64), nullable=True)
     # Витрина профиля (V3): чем человек собирает и с какого года. Видны только
     # владельцу — публичных профилей в Cubr нет, на бордах живёт лишь
-    # `public_handle` (П10). Оба поля необязательные: пустая витрина — норма.
+    # `handle` (П10). Оба поля необязательные: пустая витрина — норма.
     method: Mapped[str | None] = mapped_column(String(length=16), nullable=True)
     cubing_since_year: Mapped[int | None] = mapped_column(Integer, nullable=True)
     cups: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
@@ -75,10 +81,10 @@ class User(SQLAlchemyBaseUserTableUUID, Base):
 
     __table_args__ = (
         Index(
-            "uq_user_public_handle_lower",
-            func.lower(public_handle),
+            "uq_user_handle_lower",
+            func.lower(handle),
             unique=True,
-            postgresql_where=public_handle.isnot(None),
-            sqlite_where=public_handle.isnot(None),
+            postgresql_where=handle.isnot(None),
+            sqlite_where=handle.isnot(None),
         ),
     )

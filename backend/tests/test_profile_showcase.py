@@ -1,7 +1,7 @@
 """Витрина профиля (V3): метод сборки и год начала.
 
 Оба поля владелец-only — публичных профилей в Cubr нет; борды по-прежнему несут
-только `public_handle` (П10). Здесь проверяются валидация и то, что витрина
+только `handle` (П10). Здесь проверяются валидация и то, что витрина
 никуда не утекает.
 """
 
@@ -61,7 +61,7 @@ async def test_showcase_never_reaches_the_boards(client: AsyncClient, email_spy:
     await _register_and_login(client, "showcase-board@example.com")
     await client.patch(
         "/users/me",
-        json={"method": "cfop", "cubing_since_year": 2020, "public_handle": "SpeedCuber"},
+        json={"method": "cfop", "cubing_since_year": 2020, "handle": "SpeedCuber"},
     )
     await client.post("/tournament/current/attempt/start")
     await client.post("/tournament/current/attempt/submit", json={"time_ms": 12345})

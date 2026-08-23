@@ -190,7 +190,7 @@ def user_rate_limit(limit: str) -> Callable[[Request, User], Awaitable[None]]:
     """Dependency: throttle by the CALLING user's `user.id` — for authed
     endpoints where an IP-keyed limit is not a real defense (rotating IP /
     a second worker resets it). First use: `POST /friends/requests`, where
-    the thing being throttled is enumerating which `public_handle`s exist
+    the thing being throttled is enumerating which `handle`s exist
     (see `app.routers.friends`, `app.services.friends` module docstring).
 
     Mirrors `login_account_rate_limit`'s SHAPE — a per-account dependency

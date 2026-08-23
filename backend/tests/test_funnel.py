@@ -144,7 +144,7 @@ async def test_old_signup_outside_the_7d_window(
     assert body["signups_30d"] == 1
 
 
-@pytest.mark.parametrize("leak", ["@example.com", "boss", "nickname", "email"])
+@pytest.mark.parametrize("leak", ["@example.com", "boss", "handle", "email"])
 async def test_payload_carries_no_identifiers(
     client: AsyncClient,
     email_spy: EmailSpy,

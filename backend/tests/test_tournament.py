@@ -626,55 +626,48 @@ async def test_standings_no_rank_field(client: AsyncClient, email_spy: EmailSpy)
         assert "position" not in entry
 
 
-# --- standings: privacy (no email/nickname leak) ----
+# --- standings: privacy (no email leak) ----
 
 
-async def test_standings_no_email_no_nickname_leak(
-    client: AsyncClient, email_spy: EmailSpy, session_maker: async_sessionmaker[AsyncSession]
-) -> None:
-    """Email "leaky@example.com" + nickname "Leaky" + public_handle=None → display_name "Аноним", no leak."""
+async def test_standings_no_email_leak(client: AsyncClient, email_spy: EmailSpy) -> None:
+    """No handle set + email "leaky@example.com" → display_name "Аноним", no leak.
+
+    There is only ONE name field now (`handle`, merged from the old private
+    `nickname` + public `public_handle` — see `app.models.user`), so the
+    thing left to prove here is narrower than it used to be: the account's
+    EMAIL must never appear on a public board, unset-handle still renders
+    "Аноним".
+    """
     await _register_and_login(client, email_spy, "leaky@example.com")
     await client.post("/tournament/current/attempt/start")
     await client.post(
         "/tournament/current/attempt/submit", json={"time_ms": 5000, "status": "valid"}
     )
 
-    # Manually set nickname (register doesn't usually expose it, but it's there on the model)
-    async with session_maker() as session:
-        user_result = await session.execute(select(User).where(User.email == "leaky@example.com"))
-        user = user_result.scalars().first()
-        assert user is not None
-        user.nickname = "Leaky"
-        session.add(user)
-        await session.commit()
-
     resp = await client.get("/tournament/current/standings")
     assert resp.status_code == 200, resp.text
     body = resp.json()
     response_text = str(body)
 
-    # No email, no nickname, no "@" anywhere
+    # No email, no "@" anywhere
     assert "leaky@example.com" not in response_text
-    assert "Leaky" not in response_text
     assert "@" not in response_text
     assert body["entries"][0]["display_name"] == "Аноним"
 
 
-# --- standings: public_handle shown ----
+# --- standings: handle shown ----
 
 
-async def test_standings_public_handle_shown(
-    client: AsyncClient, email_spy: EmailSpy, session_maker: async_sessionmaker[AsyncSession]
-) -> None:
-    """public_handle "SpeedCuber" → display_name "SpeedCuber"."""
+async def test_standings_handle_shown(client: AsyncClient, email_spy: EmailSpy) -> None:
+    """handle "SpeedCuber" → display_name "SpeedCuber"."""
     await _register_and_login(client, email_spy, "speedcuber@example.com")
     await client.post("/tournament/current/attempt/start")
     await client.post(
         "/tournament/current/attempt/submit", json={"time_ms": 5000, "status": "valid"}
     )
 
-    # Set public_handle via PATCH
-    resp = await client.patch("/users/me", json={"public_handle": "SpeedCuber"})
+    # Set handle via PATCH
+    resp = await client.patch("/users/me", json={"handle": "SpeedCuber"})
     assert resp.status_code == 200, resp.text
 
     resp = await client.get("/tournament/current/standings")
@@ -748,63 +741,63 @@ async def test_standings_limit_clamped(client: AsyncClient, email_spy: EmailSpy)
 
 
 def test_display_name_for_unit() -> None:
-    """Pure: handle→handle; None→'Аноним'; never email/nickname."""
+    """Pure: handle→handle; None→'Аноним'; never email."""
     assert tournament_service.display_name_for("SpeedCuber") == "SpeedCuber"
     assert tournament_service.display_name_for("") == "Аноним"  # Empty string treated as falsy
     assert tournament_service.display_name_for(None) == "Аноним"
-    # Never called with email/nickname, but the function is simple and just returns the handle or default
+    # Never called with email, but the function is simple and just returns the handle or default
 
 
-# --- public_handle setting via PATCH /users/me ----
+# --- handle setting via PATCH /users/me ----
 
 
-async def test_set_public_handle_via_patch_me(client: AsyncClient, email_spy: EmailSpy) -> None:
-    """PATCH /users/me {public_handle:"X"} → GET /users/me shows it; ""→null; >64→422."""
+async def test_set_handle_via_patch_me(client: AsyncClient, email_spy: EmailSpy) -> None:
+    """PATCH /users/me {handle:"X"} → GET /users/me shows it; ""→null; >64→422."""
     await _register_and_login(client, email_spy, "handle-test@example.com")
 
-    # Set public_handle
-    resp = await client.patch("/users/me", json={"public_handle": "MyHandle"})
+    # Set handle
+    resp = await client.patch("/users/me", json={"handle": "MyHandle"})
     assert resp.status_code == 200, resp.text
     body = resp.json()
-    assert body["public_handle"] == "MyHandle"
+    assert body["handle"] == "MyHandle"
 
     # Read it back
     resp = await client.get("/users/me")
     assert resp.status_code == 200, resp.text
     body = resp.json()
-    assert body["public_handle"] == "MyHandle"
+    assert body["handle"] == "MyHandle"
 
     # Empty string → null
-    resp = await client.patch("/users/me", json={"public_handle": ""})
+    resp = await client.patch("/users/me", json={"handle": ""})
     assert resp.status_code == 200, resp.text
     body = resp.json()
-    assert body["public_handle"] is None
+    assert body["handle"] is None
 
     # Confirm it's null after read
     resp = await client.get("/users/me")
     assert resp.status_code == 200, resp.text
     body = resp.json()
-    assert body["public_handle"] is None
+    assert body["handle"] is None
 
     # > 64 chars → 422
     long_handle = "x" * 65
-    resp = await client.patch("/users/me", json={"public_handle": long_handle})
+    resp = await client.patch("/users/me", json={"handle": long_handle})
     assert resp.status_code == 422, resp.text
 
     # Whitespace trim
-    resp = await client.patch("/users/me", json={"public_handle": "  TrimMe  "})
+    resp = await client.patch("/users/me", json={"handle": "  TrimMe  "})
     assert resp.status_code == 200, resp.text
     body = resp.json()
-    assert body["public_handle"] == "TrimMe"
+    assert body["handle"] == "TrimMe"
 
 
-# --- public_handle not leaked to others ----
+# --- handle not leaked to others ----
 
 
-async def test_public_handle_not_leaked_to_others(client: AsyncClient, email_spy: EmailSpy) -> None:
+async def test_handle_not_leaked_to_others(client: AsyncClient, email_spy: EmailSpy) -> None:
     """GET /users/me never exposes another user."""
     await _register_and_login(client, email_spy, "alice@example.com")
-    resp = await client.patch("/users/me", json={"public_handle": "AliceHandle"})
+    resp = await client.patch("/users/me", json={"handle": "AliceHandle"})
     assert resp.status_code == 200, resp.text
 
     # Alice cannot read anyone else via /users/me
@@ -813,4 +806,4 @@ async def test_public_handle_not_leaked_to_others(client: AsyncClient, email_spy
     assert resp.status_code == 200, resp.text
     body = resp.json()
     assert body["email"] == "bob@example.com"
-    assert body["public_handle"] is None  # Bob hasn't set one
+    assert body["handle"] is None  # Bob hasn't set one

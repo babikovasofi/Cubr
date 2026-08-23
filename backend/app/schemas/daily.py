@@ -48,8 +48,8 @@ class BoardEntry(BaseModel):
     """One row on the de-ranked participation board.
 
     Deliberately has NO rank/position field (true ranking waits for the
-    honesty-verification brick) and NO email/nickname — ``display_name`` is
-    always ``public_handle`` or the literal "Аноним"
+    honesty-verification brick) and NO email — ``display_name`` is
+    always ``handle`` or the literal "Аноним"
     (``app.services.tournament.display_name_for``).
     """
 

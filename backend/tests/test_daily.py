@@ -214,7 +214,7 @@ async def test_board_valid_entry_deranked_no_pii(client: AsyncClient, email_spy:
     assert body["valid_count"] == 1
     assert len(body["entries"]) == 1
     entry = body["entries"][0]
-    assert entry["display_name"] == "Аноним"  # no public_handle set
+    assert entry["display_name"] == "Аноним"  # no handle set
     assert entry["time_ms"] == 3000
     assert entry["is_self"] is True
     assert "rank" not in entry  # de-ranked

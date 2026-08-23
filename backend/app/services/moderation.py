@@ -1,11 +1,11 @@
 """Display-name moderation (Stage 6 checklist: "фильтр слов для ников").
 
-Covers both name fields a user controls:
-
-* ``public_handle`` — the ONLY name that reaches other people (tournament /
-  daily boards, П10), so this is the field that actually matters;
-* ``nickname`` — currently private (own header/menu), filtered anyway: it may
-  surface later, and one policy for both fields is cheaper than two.
+Covers the single name field a user controls: ``User.handle`` — shown
+everywhere (own header, friends, tournament/daily boards, П10), so this is
+the ONE field that actually matters. Before 2026-08-24 there were two
+separate fields (a private ``nickname`` and a public ``public_handle``) and
+this filter covered both identically; they have since been merged into
+``handle`` (see `app.models.user`), and the filter logic below is unchanged.
 
 Design notes
 ------------
@@ -301,7 +301,7 @@ def _tokens(value: str, alphabet: str) -> list[str]:
 
 
 def check_display_name(value: str | None) -> NameRejection | None:
-    """Return why ``value`` is unacceptable as a nickname / public handle.
+    """Return why ``value`` is unacceptable as a ``User.handle``.
 
     ``None`` means "fine". ``None`` or ``""`` (nothing typed) is fine too —
     both fields are optional; clearing them is a legitimate action. A value
@@ -351,8 +351,8 @@ def check_display_name(value: str | None) -> NameRejection | None:
     return None
 
 
-def sanitize_derived_nickname(value: str, fallback: str = "cuber") -> str:
-    """Nickname derived by US (OAuth email local-part), not typed by the user.
+def sanitize_derived_handle(value: str, fallback: str = "cuber") -> str:
+    """Handle derived by US (OAuth email local-part), not typed by the user.
 
     Failing an OAuth redirect with a 400 because someone's work email is rude
     would be absurd — so a rejected derivation silently becomes ``fallback``.

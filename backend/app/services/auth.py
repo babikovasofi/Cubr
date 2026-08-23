@@ -7,7 +7,7 @@ Security notes
   separate secret from the auth-JWT ``SECRET`` (blast-radius split).
 * OAuth: the custom ``oauth_callback`` verifies the provider's ``email_verified``
   claim before it will ``associate_by_email`` or mark the user verified, and
-  derives a nickname (the ORM column is nullable so the stock create succeeds).
+  derives a handle (the ORM column is nullable so the stock create succeeds).
 """
 
 import logging
@@ -36,7 +36,7 @@ from app.config import get_settings
 from app.db import get_user_db
 from app.models import User
 from app.services import email as email_service
-from app.services.moderation import check_display_name, sanitize_derived_nickname
+from app.services.moderation import check_display_name, sanitize_derived_handle
 from app.services.password_policy import check_password_policy
 
 logger = logging.getLogger("cubr.auth")
@@ -56,15 +56,17 @@ google_oauth_client = GoogleOAuth2(
 )
 
 
-def _derive_nickname(email: str) -> str:
-    """Best-effort nickname from the email local-part (max 64 chars).
+def _derive_handle(email: str) -> str:
+    """Best-effort handle from the email local-part (max 64 chars).
 
     Run through the name filter too: the local-part is not user-typed *here*,
     but it still ends up as a display name, so a rude one falls back to "cuber"
-    instead of failing the OAuth redirect (see `sanitize_derived_nickname`).
+    instead of failing the OAuth redirect (see `sanitize_derived_handle`).
+    Uniqueness against an existing handle is NOT this function's job — the
+    caller (`oauth_callback`) handles a collision on write.
     """
     local = email.split("@", 1)[0].strip() or "cuber"
-    return sanitize_derived_nickname(local[:64])
+    return sanitize_derived_handle(local[:64])
 
 
 async def google_email_verified(access_token: str) -> bool:
@@ -140,7 +142,7 @@ class UserManager(UUIDIDMixin, BaseUserManager[User, uuid.UUID]):
         rejection = check_password_policy(
             password,
             email=getattr(user, "email", None),
-            nickname=getattr(user, "nickname", None),
+            handle=getattr(user, "handle", None),
         )
         if rejection is not None:
             # fastapi-users' stock routers catch this and answer
@@ -154,9 +156,27 @@ class UserManager(UUIDIDMixin, BaseUserManager[User, uuid.UUID]):
         safe: bool = False,
         request: Request | None = None,
     ) -> User:
-        # Registration may carry a nickname; refuse before the row exists.
-        _reject_bad_names(getattr(user_create, "nickname", None))
-        return await super().create(user_create, safe, request)
+        # Registration may carry a handle; refuse before the row exists.
+        new_handle = getattr(user_create, "handle", None)
+        _reject_bad_names(new_handle)
+        # Same pre-check as `update()` below — registration is now a second
+        # write path that can set the unique `handle` column (previously
+        # only PATCH /users/me could), so it needs the same race-guarded
+        # collision handling. `None`/blank means "not set" (see
+        # `_normalize_handle` in `app.schemas.user`) — never pre-checked.
+        if isinstance(new_handle, str) and new_handle:
+            existing = await self._session.execute(
+                select(User.__table__.c.id).where(
+                    func.lower(User.handle) == new_handle.strip().lower()
+                )
+            )
+            if existing.scalar_one_or_none() is not None:
+                raise _handle_taken_error()
+        try:
+            return await super().create(user_create, safe, request)
+        except IntegrityError as exc:
+            await self._session.rollback()
+            raise _handle_taken_error() from exc
 
     async def update(
         self,
@@ -165,21 +185,18 @@ class UserManager(UUIDIDMixin, BaseUserManager[User, uuid.UUID]):
         safe: bool = False,
         request: Request | None = None,
     ) -> User:
-        # PATCH /users/me — both name fields, `public_handle` being the one that
-        # actually reaches other people (tournament / daily boards, П10).
-        _reject_bad_names(
-            getattr(user_update, "nickname", None),
-            getattr(user_update, "public_handle", None),
-        )
-        # Friends feature (`app.models.user`'s `uq_user_public_handle_lower`):
-        # `public_handle` is now case-insensitively unique. Pre-check BEFORE
-        # the write so a normal collision gets the same human `{code, reason}`
-        # shape as CUBE_LIMIT/NAME_* instead of a bare DB error. `None`/blank
-        # means "not being set / being cleared" (see `_normalize_public_handle`
-        # in `app.schemas.user`) — never pre-checked, or clearing to NULL or
+        # PATCH /users/me — the ONE name field, reaching both the owner's own
+        # surfaces and other people (friends, tournament / daily boards, П10).
+        new_handle = getattr(user_update, "handle", None)
+        _reject_bad_names(new_handle)
+        # `app.models.user`'s `uq_user_handle_lower`: `handle` is
+        # case-insensitively unique. Pre-check BEFORE the write so a normal
+        # collision gets the same human `{code, reason}` shape as
+        # CUBE_LIMIT/NAME_* instead of a bare DB error. `None`/blank means
+        # "not being set / being cleared" (see `_normalize_handle` in
+        # `app.schemas.user`) — never pre-checked, or clearing to NULL or
         # leaving the field out entirely would false-positive against every
         # other handle-less user.
-        new_handle = getattr(user_update, "public_handle", None)
         if isinstance(new_handle, str) and new_handle:
             # `User.id` (via `.__table__.c`, not the bare attribute):
             # fastapi-users' base table declares `id` `if TYPE_CHECKING:
@@ -188,7 +205,7 @@ class UserManager(UUIDIDMixin, BaseUserManager[User, uuid.UUID]):
             # `is_verified`.
             existing = await self._session.execute(
                 select(User.__table__.c.id).where(
-                    func.lower(User.public_handle) == new_handle.strip().lower(),
+                    func.lower(User.handle) == new_handle.strip().lower(),
                     User.__table__.c.id != user.id,
                 )
             )
@@ -278,9 +295,20 @@ class UserManager(UUIDIDMixin, BaseUserManager[User, uuid.UUID]):
             associate_by_email=associate_by_email and provider_verified,
             is_verified_by_default=is_verified_by_default and provider_verified,
         )
-        # nickname is nullable; derive one on first OAuth sign-up.
-        if not user.nickname:
-            user = await self.user_db.update(user, {"nickname": _derive_nickname(account_email)})
+        # handle is nullable; derive one on first OAuth sign-up.
+        if not user.handle:
+            derived = _derive_handle(account_email)
+            try:
+                user = await self.user_db.update(user, {"handle": derived})
+            except IntegrityError:
+                # Two different OAuth signups can derive the same
+                # local-part (e.g. "john@gmail.com" and "john@yahoo.com").
+                # `handle` is unique — don't fail the login over it. Suffix
+                # with the row's OWN id, which by definition cannot already
+                # be taken, so this always succeeds without a retry loop.
+                await self._session.rollback()
+                fallback = f"{derived[:54]}-{user.id.hex[:8]}"
+                user = await self.user_db.update(user, {"handle": fallback})
         return user
 
 

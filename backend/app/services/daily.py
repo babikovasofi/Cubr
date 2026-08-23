@@ -274,9 +274,9 @@ async def get_current_daily_board(
 ) -> DailyBoard:
     """Read-only current-UTC-day participation board.
 
-    NEVER selects ``User.email`` or ``User.nickname`` — only
-    ``User.public_handle`` (П10). No daily challenge yet today -> empty
-    board, zero counts, ``your_entry`` ``None`` (never a 404/500).
+    NEVER selects ``User.email`` — only ``User.handle`` (П10). No daily
+    challenge yet today -> empty board, zero counts, ``your_entry`` ``None``
+    (never a 404/500).
 
     Entries are ``status=="valid"`` attempts ordered by ``submitted_at ASC,
     id ASC``, capped at ``limit``. ``your_entry`` is the caller's own valid
@@ -297,7 +297,7 @@ async def get_current_daily_board(
         )
 
     entries_result = await session.execute(
-        select(DailyAttempt.user_id, DailyAttempt.time_ms, User.public_handle)
+        select(DailyAttempt.user_id, DailyAttempt.time_ms, User.handle)
         .join(User, DailyAttempt.user_id == User.id)
         .where(
             DailyAttempt.daily_id == daily.id,
@@ -308,11 +308,11 @@ async def get_current_daily_board(
     )
     entries = [
         BoardEntry(
-            display_name=display_name_for(public_handle),
+            display_name=display_name_for(handle),
             time_ms=time_ms if time_ms is not None else 0,
             is_self=(user_id == viewer_id),
         )
-        for user_id, time_ms, public_handle in entries_result.all()
+        for user_id, time_ms, handle in entries_result.all()
     ]
 
     valid_count_result = await session.execute(
@@ -336,7 +336,7 @@ async def get_current_daily_board(
     dnf_count = dnf_count_result.scalar_one()
 
     your_result = await session.execute(
-        select(DailyAttempt.time_ms, User.public_handle)
+        select(DailyAttempt.time_ms, User.handle)
         .join(User, DailyAttempt.user_id == User.id)
         .where(
             DailyAttempt.daily_id == daily.id,
@@ -347,7 +347,7 @@ async def get_current_daily_board(
     your_row = your_result.one_or_none()
     your_entry = (
         BoardEntry(
-            display_name=display_name_for(your_row.public_handle),
+            display_name=display_name_for(your_row.handle),
             time_ms=your_row.time_ms if your_row.time_ms is not None else 0,
             is_self=True,
         )

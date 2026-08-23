@@ -9,7 +9,7 @@ from app.services.moderation import (
     CODE_RESERVED,
     CODE_TOO_SHORT,
     check_display_name,
-    sanitize_derived_nickname,
+    sanitize_derived_handle,
 )
 
 CLEAN = [
@@ -162,8 +162,8 @@ def test_whitespace_only_name_rejected(name: str) -> None:
     assert rejection is not None and rejection.code == CODE_TOO_SHORT
 
 
-def test_sanitize_derived_nickname_falls_back_instead_of_failing() -> None:
+def test_sanitize_derived_handle_falls_back_instead_of_failing() -> None:
     # OAuth-редирект нельзя ронять 400-кой из-за грубого локалпарта почты.
-    assert sanitize_derived_nickname("pizdec") == "cuber"
-    assert sanitize_derived_nickname("admin") == "cuber"
-    assert sanitize_derived_nickname("feliks") == "feliks"
+    assert sanitize_derived_handle("pizdec") == "cuber"
+    assert sanitize_derived_handle("admin") == "cuber"
+    assert sanitize_derived_handle("feliks") == "feliks"

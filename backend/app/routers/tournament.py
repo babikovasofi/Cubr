@@ -11,9 +11,9 @@ deadline clock (see `tournament_service.get_current_attempt`).
 `GET /current/standings` is likewise authed and strictly read-only: it
 creates nothing, starts no clock, and returns NO scramble. Its
 `TournamentStandingsRead` response is also privacy-scoped (П10) — it never
-selects or serializes `email` or `nickname`, only the caller-chosen
-`public_handle` (or "Аноним"), and is deliberately de-ranked: no rank/position
-field anywhere in the payload.
+selects or serializes `email`, only the caller-chosen `handle` (or
+"Аноним"), and is deliberately de-ranked: no rank/position field anywhere
+in the payload.
 
 No public (anon) route exists in this brick and none may be added without
 re-checking that invariant.
@@ -150,9 +150,9 @@ async def get_current_standings(
     """De-ranked current-week participation board.
 
     Authed (401 anon), rate-limited, strictly read-only: creates nothing,
-    starts no clock, returns NO scramble. NEVER selects/serializes `email` or
-    `nickname` — only `public_handle` (or "Аноним", П10) — and carries NO
-    rank/position field (de-ranked by design; true ranking is a future brick).
+    starts no clock, returns NO scramble. NEVER selects/serializes `email` —
+    only `handle` (or "Аноним", П10) — and carries NO rank/position field
+    (de-ranked by design; true ranking is a future brick).
     `limit` is clamped to `TOURNAMENT_STANDINGS_LIMIT_MAX`.
     """
     clamped_limit = min(limit, settings.TOURNAMENT_STANDINGS_LIMIT_MAX)

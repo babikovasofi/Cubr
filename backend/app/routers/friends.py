@@ -1,6 +1,6 @@
-"""Mutual-friends routes, added by `public_handle` only (never email/nickname
-search — see `app.services.friends`'s module docstring for the enumeration
-decision). Every route requires an authenticated active user (anon -> 401).
+"""Mutual-friends routes, added by `handle` only (never email search — see
+`app.services.friends`'s module docstring for the enumeration decision).
+Every route requires an authenticated active user (anon -> 401).
 
 `POST /friends/requests` carries an extra per-CALLER rate limit
 (`FRIEND_REQUEST_RATE_LIMIT`, keyed by `user.id` via
@@ -42,7 +42,7 @@ async def send_request(
     user: User = Depends(current_active_user),
     session: AsyncSession = Depends(get_session),
 ) -> FriendRequestRead:
-    """Send a friend request by the target's `public_handle` (case-insensitive).
+    """Send a friend request by the target's `handle` (case-insensitive).
 
     404 unknown/inactive handle; 422 targeting your own handle; 403
     `HANDLE_REQUIRED` if the caller has no handle of their own; 409
@@ -52,7 +52,7 @@ async def send_request(
     `friends_service.send_request`.
     """
     try:
-        friendship, other = await friends_service.send_request(session, user, body.public_handle)
+        friendship, other = await friends_service.send_request(session, user, body.handle)
     except friends_service.FriendNotFoundError as exc:
         await session.rollback()
         raise HTTPException(
@@ -79,7 +79,7 @@ async def send_request(
     await session.commit()
     return FriendRequestRead(
         friendship_id=friendship.id,
-        display_name=display_name_for(other.public_handle),
+        display_name=display_name_for(other.handle),
         created_at=friendship.created_at,
     )
 
@@ -135,7 +135,7 @@ async def accept_request(
     await session.commit()
     return FriendRead(
         friendship_id=friendship.id,
-        display_name=display_name_for(other.public_handle),
+        display_name=display_name_for(other.handle),
         since=friendship.responded_at
         if friendship.responded_at is not None
         else friendship.created_at,
