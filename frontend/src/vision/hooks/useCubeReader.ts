@@ -367,6 +367,38 @@ export function confidentCells(labs: Lab[], refs: Refs, kept: number[]): number 
   return n;
 }
 
+/**
+ * Разбор девяти ячеек на три кучки — почему грань может не читаться.
+ *
+ * `confidentCells` считает одним числом две РАЗНЫЕ болезни, и лечатся они не
+ * одинаково. Ячейка, выбитая бликом или севшая мимо кубика (`kept` мал или ΔE
+ * до ближайшего эталона больше `STICKER_MAX_DELTA_E`), — это дырка в данных:
+ * цвета там просто нет, и снимать надо заново. Ячейка со СПОРНЫМ цветом
+ * (`margin` меньше `STICKER_MARGIN_MIN`) измерена честно, у неё просто два
+ * похожих кандидата — красный и оранжевый на дрейфующем автобалансе. Именно
+ * ради неё существуют квоты 9×6 и физика поворотов: на полном чтении шести
+ * граней у такой ячейки почти всегда остаётся ровно один законный вариант.
+ *
+ * Живая жалоба 2026-08-24: три отказа подряд «уверенных ячеек 6/9, 7/9, 5/9 —
+ * спорный цвет 3:L? 8:R?». Ни одной выбитой, ни одной далёкой — только споры
+ * красного с оранжевым, то есть ровно то, что решается ниже по пути. Экран при
+ * этом требовал переснять и не давал дойти до места, где спор разрешается.
+ */
+export function faceReadCounts(
+  labs: Lab[],
+  refs: Refs,
+  kept: number[],
+): { bad: number; ambiguous: number; solid: number } {
+  let bad = 0;
+  let ambiguous = 0;
+  for (let i = 0; i < labs.length; i++) {
+    const { margin, d } = stickerConfidence(labs[i], refs);
+    if ((kept[i] ?? 1) < config.CELL_MIN_KEPT_FRAC || d > config.STICKER_MAX_DELTA_E) bad += 1;
+    else if (margin < config.STICKER_MARGIN_MIN) ambiguous += 1;
+  }
+  return { bad, ambiguous, solid: labs.length - bad - ambiguous };
+}
+
 export function classifyWithQuota(
   faces: Lab[][],
   refs: Refs,
@@ -901,8 +933,14 @@ export function useCubeReader(workRef: React.RefObject<HTMLCanvasElement | null>
     const centerName = argminRef(face.lab[4], refs);
     const fixedRGB = normalizeFaceByCenter(face.rgb, refs[centerName]);
     const fixedLab = fixedRGB.map((rgb) => rgb2lab(rgb));
-    const confident = confidentCells(fixedLab, refs, face.kept);
-    if (confident < config.FACE_MIN_CONFIDENT_CELLS) {
+    // Дырки в данных и споры о цвете считаются раздельно: первые лечатся
+    // пересъёмкой, вторые — квотами и физикой ниже по пути (faceReadCounts).
+    const counts = faceReadCounts(fixedLab, refs, face.kept);
+    const confident = counts.solid + counts.ambiguous;
+    if (
+      confident < config.FACE_MIN_CONFIDENT_CELLS ||
+      counts.ambiguous > config.FACE_MAX_AMBIGUOUS_CELLS
+    ) {
       lowConfidenceRef.current += 1;
       if (lowConfidenceRef.current <= config.FACE_CONFIDENCE_RETRIES) {
         return {

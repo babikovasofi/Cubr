@@ -614,6 +614,21 @@ export const EN: Record<string, string> = {
   "Поднеси к жёлтой рамке грань собранного кубика и снимай по очереди — снято {done}/{total}.":
     "Hold a face of the solved cube up to the yellow frame and capture them one by one — {done}/{total} captured.",
   "Снять грань {n}/{total}": "Capture face {n}/{total}",
+  // --- подсказка «какую грань показывать» (solo/facePrompts.ts) ---
+  "Покажи БЕЛУЮ грань": "Show the WHITE face",
+  "Покажи КРАСНУЮ грань": "Show the RED face",
+  "Покажи ЗЕЛЁНУЮ грань": "Show the GREEN face",
+  "Покажи ЖЁЛТУЮ грань": "Show the YELLOW face",
+  "Покажи ОРАНЖЕВУЮ грань": "Show the ORANGE face",
+  "Покажи СИНЮЮ грань": "Show the BLUE face",
+  "Покажи грань с БЕЛЫМ центром": "Show the face with the WHITE centre",
+  "Покажи грань с КРАСНЫМ центром": "Show the face with the RED centre",
+  "Покажи грань с ЗЕЛЁНЫМ центром": "Show the face with the GREEN centre",
+  "Покажи грань с ЖЁЛТЫМ центром": "Show the face with the YELLOW centre",
+  "Покажи грань с ОРАНЖЕВЫМ центром": "Show the face with the ORANGE centre",
+  "Покажи грань с СИНИМ центром": "Show the face with the BLUE centre",
+  "Порядок не строгий — грань узнаётся по центру. Главное, не показывать одну дважды.":
+    "The order is a suggestion — a face is recognised by its centre. Just do not show the same one twice.",
   "Держи грань в жёлтой рамке и снимай — прочитано {done}/{total}.":
     "Hold the face inside the yellow frame and capture — {done}/{total} read.",
   "Держи собранную грань в жёлтой рамке и снимай — прочитано {done}/{total}.":
