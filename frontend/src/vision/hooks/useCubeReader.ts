@@ -8,6 +8,7 @@ import { useRef, useState } from "react";
 import {
   calibrateByColorIdentity,
   checkCalibration,
+  chroma,
   COLOR_NAMES,
   assignQuota,
   cellWeight,
@@ -676,6 +677,10 @@ async function readFaceBurst(
  */
 function cellDiagnostics(faces: FaceSample[], refs: Refs): CellDiag[] {
   const out: CellDiag[] = [];
+  // Самый светлый эталон, а не `refs.U`: белый — это тот, что снялся светлее
+  // всех (это и проверяет colors.checkCalibration), и брать его по имени грани
+  // значило бы верить имени там, где есть измерение.
+  const whiteL = Math.max(...COLOR_NAMES.map((name) => refs[name][0]));
   for (const face of faces) {
     for (let c = 0; c < 9; c++) {
       // Той же метрикой, что и решение: диагностика, посчитанная другой,
@@ -694,6 +699,8 @@ function cellDiagnostics(faces: FaceSample[], refs: Refs): CellDiag[] {
         second: ranked[1].name,
         secondDE: ranked[1].de,
         skin: face.skin[c] ?? 0,
+        lift: face.lab[c][0] - whiteL,
+        chroma: chroma(face.lab[c]),
       });
     }
   }
