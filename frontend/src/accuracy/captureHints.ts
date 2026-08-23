@@ -15,10 +15,16 @@
 // show R/F/L/B keeps white on top unchanged. Showing U or D is a PIVOT, not a
 // spin, and the two pivots go in OPPOSITE directions:
 //   x'  (U to front): white->front, green->bottom, BLUE->top.
-//   x   (D to front): yellow->front, white->bottom, GREEN->top.
+//   x   (D to front): yellow->front, blue->bottom, GREEN->top (white goes to the BACK).
 // An earlier version of this copy had U/D's top-colour swapped, which fed the
 // reader a mismatched orientation on exactly those two steps — the likely root
 // cause of drift errors reported downstream (e.g. on L, right after D).
+//
+// The bottom colour of the D step was wrong in the same spirit until a tester
+// caught it live: it said white, and white is OPPOSITE yellow — with yellow at
+// the camera, white is behind the cube and cannot be anywhere else. The bottom
+// centre is always the opposite of the top one, which is what `captureHints`
+// tests now assert against the cube model instead of against this prose.
 export const CAPTURE_HINTS: { face: string; ru: string }[] = [
   {
     face: "U",
@@ -28,7 +34,7 @@ export const CAPTURE_HINTS: { face: string; ru: string }[] = [
   { face: "F", ru: "В камеру — грань с ЗЕЛЁНЫМ центром. Наверху центр белый." },
   {
     face: "D",
-    ru: "В камеру — грань с ЖЁЛТЫМ центром. Наверху окажется центр зелёный, внизу белый.",
+    ru: "В камеру — грань с ЖЁЛТЫМ центром. Наверху окажется центр зелёный, внизу синий.",
   },
   { face: "L", ru: "В камеру — грань с ОРАНЖЕВЫМ центром. Наверху центр белый." },
   { face: "B", ru: "В камеру — грань с СИНИМ центром. Наверху центр белый." },
