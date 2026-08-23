@@ -85,8 +85,6 @@ jobs:
       - name: Tests
         run: npm test
 
-      # `prebuild` only warns about the vercel.json placeholder outside Vercel's
-      # own production build, so this stays green before the deploy exists.
       # `postbuild` enforces the 320 kB entry-chunk budget — that one is a gate.
       - name: Build
         run: npm run build
