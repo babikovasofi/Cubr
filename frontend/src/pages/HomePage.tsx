@@ -11,7 +11,6 @@ import HeroStickers from "../components/HeroStickers";
 import MiniGrid from "../components/MiniGrid";
 import { useIsHandheld } from "../lib/useIsHandheld";
 import { useT } from "../i18n/t";
-import { useUiStore } from "../store/uiStore";
 import { useAuthStore } from "../store/authStore";
 import { createRoom, saveDuelSessionToken } from "../api/duel";
 
@@ -202,39 +201,23 @@ function Landing() {
           <ModeCard
             to="/trainer"
             mode="trainer"
-            title={t("Тренажёр последнего слоя")}
+            title={t("Тренажёр")}
             text={t("78 случаев OLL и PLL, скрамбл под конкретный случай — без аккаунта.")}
           />
         </div>
       </section>
 
-      <section className="flex flex-col gap-4 rounded-lg border-2 border-ink bg-surface p-4.5">
-        <h2 className="font-sans text-h2 text-ink">{t("Честно и без слежки")}</h2>
-        <ul className="flex list-none flex-col gap-2 p-0">
-          <li className="font-sans text-body text-muted">
-            <span className="font-bold text-ink">{t("Скрамбл генерит сервер")}</span>{" "}
-            {t("— не браузер, так что подсмотреть его заранее нельзя.")}
-          </li>
-          <li className="font-sans text-body text-muted">
-            <span className="font-bold text-ink">{t("Видео остаётся у тебя")}</span>{" "}
-            {t("— кадры с камеры обрабатываются прямо в браузере и никуда не отправляются.")}
-          </li>
-          <li className="font-sans text-body text-muted">
-            <span className="font-bold text-ink">{t("Мест и рейтинга пока нет")}</span>{" "}
-            {t(
-              "— времена сейчас заявляет клиент, поэтому таблицы показывают участников без номеров. Рейтинг появится, когда заработает серверная проверка.",
-            )}
-          </li>
-        </ul>
-        <div className="flex flex-wrap gap-4">
-          <Link to="/rules" className="font-sans text-small font-bold text-primary">
-            {t("Правила")}
-          </Link>
-          <Link to="/privacy" className="font-sans text-small font-bold text-primary">
-            {t("Данные и приватность")}
-          </Link>
-        </div>
-      </section>
+      {/* Блок «Честно и без слежки» убран: два его пункта из трёх дословно
+          повторяли шаги выше («Скрамбл выдаёт сервер») и строку под героем
+          («Видео не покидает браузер»), а ссылки на правила и приватность и без
+          него стоят в футере на каждой странице. Осталось единственное, чего
+          нигде больше нет, — честное предупреждение про рейтинг; оно стоит
+          ровно там, где человек только что прочитал про таблицы. */}
+      <p className="max-w-prose font-sans text-small text-muted">
+        {t(
+          "Мест и рейтинга пока нет: времена заявляет клиент, поэтому таблицы показывают участников без номеров. Рейтинг появится, когда заработает серверная проверка.",
+        )}
+      </p>
 
       <section className="flex flex-col gap-4">
         <h2 className="font-sans text-h2 text-ink">{t("Готов?")}</h2>
@@ -258,8 +241,6 @@ function Landing() {
 
 function Dashboard() {
   const t = useT();
-  const theme = useUiStore((s) => s.theme);
-  const toggleTheme = useUiStore((s) => s.toggleTheme);
   const navigate = useNavigate();
   const [duelBusy, setDuelBusy] = useState(false);
   const [duelError, setDuelError] = useState<string | null>(null);
@@ -306,7 +287,7 @@ function Dashboard() {
       <ModeCard
         to="/trainer"
         mode="trainer"
-        title={t("Тренажёр последнего слоя")}
+        title={t("Тренажёр")}
         text={t("78 случаев OLL и PLL, скрамбл под конкретный случай — без аккаунта.")}
       />
 
@@ -337,9 +318,6 @@ function Dashboard() {
         <Link to="/solo" className="no-underline">
           <Button>{t("Соло-тренировка")}</Button>
         </Link>
-        <Button variant="secondary" onClick={toggleTheme}>
-          {t("Тема: {theme}", { theme: theme === "light" ? t("светлая") : t("тёмная") })}
-        </Button>
         {import.meta.env.DEV ? (
           <Link to="/accuracy" className="no-underline">
             <Button variant="secondary">{t("Замер точности (dev)")}</Button>

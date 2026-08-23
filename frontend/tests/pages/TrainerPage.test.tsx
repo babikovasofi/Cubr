@@ -226,7 +226,7 @@ describe("TrainerPage", () => {
     } as unknown as Storage);
 
     expect(() => render(<TrainerPage />)).not.toThrow();
-    expect(screen.getByText("Тренажёр последнего слоя")).toBeTruthy();
+    expect(screen.getByText("Тренажёр")).toBeTruthy();
   });
 });
 
