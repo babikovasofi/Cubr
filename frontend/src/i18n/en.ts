@@ -62,7 +62,8 @@ export const EN: Record<string, string> = {
   "Общий скрамбл на сутки, одна попытка.": "One shared scramble for the day, one attempt.",
   "● идёт запись": "● recording now",
 
-  "Честно и без слежки": "Honest, and no tracking",
+  "Мест и рейтинга пока нет: времена заявляет клиент, поэтому таблицы показывают участников без номеров. Рейтинг появится, когда заработает серверная проверка.":
+    "No places or rating yet: times are claimed by the client, so the tables list entrants without numbers. Rating arrives when the server-side check does.",
   "Скрамбл генерит сервер": "The server generates the scramble",
   "— не браузер, так что подсмотреть его заранее нельзя.":
     "— not the browser, so it cannot be peeked at in advance.",
@@ -89,9 +90,9 @@ export const EN: Record<string, string> = {
     "Create a room and send your opponent the link — synchronous start, one shared scramble.",
   "Создаю комнату…": "Creating the room…",
   "Не удалось создать дуэль. Попробуй ещё раз.": "Could not create the duel. Try again.",
-  "Тема: {theme}": "Theme: {theme}",
-  светлая: "light",
-  тёмная: "dark",
+  Тема: "Theme",
+  Светлая: "Light",
+  Тёмная: "Dark",
   "Замер точности (dev)": "Accuracy run (dev)",
 
   // --- экран «открой с компьютера» ---
@@ -702,7 +703,7 @@ export const EN: Record<string, string> = {
   // --- тренажёр PLL/OLL (plan: ll-trainer, extended for OLL) — case ids
   // (Aa, Ub, G-perm, OLL1..OLL57, Sune, Antisune, …) are international
   // notation and are NOT translated here on purpose. ---
-  "Тренажёр последнего слоя": "Last-layer trainer",
+  Тренажёр: "Trainer",
   "78 случаев OLL и PLL, скрамбл под конкретный случай — без аккаунта.":
     "78 OLL and PLL cases, a scramble for the exact case you pick — no account needed.",
   "Выбери один или несколько случаев — получишь скрамбл, который гарантированно ставит кубик именно в этот случай. Без сборки, без камеры: собери скрамбл руками и сверься с ответом.":
