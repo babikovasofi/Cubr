@@ -12,6 +12,7 @@ import ScrambleWalkthrough from "./ScrambleWalkthrough";
 import type { useSoloSession } from "./useSoloSession";
 import { verifyMismatchRu } from "../vision/guide";
 import { useT } from "../i18n/t";
+import { facePrompt } from "./facePrompts";
 
 type Session = ReturnType<typeof useSoloSession>;
 
@@ -186,6 +187,7 @@ function CalibratePanel({ s }: { s: Session }) {
           { done: s.calibrationStep, total },
         )}
       </p>
+      <FaceHint step={s.calibrationStep} solved />
       <Button onClick={s.calibrateStep}>
         {t("Снять грань {n}/{total}", { n: Math.min(s.calibrationStep + 1, total), total })}
       </Button>
@@ -194,6 +196,28 @@ function CalibratePanel({ s }: { s: Session }) {
           {s.calibrateError}
         </p>
       ) : null}
+    </div>
+  );
+}
+
+/**
+ * Какую грань нести к рамке на этом шаге.
+ *
+ * Порядок — совет: грань узнаётся по центру, поэтому чтение переживёт любой
+ * порядок показа. Об этом сказано прямо, чтобы человек не переснимал всё
+ * заново, сбившись с круга; а вот показать одну грань дважды нельзя — тогда
+ * шесть съёмок не разложатся по шести цветам.
+ */
+function FaceHint({ step, solved }: { step: number; solved: boolean }) {
+  const t = useT();
+  const prompt = facePrompt(step, solved);
+  if (!prompt) return null;
+  return (
+    <div className="flex flex-col gap-1">
+      <p className="font-sans text-body font-extrabold text-ink">{t(prompt)}</p>
+      <p className="font-sans text-caption text-muted">
+        {t("Порядок не строгий — грань узнаётся по центру. Главное, не показывать одну дважды.")}
+      </p>
     </div>
   );
 }
@@ -216,6 +240,7 @@ function SolveVerifyPanel({ s }: { s: Session }) {
               total,
             })}
           </p>
+          <FaceHint step={s.verifyFacesLength} solved />
           <Button onClick={s.solveVerifyStep}>
             {t("Снять грань {n}/{total}", { n: Math.min(s.verifyFacesLength + 1, total), total })}
           </Button>
@@ -260,6 +285,7 @@ function VerifyPanel({ s }: { s: Session }) {
               total,
             })}
           </p>
+          <FaceHint step={s.verifyFacesLength} solved={false} />
           <Button onClick={s.verifyStep}>
             {t("Снять грань {n}/{total}", { n: Math.min(s.verifyFacesLength + 1, total), total })}
           </Button>

@@ -6,6 +6,7 @@ import { describe, it, expect } from "vitest";
 import {
   confidentCells,
   faceMedianDE,
+  faceReadCounts,
   stickerConfidence,
 } from "../../src/vision/hooks/useCubeReader";
 import { normalizeFaceByCenter, rgb2lab, type Refs, type RGB } from "../../src/vision/colors";
@@ -25,6 +26,11 @@ const REFS: Refs = Object.fromEntries(
 ) as Refs;
 
 const ALL_KEPT = Array.from({ length: 9 }, () => 1);
+
+/** Одноцветная грань в Lab — девять ячеек точно в эталон. */
+function solidFace(name: string) {
+  return Array.from({ length: 9 }, () => [...REFS[name as keyof Refs]] as [number, number, number]);
+}
 
 describe("stickerConfidence", () => {
   it("точный цвет даёт большой отрыв от второго кандидата", () => {
@@ -132,5 +138,42 @@ describe("faceMedianDE — «в рамке вообще не кубик»", () =
     const fixed = normalizeFaceByCenter(TABLE, LIVE_REFS.U).map(rgb2lab);
     expect(confidentCells(fixed, LIVE_REFS, ALL_KEPT)).toBe(9);
     expect(faceMedianDE(fixed, LIVE_REFS)).toBeLessThan(config.FACE_MAX_MEDIAN_DE);
+  });
+});
+
+describe("faceReadCounts: дырка в данных и спор о цвете — разные болезни", () => {
+  it("здоровая грань: всё в solid", () => {
+    const labs = solidFace("R");
+    expect(faceReadCounts(labs, REFS, ALL_KEPT)).toEqual({ bad: 0, ambiguous: 0, solid: 9 });
+  });
+
+  it("выбитая бликом ячейка идёт в bad, а не в ambiguous", () => {
+    const labs = solidFace("R");
+    const kept = [...ALL_KEPT];
+    kept[0] = 0.1;
+    const counts = faceReadCounts(labs, REFS, kept);
+    expect(counts.bad).toBe(1);
+    expect(counts.ambiguous).toBe(0);
+  });
+
+  it("ячейка ровно между двумя эталонами идёт в ambiguous, а не в bad", () => {
+    // Живой случай: красный с оранжевым на дрейфующем автобалансе.
+    const labs = solidFace("R");
+    labs[3] = [
+      (REFS.R[0] + REFS.L[0]) / 2,
+      (REFS.R[1] + REFS.L[1]) / 2,
+      (REFS.R[2] + REFS.L[2]) / 2,
+    ];
+    const counts = faceReadCounts(labs, REFS, ALL_KEPT);
+    expect(counts.ambiguous).toBe(1);
+    expect(counts.bad).toBe(0);
+  });
+
+  it("три кучки всегда дают девять", () => {
+    const labs = solidFace("R");
+    const kept = [...ALL_KEPT];
+    kept[0] = 0.05;
+    const c = faceReadCounts(labs, REFS, kept);
+    expect(c.bad + c.ambiguous + c.solid).toBe(labs.length);
   });
 });
