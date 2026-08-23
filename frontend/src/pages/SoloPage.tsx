@@ -7,12 +7,16 @@ import CubeSelect from "../cubes/CubeSelect";
 import ResultScreen from "../solo/ResultScreen";
 import SolveRitual from "../solo/SolveRitual";
 import { useSoloSession } from "../solo/useSoloSession";
+import { useSoloHistory } from "../solo/useSoloHistory";
 import { useT } from "../i18n/t";
 
 export default function SoloPage() {
   const t = useT();
   const s = useSoloSession();
   const { phase } = s.state;
+  // Baseline history for the result screen's "what's next" card — see
+  // useSoloHistory for why it's keyed on "calibrate" rather than "result".
+  const history = useSoloHistory(phase);
 
   return (
     <div className="flex flex-col gap-6">
@@ -32,10 +36,12 @@ export default function SoloPage() {
         <ResultScreen
           seconds={s.timerSeconds}
           dnf={s.state.dnf}
+          elapsedMs={s.state.elapsedMs}
           validated={s.validated}
           cameraVerified={s.state.cameraVerified}
           onAgain={s.again}
           saveState={s.saveState}
+          history={history}
           scramble={s.scramble}
         />
       ) : null}
