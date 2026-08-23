@@ -103,15 +103,25 @@ describe("HomePage", () => {
     expect(sectionClasses).toContain("sm:flex-row");
   });
 
-  it("аноним видит ссылки на правила и приватность", () => {
+  it("аноним видит ссылку на правила", () => {
     renderHome();
 
     const rules = screen.getAllByRole("link", { name: /Правила/ });
     expect(rules.length).toBeGreaterThan(0);
     expect(rules[0].getAttribute("href")).toBe("/rules");
-    expect(screen.getByRole("link", { name: "Данные и приватность" }).getAttribute("href")).toBe(
-      "/privacy",
-    );
+  });
+
+  it("не повторяет то, что уже сказано выше и в футере", () => {
+    renderHome();
+
+    // Блок «Честно и без слежки» убран: «Скрамбл генерит сервер» дословно
+    // повторял шаг «Скрамбл выдаёт сервер», «Видео остаётся у тебя» — строку
+    // под героем, а ссылка на приватность живёт в футере на каждой странице
+    // (её проверяет tests/pages/legal.test.tsx).
+    expect(screen.queryByText(/Честно и без слежки/)).toBeNull();
+    expect(screen.queryByRole("link", { name: "Данные и приватность" })).toBeNull();
+    // Единственное, чего больше нигде нет, — предупреждение про рейтинг.
+    expect(screen.getByText(/Мест и рейтинга пока нет/)).toBeTruthy();
   });
 
   it("аноним не видит дашборд режимов под аккаунт", () => {
@@ -127,9 +137,7 @@ describe("HomePage", () => {
   it("тренажёр PLL — анониму сразу на /trainer, не на /register (§П5)", () => {
     renderHome();
 
-    expect(
-      screen.getByRole("link", { name: /Тренажёр последнего слоя/ }).getAttribute("href"),
-    ).toBe("/trainer");
+    expect(screen.getByRole("link", { name: /Тренажёр/ }).getAttribute("href")).toBe("/trainer");
   });
 
   it("статус loading показывает лендинг, а не дашборд", () => {
@@ -163,9 +171,7 @@ describe("HomePage", () => {
     useAuthStore.setState({ status: "authed" });
     renderHome();
 
-    expect(
-      screen.getByRole("link", { name: /Тренажёр последнего слоя/ }).getAttribute("href"),
-    ).toBe("/trainer");
+    expect(screen.getByRole("link", { name: /Тренажёр/ }).getAttribute("href")).toBe("/trainer");
   });
 
   it("с телефона лендинг честно предупреждает про компьютер (R8)", () => {

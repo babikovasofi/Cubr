@@ -15,6 +15,7 @@ import TrophyIcon from "./components/TrophyIcon";
 import { ToastViewport, toast } from "./components/Toast";
 import { useAuthStore } from "./store/authStore";
 import { useLangStore, type Lang } from "./store/langStore";
+import { useUiStore, type Theme } from "./store/uiStore";
 import SegmentedToggle from "./components/SegmentedToggle";
 import { useT } from "./i18n/t";
 
@@ -182,6 +183,30 @@ function Header() {
 
 // Этап 6: единственная сквозная точка входа в правила/приватность — под контентом,
 // нейтральная (§1: цвет живёт в деталях, не в служебных блоках).
+// Тема — рядом с языком, в футере: обе настройки служебные и сквозные, и обе
+// не должны спорить с главным действием экрана. Раньше кнопка темы стояла
+// посреди списка режимов на главной, где читалась как ещё один режим.
+function ThemeSwitcher() {
+  const t = useT();
+  const theme = useUiStore((s) => s.theme);
+  const setTheme = useUiStore((s) => s.setTheme);
+
+  return (
+    <div className="flex items-center gap-2 font-sans text-small text-muted">
+      <span aria-hidden>{t("Тема")}</span>
+      <SegmentedToggle<Theme>
+        value={theme}
+        onChange={setTheme}
+        label={t("Тема")}
+        options={[
+          { value: "light", label: t("Светлая") },
+          { value: "dark", label: t("Тёмная") },
+        ]}
+      />
+    </div>
+  );
+}
+
 function LanguageSwitcher() {
   const t = useT();
   const lang = useLangStore((s) => s.lang);
@@ -221,6 +246,7 @@ function Footer() {
         {/* Переключатель языка — в футере, единственной сквозной служебной точке
             (там же, где правила и приватность). В шапке он отвлекал бы от CTA. */}
         <LanguageSwitcher />
+        <ThemeSwitcher />
       </div>
     </footer>
   );

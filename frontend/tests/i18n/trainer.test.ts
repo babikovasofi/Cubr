@@ -8,10 +8,10 @@ import { EN } from "../../src/i18n/en";
 import { ALL_CASE_IDS } from "../../src/trainer/pll";
 import { ALL_OLL_CASE_IDS, OLL_CASES } from "../../src/trainer/oll";
 
-describe("тренажёр последнего слоя — словарь", () => {
+describe("тренажёр — словарь", () => {
   it("покрывает экран целиком", () => {
     for (const key of [
-      "Тренажёр последнего слоя",
+      "Тренажёр",
       "Набор случаев",
       "PLL (перестановка)",
       "OLL (ориентация)",
