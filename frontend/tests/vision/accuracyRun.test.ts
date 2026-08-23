@@ -8,6 +8,7 @@ import {
   conditionVerdict,
   condKeyString,
   gatePass,
+  formatRunSummary,
   hotspots,
   wilsonLowerBound,
   MIN_READS,
@@ -291,5 +292,81 @@ describe("looksSolvedRead", () => {
 
   it("неполный набор граней не выдаётся за собранный кубик", () => {
     expect(looksSolvedRead(["U", "R", "F"].map(uniform))).toBe(false);
+  });
+});
+
+// Санити не закрывает гейт — сколько бы чистых чтений в нём ни набрали.
+//
+// Живая сессия 2026-08-20: семь чтений подряд по 54/54 в режиме «собранный».
+// 378 наклеек, ноль ошибок, Wilson-LB 99% — и всё это не про R1. На собранном
+// кубике красный не лежит рядом с оранжевым, а белый — рядом с жёлтым, то есть
+// адъяцентности, ради которых гейт существует, не проверяются вовсе. Инструмент
+// обязан говорить это сам, а не полагаться на память тестировщика.
+describe("санити-условие и гейт", () => {
+  const sanityKey = {
+    mode: "solved",
+    grip: "fixed",
+    light: "led",
+    cube: "stickerless",
+    person: "соня",
+    calib: "fresh",
+  };
+  const scrambleKey = { ...sanityKey, mode: "scramble" };
+
+  function perfectReads(run: AccuracyRun, key: typeof sanityKey, count: number): void {
+    for (let i = 0; i < count; i++) {
+      appendRead(run, key, scoreRead(SOLVED, SOLVED));
+    }
+  }
+
+  it("двадцать безупречных санити-чтений гейт не закрывают", () => {
+    const run: AccuracyRun = new Map();
+    perfectReads(run, sanityKey, 20);
+
+    const gate = gatePass(run);
+    expect(gate.conditions).toHaveLength(1);
+    expect(gate.conditions[0].wilsonLower).toBeGreaterThan(0.99); // цифра прекрасна
+    expect(gate.conditions[0].countsTowardGate).toBe(false); // и не про то
+    expect(gate.pass).toBe(false);
+    expect(gate.sanityOnly).toBe(true);
+    expect(gate.min).toBeNull(); // «худшего условия» среди идущих в гейт нет
+  });
+
+  it("сводка объясняет это словами, а не молчанием", () => {
+    const run: AccuracyRun = new Map();
+    perfectReads(run, sanityKey, 20);
+    const out = formatRunSummary(run);
+
+    expect(out).toContain("Сняты только санити-условия");
+    expect(out).toContain("[САНИТИ]");
+    expect(out).toContain("в гейт не идёт");
+    // И не обещает, что добор чтений что-то закроет.
+    expect(out).not.toContain("нужно ≥20 чтений");
+  });
+
+  it("двадцать чтений на скрамбле гейт закрывают", () => {
+    const run: AccuracyRun = new Map();
+    perfectReads(run, scrambleKey, 20);
+
+    const gate = gatePass(run);
+    expect(gate.sanityOnly).toBe(false);
+    expect(gate.conditions[0].countsTowardGate).toBe(true);
+    expect(gate.pass).toBe(true);
+  });
+
+  // Санити рядом со скрамблом не должно ни тянуть гейт вверх, ни ронять его.
+  it("санити не влияет на вердикт, когда скрамбл-условие есть", () => {
+    const run: AccuracyRun = new Map();
+    perfectReads(run, sanityKey, 20); // идеально
+    for (let i = 0; i < 20; i++) {
+      // Скрамбл-условие с провальной точностью: половина наклеек мимо.
+      const wrong = SOLVED.split("");
+      for (let j = 0; j < 27; j++) wrong[j] = wrong[j] === "U" ? "R" : "U";
+      appendRead(run, scrambleKey, scoreRead(wrong.join(""), SOLVED));
+    }
+
+    const gate = gatePass(run);
+    expect(gate.pass).toBe(false);
+    expect(gate.min?.key.mode).toBe("scramble"); // худшее ищется только среди них
   });
 });

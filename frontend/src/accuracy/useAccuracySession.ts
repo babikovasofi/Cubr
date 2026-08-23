@@ -17,6 +17,7 @@ import {
   scorePictureGrip,
   formatReport,
   type AccuracyReport,
+  formatRawGrids,
   type CellDiag,
   type FaceFitDiag,
 } from "../vision/accuracy";
@@ -31,6 +32,7 @@ import {
   formatRunSummary,
   type AccuracyRun,
   type ConditionKey,
+  type DropReason,
 } from "../vision/accuracyRun";
 import { SOLVED, type Facelet } from "../vision/cubeState";
 import {
@@ -43,6 +45,7 @@ import {
 } from "../vision/guide";
 import {
   COLOR_NAMES,
+  deltaEClassify,
   lab2rgb,
   anchorDistances,
   minSeparation,
@@ -109,6 +112,15 @@ export interface AccuracySession {
   excludeLast: () => void;
   // Results.
   lastReport: AccuracyReport | null;
+  /**
+   * Текст последнего брака — им же управляется доступность «Копировать отчёт».
+   *
+   * Кнопка гасла, когда в прогоне не было ни одного СЧИТАННОГО чтения, — то
+   * есть ровно в том случае, ради которого брак и начали запоминать: три дропа
+   * подряд, копировать нечего, отчёт недоступен. Диагностика, до которой нельзя
+   * дотянуться, не диагностика.
+   */
+  lastDropText: string | null;
   lastProductReport: AccuracyReport | null;
   run: AccuracyRun;
   runVersion: number;
@@ -148,6 +160,24 @@ export function useAccuracySession(): AccuracySession {
     calib: "fresh",
   });
   const [captureError, setCaptureError] = useState<string | null>(null);
+  // Текст последнего БРАКА, слово в слово как его увидел человек.
+  //
+  // До этого «Копировать отчёт» отдавал только успешные чтения, а дроп жил одной
+  // строкой на экране и умирал со следующей съёмкой. Прогон, где в дроп ушло
+  // ВСЁ (stickerless/LED, 2026-08-19), копировался как пустая сводка: 0 чтений,
+  // drop 100% — и ни одного числа о том, что именно развалилось. Диагностика
+  // обязана уезжать в буфер вместе с гейтом, иначе её пересказывают руками.
+  const [lastDropText, setLastDropText] = useState<string | null>(null);
+  // Сколько раз съёмку отклонили пересъёмкой, а не дропом (не та грань, не
+  // кубик, нет решётки).
+  //
+  // ЧЕСТНОСТЬ. Пересъёмка не попадает ни в числитель, ни в знаменатель гейта —
+  // и это ровно тот механизм, которым замер можно незаметно улучшить: если
+  // зрение стабильно путает центр красной грани с оранжевым, отказ «покажи
+  // нужную грань» будет молча выбрасывать неудобные съёмки, а точность полезет
+  // вверх. Поэтому счётчик печатается в отчёте: одна-две пересъёмки за прогон —
+  // человек ошибся гранью, двадцать — врёт зрение, и цифре гейта верить нельзя.
+  const retakesRef = useRef<Map<string, number>>(new Map());
   const [lastReport, setLastReport] = useState<AccuracyReport | null>(null);
   // Второй счёт того же чтения — продуктовым путём (нормировка света + квоты).
   // Гейт по нему НЕ считается: его планка стоит на сыром зрении.
@@ -247,6 +277,31 @@ export function useAccuracySession(): AccuracySession {
     setCondition({ calib: "fresh" });
   };
 
+  /**
+   * Забраковать чтение: показать причину, запомнить её для отчёта, записать дроп.
+   *
+   * Один путь на все причины — иначе следующая ветка отказа снова забудет
+   * положить текст в отчёт, как забыли все шесть предыдущих. `grids` передаётся
+   * там, где чтение дошло до 54 ячеек: тогда к причине прикладывается сама
+   * грань, а не только вывод о ней.
+   */
+  const dropRead = (
+    text: string,
+    reason: DropReason,
+    capture?: {
+      grids: readonly (readonly string[])[];
+      diags: readonly CellDiag[];
+      fits: readonly FaceFitDiag[];
+    },
+  ): void => {
+    const full = capture
+      ? `${text}\n${formatRawGrids(capture.grids, capture.diags, capture.fits)}`
+      : text;
+    setCaptureError(full);
+    setLastDropText(full);
+    appendDrop(runRef.current, conditionRef.current, reason);
+  };
+
   const captureFace = async (): Promise<void> => {
     setCaptureError(null);
     if (!reader.calibrated) {
@@ -259,7 +314,8 @@ export function useAccuracySession(): AccuracySession {
       return;
     }
     if (!reader.collectingAccuracy) {
-      reader.beginAccuracy();
+      // Порядок граней требуется только строгой хваткой — она на нём и стоит.
+      reader.beginAccuracy(grip === "fixed");
       return;
     }
     const v = videoRef.current;
@@ -280,12 +336,38 @@ export function useAccuracySession(): AccuracySession {
         // уже снятые грани целы, лечится повтором этой грани. Бросать всё
         // чтение в дроп значило бы наказывать тестировщика за подсказку камеры
         // — за двадцать чтений это выгонит его с харнесса.
-        if (r.reason === "not-a-face") {
-          setCaptureError(r.diag ?? faceUnreadableRu());
+        // «Не кубик» и «нет решётки» лечатся одинаково — пересъёмкой ОДНОЙ
+        // грани, поэтому и обходятся одинаково: остальные снятые грани целы,
+        // дроп не пишется. Отличаются они только текстом причины, и он приходит
+        // готовым из пайплайна.
+        // «Показана не та грань» — дроп со своей причиной, а не пересъёмка:
+        // проверка не отличает человеческую ошибку от промаха зрения по центру,
+        // см. `DropReason` в accuracyRun.ts. Остальные два отказа смотрят на
+        // структуру кадра, а не на цвет, и потому пересъёмку заслуживают.
+        if (r.reason === "wrong-face") {
+          dropRead(r.diag ?? faceUnreadableRu(), "wrong-face");
+          reader.resetAccuracy();
+          bump();
           return;
         }
-        setCaptureError(r.diag ? `${faceUnreadableRu()} (${r.diag})` : faceUnreadableRu());
-        appendDrop(runRef.current, conditionRef.current, "unreadable");
+        if (r.reason === "not-a-face" || r.reason === "no-lattice" || r.reason === "finger") {
+          retakesRef.current.set(r.reason, (retakesRef.current.get(r.reason) ?? 0) + 1);
+          setCaptureError(r.diag ?? faceUnreadableRu());
+          bump();
+          return;
+        }
+        // Отказ, который сам себя объясняет, печатается ОДИН. Общая присказка
+        // «повтори грань, держи её в жёлтой рамке» поверх «сними чтение заново»
+        // — прямое противоречие в одном абзаце, и человек делает то, что
+        // прочитал первым.
+        dropRead(
+          r.reason === "no-lattice-late" && r.diag
+            ? r.diag
+            : r.diag
+              ? `${faceUnreadableRu()} (${r.diag})`
+              : faceUnreadableRu(),
+          "unreadable",
+        );
         reader.resetAccuracy();
         bump();
         return;
@@ -300,10 +382,11 @@ export function useAccuracySession(): AccuracySession {
         // скорится вовсе; в дропы идёт как mis-scramble — тем же путём, что и
         // разобранный вручную промах, чтобы ничего не пропадало молча.
         if (truth !== SOLVED && looksSolvedRead(r.rawFaceGrids)) {
-          setCaptureError(
+          dropRead(
             "Кубик прочитан как СОБРАННЫЙ, а эталон — скрамбл. Похоже, скрамбл не собран на кубике: собери его по шагам слева (белый центр вверх, зелёный центр к себе) и сними чтение заново.",
+            "mis-scramble",
+            { grids: r.rawFaceGrids, diags: r.cellDiags, fits: r.fitDiags },
           );
-          appendDrop(runRef.current, conditionRef.current, "mis-scramble");
           bump();
           return;
         }
@@ -334,7 +417,7 @@ export function useAccuracySession(): AccuracySession {
                   config.CENTER_OUTLIER_DE,
                 )
               : `Грани не опознаны по центрам: ${r.rawCenterReason ?? "раскладка не сошлась"}.`;
-            setCaptureError(
+            dropRead(
               [
                 head,
                 spread
@@ -351,8 +434,9 @@ export function useAccuracySession(): AccuracySession {
               ]
                 .filter(Boolean)
                 .join(" "),
+              "assign",
+              { grids: r.rawFaceGrids, diags: r.cellDiags, fits: r.fitDiags },
             );
-            appendDrop(runRef.current, conditionRef.current, "assign");
             bump();
             return;
           }
@@ -362,17 +446,21 @@ export function useAccuracySession(): AccuracySession {
             // своей причиной, а НЕ подбор поворота под ответ.
             const pic = scorePictureGrip(r.rawFaceGrids, truth, r.rawCenterFaces);
             if (pic.kind === "assign-conflict") {
-              setCaptureError(`Грани не опознаны по центрам: ${pic.reason}.`);
-              appendDrop(runRef.current, conditionRef.current, "assign");
+              dropRead(`Грани не опознаны по центрам: ${pic.reason}.`, "assign", {
+                grids: r.rawFaceGrids,
+                diags: r.cellDiags,
+                fits: r.fitDiags,
+              });
               bump();
               return;
             }
             if (pic.kind === "rotation-ambiguous") {
-              setCaptureError(
+              dropRead(
                 `Поворот граней не определился по физике кубика (${pic.reason}). ` +
                   "Чтение не засчитано: подбирать поворот под ответ протокол запрещает. Переснимай грани.",
+                "ambiguous",
+                { grids: r.rawFaceGrids, diags: r.cellDiags, fits: r.fitDiags },
               );
-              appendDrop(runRef.current, conditionRef.current, "ambiguous");
               bump();
               return;
             }
@@ -389,8 +477,11 @@ export function useAccuracySession(): AccuracySession {
           }
           const free = scoreFreeGrip(r.rawFaceGrids, truth, undefined, r.rawCenterFaces);
           if (free.kind === "assign-conflict") {
-            setCaptureError(`Грани не опознаны по центрам: ${free.reason}.`);
-            appendDrop(runRef.current, conditionRef.current, "assign");
+            dropRead(`Грани не опознаны по центрам: ${free.reason}.`, "assign", {
+              grids: r.rawFaceGrids,
+              diags: r.cellDiags,
+              fits: r.fitDiags,
+            });
             bump();
             return;
           }
@@ -413,11 +504,12 @@ export function useAccuracySession(): AccuracySession {
         // (≤2 расхождения из 54): при мягком сюда затекли бы настоящие ошибки
         // классификации, и гейт стало бы нечем провалить.
         if (lenient.mismatches <= 2 && strictWrong >= 6) {
-          setCaptureError(
+          dropRead(
             `Цвета прочитаны верно (${54 - lenient.mismatches}/54 с точностью до поворота), но кубик был показан в другой ориентации, ` +
               "поэтому чтение не засчитано. Держи белый центр вверху и зелёный к себе, грани показывай по подсказкам, не переворачивая кубик между шагами.",
+            "orientation",
+            { grids: r.rawFaceGrids, diags: r.cellDiags, fits: r.fitDiags },
           );
-          appendDrop(runRef.current, conditionRef.current, "orientation");
           bump();
           return;
         }
@@ -458,7 +550,9 @@ export function useAccuracySession(): AccuracySession {
 
   const resetRun = (): void => {
     runRef.current = new Map();
+    retakesRef.current = new Map();
     lastReadKeyRef.current = null;
+    setLastDropText(null);
     setLastReport(null);
     setLastProductReport(null);
     setLastDiags(null);
@@ -497,14 +591,54 @@ export function useAccuracySession(): AccuracySession {
       parts.push("Гейт 0.3 считается по сырому чтению — эта строка справочная.");
       parts.push("");
     }
+    // Брак печатается ПЕРЕД сводкой: в прогоне, где всё ушло в дроп, сводка —
+    // это шесть нулей, и без причины над ними отчёт бесполезен.
+    if (lastDropText) {
+      parts.push("=== Последний брак (дроп) ===");
+      parts.push(lastDropText);
+      parts.push("");
+    }
+    // Состояние камеры — часть условия замера, а не любопытство. Если ручные
+    // режимы не поддержаны (Chrome на macOS их для большинства камер не даёт),
+    // автобаланс белого продолжает гулять МЕЖДУ калибровкой и чтением, и
+    // расхождение эталонов от сессии к сессии объясняется этим, а не кубиком.
+    const lock = camera.lockState();
+    parts.push(
+      `Камера: экспозиция ${lock.exposure ? "зафиксирована" : "авто"}, ` +
+        `баланс белого ${lock.whiteBalance ? "зафиксирован" : "авто"}` +
+        (lock.supported ? "" : " (ручные режимы не поддерживаются этой камерой/браузером)") +
+        ".",
+    );
+    parts.push("");
     parts.push("=== Сводка прогона ===");
+    if (retakesRef.current.size > 0) {
+      const names: Record<string, string> = {
+        "wrong-face": "показана не та грань",
+        "not-a-face": "в рамке не кубик",
+        "no-lattice": "нет решётки",
+        finger: "палец на грани",
+      };
+      const list = [...retakesRef.current.entries()]
+        .map(([k, n]) => `${names[k] ?? k}: ${n}`)
+        .join(", ");
+      parts.push(
+        `Пересъёмок (в гейт не идут — ни в числитель, ни в знаменатель): ${list}. ` +
+          "Много пересъёмок одного вида = замер искажён отказами инструмента, а не измерен.",
+      );
+    }
     parts.push(formatRunSummary(runRef.current));
 
     const refs = reader.getProfile();
     if (refs) {
       const sep = minSeparation(refs);
+      // Второе число — той метрикой, которой чтение и решает (ослабленная
+      // светлота). Они расходятся, и расходятся содержательно: на пересвеченном
+      // синем обычная метрика называет самой тесной парой красный с оранжевым,
+      // а решающая — белый с синим. Печатать только первое значит показывать
+      // человеку не ту пару.
+      const sepClassify = minSeparation(refs, config.DELTA_E_MODE, deltaEClassify);
       const anchors = anchorDistances(refs);
-      const near = nearestNeighbours(refs);
+      const near = nearestNeighbours(refs, config.DELTA_E_MODE, deltaEClassify);
       const lines = ["", "=== Эталоны калибровки (что камера сняла как цвета) ==="];
       for (const n of COLOR_NAMES) {
         const lab = refs[n];
@@ -519,9 +653,10 @@ export function useAccuracySession(): AccuracySession {
       // расходилась с вердиктом (CALIB_MIN_SEPARATION_DE=10) — на 12.7 текст
       // пугал, вердикт пропускал, и человек не знал, какому числу верить.
       lines.push(
-        `  min попарный ΔE: ${sep.de.toFixed(1)} (${sep.a}–${sep.b}) ` +
-          `(порог вердикта ${config.CALIB_MIN_SEPARATION_DE} — ниже него эталоны слиплись, ` +
-          `камера не различает цвета)`,
+        `  min попарный ΔE: ${sep.de.toFixed(1)} (${sep.a}–${sep.b})` +
+          `, в метрике выбора: ${sepClassify.de.toFixed(1)} (${sepClassify.a}–${sepClassify.b})` +
+          ` — вердикт считается по второму (порог ${config.CALIB_MIN_SEPARATION_DE}: ниже него ` +
+          `классификатор эти два цвета путает). «Ближайший сосед» выше — тоже метрикой выбора.`,
       );
       // Расстояние до анкора само по себе НЕ повод отказать: на живой камере
       // рабочие синий/зелёный уходили от анкора дальше, чем испорченный белый.
@@ -568,6 +703,7 @@ export function useAccuracySession(): AccuracySession {
     cancelCapture,
     excludeLast,
     lastReport,
+    lastDropText,
     lastProductReport,
     run: runRef.current,
     runVersion,

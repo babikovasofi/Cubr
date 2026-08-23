@@ -1,5 +1,12 @@
 import { describe, it, expect } from "vitest";
-import { scoreRead, formatReport, type CellDiag } from "../../src/vision/accuracy";
+import {
+  scoreRead,
+  formatReport,
+  formatRawGrids,
+  colorBalanceRu,
+  concentratedMismatchRu,
+  type CellDiag,
+} from "../../src/vision/accuracy";
 import { SOLVED, FACE_ORDER, type Facelet } from "../../src/vision/cubeState";
 import { COLOR_NAMES } from "../../src/vision/colors";
 import { config } from "../../src/vision/config";
@@ -259,5 +266,242 @@ describe("formatReport", () => {
     const out = formatReport(scoreRead(SOLVED, SOLVED), undefined, fits);
     expect(out).not.toContain("граней без определённой подгонки");
     expect(out).not.toContain("контраст границ");
+  });
+});
+
+describe("formatRawGrids", () => {
+  const grid = (letters: string): string[] => letters.split("");
+  const cleanDiag = (best: string): CellDiag => ({
+    rgb: [200, 200, 200] as [number, number, number],
+    kept: 0.9,
+    best,
+    bestDE: 3,
+    second: "D",
+    secondDE: 40,
+  });
+
+  it("печатает шесть съёмок по три ряда, центр — в скобках", () => {
+    const grids = [
+      grid("UUUUUUUUU"),
+      grid("RRRRRRRRR"),
+      grid("FFFFFFFFF"),
+      grid("DDDDDDDDD"),
+      grid("LLLLLLLLL"),
+      grid("BBBBBBBBB"),
+    ];
+    const out = formatRawGrids(grids);
+    expect(out).toContain("(U)");
+    expect(out).toContain("(B)");
+    expect(out.split("\n")).toHaveLength(7); // заголовок + шесть съёмок
+    expect(out).toContain("6: ");
+  });
+
+  // Сдвиг сетки и показанная дважды грань дают раскладке одинаковый отказ, а
+  // лечатся противоположно. Разводит их только грань целиком: у сдвига ряды
+  // разноцветные, у дубликата — честная грань, просто не та.
+  it("показывает ряды целиком, а не один центр", () => {
+    const grids = [
+      grid("UURFFDLLB"),
+      grid("RRRRRRRRR"),
+      grid("FFFFFFFFF"),
+      grid("DDDDDDDDD"),
+      grid("LLLLLLLLL"),
+      grid("BBBBBBBBB"),
+    ];
+    const out = formatRawGrids(grids);
+    // Строку ищем по номеру съёмки, а не по позиции: перед ячейками может стоять
+    // строка баланса цветов, и она стоит там именно тогда, когда чтение битое.
+    const first = out.split("\n").find((l) => l.trim().startsWith("1:"))!;
+    expect(first).toContain("U");
+    expect(first).toContain("R");
+    expect(first).toContain("(F)");
+    expect(first).toContain("B");
+  });
+
+  it("ячейку, далёкую от всех эталонов, печатает строчной буквой", () => {
+    const grids = [grid("UUUUUUUUU")];
+    const diags = Array.from({ length: 9 }, () => cleanDiag("U"));
+    diags[0] = { ...cleanDiag("U"), bestDE: config.STICKER_MAX_DELTA_E + 1 };
+    const out = formatRawGrids(grids, diags);
+    expect(out).toContain("u"); // выбившаяся ячейка
+    expect(out).toContain("(U)"); // центр остался нормальным
+  });
+
+  it("к каждой съёмке приписывает ΔE центра, худшую ячейку и число выбитых бликом", () => {
+    const grids = [grid("UUUUUUUUU")];
+    const diags = Array.from({ length: 9 }, () => cleanDiag("U"));
+    diags[4] = { ...cleanDiag("U"), bestDE: 12.5 };
+    diags[7] = { ...cleanDiag("U"), bestDE: 21.25 };
+    diags[8] = { ...cleanDiag("U"), kept: config.CELL_MIN_KEPT_FRAC / 2 };
+    const out = formatRawGrids(grids, diags);
+    expect(out).toContain("центр ΔE 12.5");
+    expect(out).toContain("макс по ячейкам 21.3");
+    expect(out).toContain("выбито бликом 1");
+  });
+
+  it("без диагностики печатает только буквы — ни ΔE, ни бликов", () => {
+    const out = formatRawGrids([grid("UUUUUUUUU")]);
+    expect(out).not.toContain("центр ΔE");
+    expect(out).not.toContain("выбито бликом");
+  });
+});
+
+describe("colorBalanceRu", () => {
+  const g = (s: string): string[] => s.split("");
+
+  it("у физически возможного чтения молчит", () => {
+    const grids = ["U", "R", "F", "D", "L", "B"].map((c) => g(c.repeat(9)));
+    expect(colorBalanceRu(grids)).toBeNull();
+  });
+
+  // Числа живого прогона 2026-08-19: отказ говорил про повороты граней, а на
+  // самом деле четыре красных прочитаны не красными — это R1, главный риск.
+  it("называет недостающий цвет, когда чтение невозможно", () => {
+    const grids = [
+      g("LDDLUULUU"),
+      g("LLDBRRBDF"),
+      g("UUULFBFUF"),
+      g("RFDDDRDBB"),
+      g("DFUFLFLLL"),
+      g("BRBUBLLUU"),
+    ];
+    const out = colorBalanceRu(grids)!;
+    expect(out).toContain("R 5");
+    expect(out).toContain("L 12");
+    expect(out).toContain("U 12");
+    expect(out).toContain("недостаёт цвета R: 4");
+  });
+
+  it("дамп ячеек печатает баланс первой строкой", () => {
+    const grids = [
+      g("LDDLUULUU"),
+      g("LLDBRRBDF"),
+      g("UUULFBFUF"),
+      g("RFDDDRDBB"),
+      g("DFUFLFLLL"),
+      g("BRBUBLLUU"),
+    ];
+    const out = formatRawGrids(grids);
+    expect(out.split("\n")[0]).toContain("Баланс цветов");
+  });
+
+  it("у возможного чтения дамп начинается сразу с ячеек", () => {
+    const grids = ["U", "R", "F", "D", "L", "B"].map((c) => g(c.repeat(9)));
+    expect(formatRawGrids(grids).split("\n")[0]).toContain("Ячейки съёмок");
+  });
+});
+
+describe("formatRawGrids — блик и сетка в одном месте", () => {
+  const g = (s: string): string[] => s.split("");
+  const diag = (kept: number): CellDiag => ({
+    rgb: [200, 200, 200] as [number, number, number],
+    kept,
+    best: "U",
+    bestDE: 3,
+    second: "D",
+    secondDE: 40,
+  });
+
+  // Блик на ПОЛОВИНЕ ячейки не дотягивает до CELL_MIN_KEPT_FRAC, счётчик
+  // «выбито бликом» молчит — а цвет уже тянет к белому. Живой прогон
+  // 2026-08-19: синего 6 из 9 при заведомо здоровых эталонах.
+  it("печатает худшую ячейку по доле выживших пикселей", () => {
+    const diags = Array.from({ length: 9 }, () => diag(0.9));
+    diags[3] = diag(0.4); // блик съел больше половины, но флага нет
+    const out = formatRawGrids([g("UUUUUUUUU")], diags);
+    expect(out).toContain("худшая ячейка выжила на 40%");
+    expect(out).not.toContain("выбито бликом");
+  });
+
+  it("прикладывает строку подгонки сетки, когда она передана", () => {
+    const out = formatRawGrids([g("UUUUUUUUU")], undefined, [
+      { gain: 5, used: true, gap: 0, edge: 41 },
+    ]);
+    expect(out).toContain("Сетка по съёмкам");
+    expect(out).toContain("0/41");
+  });
+
+  it("без подгонки строку про сетку не выдумывает", () => {
+    expect(formatRawGrids([g("UUUUUUUUU")])).not.toContain("Сетка по съёмкам");
+  });
+});
+
+describe("concentratedMismatchRu — почерк «спорит не зрение»", () => {
+  const clean = (best: string, bestDE: number): CellDiag => ({
+    rgb: [200, 200, 200] as [number, number, number],
+    kept: 1,
+    best,
+    bestDE,
+    second: "B",
+    secondDE: bestDE + 18,
+    skin: 0,
+  });
+
+  /** 54 диагностики, где перечисленным индексам задан свой ΔE. */
+  function diagsWith(overrides: Record<number, number>): CellDiag[] {
+    return Array.from({ length: 54 }, (_, i) => clean("U", overrides[i] ?? 2.5));
+  }
+
+  // Живая сессия 2026-08-20: чтение 49/54, все пять промахов на съёмке U,
+  // ΔE у них 1.1 / 1.5 / 2.8 / 2.3 / 4.3 — то есть цвета сняты безупречно.
+  it("узнаёт живой случай: пять промахов в одной съёмке с чистыми цветами", () => {
+    const truth = SOLVED.split("");
+    // Портим пять ячеек грани U в ЭТАЛОНЕ, чтение оставляем «правильным» —
+    // ровно та ситуация: камера видит одно, бумага ждёт другого.
+    for (const i of [0, 3, 6, 7, 8]) truth[i] = i === 8 ? "D" : "B";
+    const rep = scoreRead(SOLVED, truth.join(""));
+    const out = concentratedMismatchRu(
+      rep.stickers.filter((s) => !s.correct),
+      diagsWith({ 0: 1.1, 3: 1.5, 6: 2.8, 7: 2.3, 8: 4.3 }),
+    );
+    expect(out).toContain("все 5 промахов");
+    expect(out).toContain("грань U");
+    expect(out).toContain("не тот скрамбл");
+  });
+
+  it("молчит, когда промахи размазаны по кубику", () => {
+    const truth = SOLVED.split("");
+    // По одному промаху на четырёх разных гранях — это не почерк.
+    for (const i of [0, 12, 21, 30]) truth[i] = truth[i] === "U" ? "B" : "U";
+    const rep = scoreRead(SOLVED, truth.join(""));
+    expect(
+      concentratedMismatchRu(
+        rep.stickers.filter((s) => !s.correct),
+        diagsWith({}),
+      ),
+    ).toBeNull();
+  });
+
+  // Если цвета грязные — это как раз ошибка зрения, и утверждать обратное нельзя.
+  it("молчит, когда цвета в той же съёмке сняты грязно", () => {
+    const truth = SOLVED.split("");
+    for (const i of [0, 3, 6, 7, 8]) truth[i] = "B";
+    const rep = scoreRead(SOLVED, truth.join(""));
+    expect(
+      concentratedMismatchRu(
+        rep.stickers.filter((s) => !s.correct),
+        diagsWith({ 0: 21, 3: 19, 6: 24, 7: 18, 8: 30 }),
+      ),
+    ).toBeNull();
+  });
+
+  it("молчит на двух промахах: это шум, а не почерк", () => {
+    const truth = SOLVED.split("");
+    truth[0] = "B";
+    truth[1] = "B";
+    const rep = scoreRead(SOLVED, truth.join(""));
+    expect(
+      concentratedMismatchRu(
+        rep.stickers.filter((s) => !s.correct),
+        diagsWith({ 0: 1.2, 1: 1.4 }),
+      ),
+    ).toBeNull();
+  });
+
+  it("без диагностики ячеек ничего не утверждает", () => {
+    const truth = SOLVED.split("");
+    for (const i of [0, 3, 6, 7, 8]) truth[i] = "B";
+    const rep = scoreRead(SOLVED, truth.join(""));
+    expect(concentratedMismatchRu(rep.stickers.filter((s) => !s.correct))).toBeNull();
   });
 });

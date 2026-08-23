@@ -9,6 +9,7 @@ import {
   candidateRegions,
   gapContrast,
   edgeContrast,
+  latticeVerdict,
   type Patch,
 } from "../../src/vision/faceFit";
 import { deltaE, rgb2lab, type ColorName, type Refs, type RGB } from "../../src/vision/colors";
@@ -502,5 +503,176 @@ describe("A7/anti-запор: decided на существующих стикер
     const fit = fitFaceRegion(patch, REFS);
     expect(fit.margin).toBe(Infinity);
     expect(fit.decided).toBe(true);
+  });
+});
+
+describe("latticeVerdict — замок на съёмку мимо грани", () => {
+  // Числа взяты из живого прогона 2026-08-19 (stickerless, LED): грань U снята
+  // так, что правый край рамки ушёл на белый стол, и пять её ячеек прочитались
+  // белыми с ΔE 2–4. Ни один цветовой замок этого не увидел — стол белый, и
+  // белый есть на кубике. Решётка увидела: 5.3 против 39–47 у соседей.
+  const live = {
+    U: { gap: 4.0, edge: 5.3 },
+    R: { gap: 8.3, edge: 47.4 },
+    F: { gap: 3.3, edge: 39.5 },
+    D: { gap: 12.0, edge: 41.9 },
+    L: { gap: 24.9, edge: 47.3 },
+    B: { gap: 15.9, edge: 39.8 },
+  };
+  const others = (skip: keyof typeof live): { gap: number; edge: number }[] =>
+    (Object.keys(live) as (keyof typeof live)[]).filter((k) => k !== skip).map((k) => live[k]);
+
+  it("бракует ту самую грань живого прогона", () => {
+    const v = latticeVerdict(live.U, others("U"));
+    expect(v.collapsed).toBe(true);
+    expect(v.edgeRatio).toBeLessThan(0.35);
+  });
+
+  // Абсолютным порогом эти две грани не разделить: щели у здоровой F (3.3) даже
+  // НИЖЕ, чем у сломанной U (4.0). Разделяет только сравнение с соседями.
+  it("здоровую грань с низкими щелями не трогает", () => {
+    const v = latticeVerdict(live.F, others("F"));
+    expect(v.collapsed).toBe(false);
+    expect(live.F.gap).toBeLessThan(live.U.gap); // та самая ловушка
+  });
+
+  it("грань одного цвета (низкие границы, целые щели) не бракуется", () => {
+    // Наклейки одного цвета рядом — перепада через границу нет законно. Щели на
+    // месте, значит сетка на кубике, и такую грань браковать не за что.
+    const uniform = { gap: 13.0, edge: 2.0 };
+    const v = latticeVerdict(uniform, [
+      { gap: 12.0, edge: 40 },
+      { gap: 14.0, edge: 42 },
+      { gap: 11.0, edge: 38 },
+    ]);
+    expect(v.collapsed).toBe(false);
+  });
+
+  it("молчит, пока соседей меньше двух: медианы ещё нет", () => {
+    expect(latticeVerdict({ gap: 1, edge: 1 }, []).collapsed).toBe(false);
+    expect(latticeVerdict({ gap: 1, edge: 1 }, [{ gap: 20, edge: 40 }]).collapsed).toBe(false);
+  });
+
+  it("молчит, когда решётки нет у самих соседей", () => {
+    // Все шесть съёмок без решётки — вопрос не к одной грани, а ко всему чтению
+    // (свет, дистанция). Замок на выброс тут не судья.
+    const v = latticeVerdict({ gap: 0, edge: 0 }, [
+      { gap: 0, edge: 0 },
+      { gap: 0, edge: 0 },
+      { gap: 0, edge: 0 },
+    ]);
+    expect(v.collapsed).toBe(false);
+  });
+
+  it("порог берётся из аргумента, а не зашит", () => {
+    const face = { gap: 5, edge: 5 };
+    const rest = [
+      { gap: 10, edge: 10 },
+      { gap: 10, edge: 10 },
+    ];
+    expect(latticeVerdict(face, rest, 0.4).collapsed).toBe(false); // 0.5 > 0.4
+    expect(latticeVerdict(face, rest, 0.6).collapsed).toBe(true); // 0.5 < 0.6
+  });
+});
+
+describe("latticeVerdict — медиана без округления", () => {
+  // Округление до целого выключало замок ровно там, где он нужен: у монолитного
+  // кубика контрасты живут в единицах, и соседи со щелями 0.3 и 0.6 давали
+  // округлённую медиану 0 — `comparable` становился false, замок молчал.
+  it("не глохнет на дробной медиане около нуля", () => {
+    const v = latticeVerdict({ gap: 0.05, edge: 1 }, [
+      { gap: 0.3, edge: 40 },
+      { gap: 0.6, edge: 42 },
+    ]);
+    expect(v.gapMedian).toBeCloseTo(0.45, 5);
+    expect(v.collapsed).toBe(true);
+  });
+
+  it("на чётном числе соседей берёт полусумму, а не округление вверх", () => {
+    const v = latticeVerdict({ gap: 1, edge: 1 }, [
+      { gap: 3.4, edge: 40 },
+      { gap: 3.6, edge: 40 },
+    ]);
+    expect(v.gapMedian).toBeCloseTo(3.5, 5); // не 4
+  });
+});
+
+/**
+ * Тот же монолитный кубик, но на СВЕТЛОМ столе, а не на телесном фоне.
+ *
+ * Живой отказ 2026-08-19 случился именно так: правая и нижняя трети сетки
+ * ушли на белую столешницу, пять ячеек прочитались белыми с ΔE 2–4, а
+ * подгонка отчиталась «ПОДОГНАНА, выигрыш 30.7». Телесный фон этого не
+ * воспроизводит: кожа далека от эталонов, и стоимость её честно наказывает.
+ */
+function stickerlessOnWhiteTable(size: number, off: number, cellSize: number): Patch {
+  const data = new Uint8ClampedArray(size * size * 4);
+  const faceSide = cellSize * 3;
+  const table: RGB = [232, 232, 230];
+  for (let y = 0; y < size; y++) {
+    for (let x = 0; x < size; x++) {
+      let c: RGB = table;
+      if (x >= off && x < off + faceSide && y >= off && y < off + faceSide) {
+        const col = Math.min(2, Math.floor((x - off) / cellSize));
+        const row = Math.min(2, Math.floor((y - off) / cellSize));
+        c = REF_RGB[FACE_LABELS[row * 3 + col]];
+      }
+      const i = (y * size + x) * 4;
+      data[i] = c[0];
+      data[i + 1] = c[1];
+      data[i + 2] = c[2];
+      data[i + 3] = 255;
+    }
+  }
+  return { data, size };
+}
+
+describe("подгонка не уезжает с монолитного кубика на светлый стол", () => {
+  const OFF = 48;
+  const CELL = 48;
+  const TRUE_SIDE = CELL * 3;
+
+  it("все девять ячеек читаются со своей наклейки, а не со стола", () => {
+    const patch = stickerlessOnWhiteTable(240, OFF, CELL);
+    const fit = fitFaceRegion(patch, REFS, config.CELL_CENTER_FRAC);
+    // Утверждается ПРОЧИТАННОЕ, а не координаты: перебор дискретен, точного
+    // попадания в пиксель от него требовать нельзя и не нужно. Нужно, чтобы
+    // выборочные окна девяти ячеек стояли на своих наклейках — это и есть то,
+    // ради чего подгонка существует, и ровно это ломалось в живом отказе.
+    expect(readCells(patch, fit.region)).toEqual([...FACE_LABELS]);
+  });
+
+  it("центр сетки совпадает с центром грани, а размер завышен не больше чем на ячейку", () => {
+    const patch = stickerlessOnWhiteTable(240, OFF, CELL);
+    const fit = fitFaceRegion(patch, REFS, config.CELL_CENTER_FRAC);
+
+    // Центр — то, что подгонка находит уверенно: промах здесь означает, что
+    // сетка стоит на другом объекте. Живой отказ давал сдвиг в четыре ячейки.
+    const centre = fit.region.x + fit.region.side / 2;
+    const trueCentre = OFF + TRUE_SIDE / 2;
+    expect(Math.abs(centre - trueCentre)).toBeLessThan(CELL / 3);
+    expect(Math.abs(fit.region.y + fit.region.side / 2 - trueCentre)).toBeLessThan(CELL / 3);
+
+    // Размер — то, что она находит хуже: на этой фикстуре выбирается 168 при
+    // истинных 144, то есть сетка на треть ячейки шире грани с каждой стороны.
+    // Свес ЗАФИКСИРОВАН здесь как известный остаток, а не как норма: выборочные
+    // окна ячеек (центральные 50%) при нём ещё стоят на наклейках — это
+    // проверяет тест выше, — но запаса почти нет, и на живом кадре с наклонённым
+    // кубиком он и съедается. Настоящее лечение — нормировать структурные
+    // слагаемые на их разброс по кандидатам, отдельной задачей.
+    expect(fit.region.side).toBeGreaterThanOrEqual(TRUE_SIDE);
+    expect(fit.region.side - TRUE_SIDE).toBeLessThanOrEqual(CELL / 2);
+  });
+
+  // Отдельным утверждением, потому что ломается это независимо: стоимость
+  // ВЕРНОЙ области не должна расти неограниченно из-за признака, которого у
+  // монолитного кубика физически нет. У stickerless окантовка бывает ярче
+  // наклейки, и незажатый штраф `gapTarget − contrast` тем больше, чем точнее
+  // сетка стоит на цветной наклейке.
+  it("верная область не дороже сетки, наполовину стоящей на столе", () => {
+    const patch = stickerlessOnWhiteTable(240, OFF, CELL);
+    const onFace = regionCost(patch, { x: OFF, y: OFF, side: TRUE_SIDE }, REFS);
+    const onTable = regionCost(patch, { x: OFF + CELL * 2, y: OFF + CELL, side: TRUE_SIDE }, REFS);
+    expect(onFace).toBeLessThan(onTable);
   });
 });

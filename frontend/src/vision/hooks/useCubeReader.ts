@@ -8,11 +8,17 @@ import { useRef, useState } from "react";
 import {
   calibrateByColorIdentity,
   checkCalibration,
+  chroma,
   COLOR_NAMES,
   assignQuota,
   cellWeight,
   deltaE,
   robustCellColor,
+  skinFraction,
+  deltaEClassify,
+  fitColorMatrix,
+  applyColorMatrix,
+  lab2rgb,
   medianAcrossFrames,
   median,
   normalizeFaceByCenter,
@@ -25,8 +31,20 @@ import {
 } from "../colors";
 import { quickAdjust as colorsQuickAdjust } from "../quickAdjust";
 import { config, squareGuidePx, type Rect } from "../config";
-import { fitFaceRegion, gapContrast, edgeContrast, type FitRegion } from "../faceFit";
-import { notACubeFaceRu } from "../guide";
+import {
+  fitFaceRegion,
+  gapContrast,
+  edgeContrast,
+  latticeVerdict,
+  type FitRegion,
+} from "../faceFit";
+import {
+  notACubeFaceRu,
+  latticeCollapsedRu,
+  latticeCollapsedLateRu,
+  wrongFaceRu,
+  fingerOnFaceRu,
+} from "../guide";
 import {
   assignFacesByCenter,
   resolveRotations,
@@ -41,6 +59,8 @@ export interface FaceSample {
   lab: Lab[]; // same, in Lab
   /** Доля пикселей, переживших отбраковку бликов/теней в каждой ячейке (0..1). */
   kept: number[];
+  /** Доля пикселей ячейки в гамме кожи (0..1) — палец на грани. */
+  skin: number[];
   /** Как легла сетка: выигрыш подгонки, приняли ли её, контраст щелей. */
   fit: FaceFitDiag;
   /** Область, которой грань реально нарезана — чтобы пачка кадров делила одну. */
@@ -127,7 +147,10 @@ export function readFace(
   // Тот же замер для НОВОГО признака — перепада цвета на внутренних границах.
   // На монолитном кубике `gap` уходит в ноль и в минус, и по одному ему нельзя
   // отличить «сетка села верно» от «сетка не нашла ничего».
-  const edge = edgeContrast(patch, { x: ox, y: oy, side }, centerFrac);
+  // Без третьего аргумента: полоса берётся из конфига, ТА ЖЕ, которой
+  // `regionCost` штрафует кандидатов. Раньше сюда уезжал `centerFrac`, и
+  // «контраст границ» в отчёте переставал объяснять выбор подгонки.
+  const edge = edgeContrast(patch, { x: ox, y: oy, side });
 
   // Distribute the pixel remainder so the whole fitted square is covered.
   const xEdges = [ox, ox + Math.round(side / 3), ox + Math.round((2 * side) / 3), ox + side];
@@ -136,6 +159,7 @@ export function readFace(
   const rgb: RGB[] = [];
   const lab: Lab[] = [];
   const kept: number[] = [];
+  const skin: number[] = [];
   for (let row = 0; row < 3; row++) {
     for (let col = 0; col < 3; col++) {
       const cx = xEdges[col];
@@ -144,6 +168,9 @@ export function readFace(
       const cellH = yEdges[row + 1] - cy;
       const data = ctx.getImageData(cx, cy, cellW, cellH).data;
       const cell = robustCellColor(data, cellW, cellH, centerFrac);
+      // Тем же окном, что и цвет: палец, попавший в край ячейки, — это соседняя
+      // наклейка чужой рукой, а не эта ячейка.
+      skin.push(skinFraction(data, cellW, cellH, centerFrac));
       kept.push(cell.kept);
       rgb.push(cell.rgb);
       lab.push(rgb2lab(cell.rgb));
@@ -153,6 +180,7 @@ export function readFace(
     rgb,
     lab,
     kept,
+    skin,
     fit: { gain, used, gap, edge, margin, decided },
     region: { x: ox, y: oy, side },
   };
@@ -184,7 +212,9 @@ function argminRef(lab: Lab, refs: Refs): ColorName {
   let best = COLOR_NAMES[0];
   let bestD = Infinity;
   for (const name of COLOR_NAMES) {
-    const d = deltaE(lab, refs[name]);
+    // Метрика ВЫБОРА (ослабленная светлота, colors.deltaEClassify): вопрос
+    // «какой из шести», а не «наклейка ли это вообще».
+    const d = deltaEClassify(lab, refs[name]);
     if (d < bestD) {
       bestD = d;
       best = name;
@@ -256,11 +286,22 @@ export function stickerConfidence(
   lab: Lab,
   refs: Refs,
 ): { best: ColorName; margin: number; d: number } {
+  // ДВЕ метрики в одной функции, и это не небрежность.
+  //
+  // `best` и `margin` отвечают на вопрос «какой из шести и уверенно ли» —
+  // метрика выбора с ослабленной светлотой (colors.deltaEClassify), иначе
+  // ярко освещённая синяя наклейка «уверенно» окажется белой.
+  //
+  // `d` отвечает на другой вопрос — «принадлежит ли этот цвет кубику вообще»,
+  // и его решает как раз светлота: тёмная щель и серый стол отличаются от
+  // наклеек в первую очередь ею. Поэтому `d` считается обычной метрикой, и
+  // пороги `STICKER_MAX_DELTA_E` / `FACE_MAX_MEDIAN_DE`, калиброванные на ней,
+  // продолжают значить ровно то, что значили.
   let best: ColorName = COLOR_NAMES[0];
   let d1 = Infinity;
   let d2 = Infinity;
   for (const name of COLOR_NAMES) {
-    const d = deltaE(lab, refs[name]);
+    const d = deltaEClassify(lab, refs[name]);
     if (d < d1) {
       d2 = d1;
       d1 = d;
@@ -269,7 +310,7 @@ export function stickerConfidence(
       d2 = d;
     }
   }
-  return { best, margin: d2 - d1, d: d1 };
+  return { best, margin: d2 - d1, d: deltaE(lab, refs[best]) };
 }
 
 /**
@@ -326,7 +367,7 @@ export function confidentCells(labs: Lab[], refs: Refs, kept: number[]): number 
   return n;
 }
 
-function classifyWithQuota(
+export function classifyWithQuota(
   faces: Lab[][],
   refs: Refs,
   centers: Face[] | null,
@@ -336,6 +377,22 @@ function classifyWithQuota(
   const argminGrids = (): Face[][] =>
     faces.map((grid) => grid.map((lab) => argminRef(lab, refs) as string as Face));
   if (!centers || faces.length !== 6) return argminGrids();
+
+  // Квоты применимы, только пока верна их посылка: заблудилась ОДНА наклейка.
+  // Перекос больше — значит сломалась целая грань (сетка заехала на соседнюю,
+  // блик выбелил ряд), и девять слотов цвета уже заняты честными ячейками.
+  // Тогда раздача не чинит виноватую грань, а ВЫТЕСНЯЕТ верно прочитанные
+  // ячейки на других гранях: каждая лишняя наклейка стоит двух ошибок вместо
+  // одной. Живые прогоны 2026-08-23 намеряли это дважды — 47/54 и 43/54
+  // продуктовых против 50/54 и 49/54 сырых.
+  const raw = argminGrids();
+  const counts = new Map<string, number>();
+  for (const grid of raw) for (const c of grid) counts.set(c, (counts.get(c) ?? 0) + 1);
+  let skew = 0;
+  for (const name of COLOR_NAMES) {
+    skew = Math.max(skew, Math.abs((counts.get(name) ?? 0) - config.QUOTA));
+  }
+  if (skew > config.QUOTA_MAX_SKEW) return raw;
 
   const labs: Lab[] = [];
   for (const grid of faces) labs.push(...grid);
@@ -366,6 +423,35 @@ function classifyWithQuota(
   return out;
 }
 
+/**
+ * Цветовая коррекция всего чтения по шести известным центрам.
+ *
+ * Центр не двигает ни один ход, поэтому после раскладки съёмок по граням мы
+ * знаем шесть пар «наблюдалось → должно быть» — мини-мишень, снятая этим же
+ * кадром в этом же свете. По ним считается матрица 3×3 (см.
+ * colors.fitColorMatrix) и применяется ко всем 54 ячейкам.
+ *
+ * Зачем это нужно именно здесь. Ручной баланс белого недоступен на большинстве
+ * связок браузер+камера (в частности Chrome на macOS), значит автоматика гуляет
+ * МЕЖДУ калибровкой и чтением. Диагональное усиление по белому такой дрейф
+ * правит лишь частично: автобаланс меняет смесь каналов, а не только их
+ * масштаб.
+ *
+ * Раскладка не сошлась — коррекции нет. Гадать, какая съёмка какой гранью была,
+ * чтобы построить по этой догадке коррекцию, значит чинить цвет предположением
+ * о цвете.
+ */
+function correctByCentres(samples: FaceSample[], refs: Refs, faces: Face[] | null): FaceSample[] {
+  if (!faces || faces.length !== samples.length) return samples;
+  const observed = samples.map((s) => s.rgb[4]);
+  const target = faces.map((f) => lab2rgb(refs[f]));
+  const m = fitColorMatrix(observed, target);
+  return samples.map((s) => {
+    const rgb = s.rgb.map((c) => applyColorMatrix(c, m));
+    return { ...s, rgb, lab: rgb.map((c) => rgb2lab(c)) };
+  });
+}
+
 /** Пер-грань нормировка света по собственному центру каждой снятой грани. */
 export function normalizeSamples(samples: FaceSample[], refs: Refs): Lab[][] {
   return samples.map((sample) => {
@@ -386,7 +472,16 @@ function resolveSixFaces(samples: FaceSample[], refs: Refs): SixFaceResolve {
   // точности выравнивание обязано браться из данных, не из подпорок.
   const rawCenters = assignFacesByCenter(rawLabs, refs);
 
-  const labs = normalizeSamples(samples, refs);
+  // ПРОДУКТОВЫЙ путь: сперва общая цветовая коррекция по шести центрам, потом
+  // пер-грань нормировка света. Порядок не переставим: матрица правит смесь
+  // каналов (то, что делает автобаланс белого камеры и чего диагональ не умеет),
+  // а нормировка добирает разницу освещённости между гранями — тень на одной
+  // грани матрица общего вида не видит, она общая на всё чтение.
+  //
+  // Гейта это НЕ касается: он меряет `rawFaceGrids`, посчитанные выше без
+  // единой подпорки. Здесь считается то, что видит человек в соло.
+  const corrected = correctByCentres(samples, refs, rawCenters.ok ? rawCenters.faces : null);
+  const labs = normalizeSamples(corrected, refs);
   const assign = assignFacesByCenter(labs, refs);
   const productFaceGrids = classifyWithQuota(
     labs,
@@ -409,7 +504,7 @@ function resolveSixFaces(samples: FaceSample[], refs: Refs): SixFaceResolve {
       // белый, выглядят в отчёте как «белый» и «оранжевый ΔE 37», и понять,
       // что камера увидела два белых, невозможно.
       own: samples.map((sm) => argminRef(sm.lab[4], refs) as Face),
-      ownDes: samples.map((sm) => deltaE(sm.lab[4], refs[argminRef(sm.lab[4], refs)])),
+      ownDes: samples.map((sm) => deltaEClassify(sm.lab[4], refs[argminRef(sm.lab[4], refs)])),
       rgb: samples.map((sm) => sm.rgb[4]),
     },
   };
@@ -444,7 +539,11 @@ export type AccuracyCapture =
   // отдельный случай: сняли не кубик. Он не портит уже снятые грани и лечится
   // одним действием, поэтому вызывающий переспрашивает ЭТУ грань, а не бракует
   // всё чтение.
-  | { kind: "unreadable"; diag?: string; reason?: "not-a-face" }
+  | {
+      kind: "unreadable";
+      diag?: string;
+      reason?: "not-a-face" | "no-lattice" | "no-lattice-late" | "wrong-face" | "finger";
+    }
   | {
       kind: "complete";
       rawFaceGrids: Face[][]; // 6 × 9 сырое чтение в фиксированном порядке URFDLB
@@ -486,7 +585,11 @@ export type VerifyResult =
   | { kind: "ok" }
   | { kind: "mismatch"; face: string; count: number }
   | { kind: "illegal" } // read is not a legal cube
-  | { kind: "unreadable"; diag?: string; reason?: "not-a-face" } // свет/резкость/уверенность/не кубик — diag объясняет что именно
+  | {
+      kind: "unreadable";
+      diag?: string;
+      reason?: "not-a-face" | "no-lattice" | "no-lattice-late" | "wrong-face" | "finger";
+    } // свет/резкость/уверенность/не кубик/нет решётки — diag объясняет что именно
   | { kind: "assign" } // two faces classified to the same center
   | { kind: "ambiguous" } // multiple legal rotations
   | { kind: "resolve" }; // no legal rotation combo
@@ -525,7 +628,7 @@ export interface CubeReader {
   // gate, raw grids exposed pre-resolve. Independent of the verify collector.
   accFacesLength: number; // 0..6, of the in-flight accuracy collector
   collectingAccuracy: boolean;
-  beginAccuracy: () => void;
+  beginAccuracy: (enforceOrder?: boolean) => void;
   pushAccuracyFace: (video: HTMLVideoElement) => Promise<AccuracyCapture>;
   resetAccuracy: () => void;
 }
@@ -570,6 +673,9 @@ async function readFaceBurst(
   // Надёжность ячейки — медиана по кадрам: разовый блик не должен ни завалить
   // ячейку, ни притвориться, что всё хорошо.
   const kept = rgb.map((_, i) => median(shots.map((s) => s.kept[i] ?? 0)));
+  // Тоже медиана по кадрам: рука дрожит, и один кадр с краем пальца не должен
+  // ни забраковать грань, ни спрятать палец, лежащий на ней все пять кадров.
+  const skin = rgb.map((_, i) => median(shots.map((s) => s.skin[i] ?? 0)));
   // Телеметрия подгонки — тоже по медиане кадров; `used` берём большинством,
   // чтобы одна дрогнувшая рука не переписала вердикт по всей грани.
   // Телеметрия — от кадра, который ИСКАЛ сетку: остальные её только применяли,
@@ -583,7 +689,7 @@ async function readFaceBurst(
     margin: shots[0].fit.margin,
     decided: shots[0].fit.decided,
   };
-  return { rgb, lab: rgb.map((c) => rgb2lab(c)), kept, fit };
+  return { rgb, lab: rgb.map((c) => rgb2lab(c)), kept, skin, fit };
 }
 
 /**
@@ -593,11 +699,18 @@ async function readFaceBurst(
  */
 function cellDiagnostics(faces: FaceSample[], refs: Refs): CellDiag[] {
   const out: CellDiag[] = [];
+  // Самый светлый эталон, а не `refs.U`: белый — это тот, что снялся светлее
+  // всех (это и проверяет colors.checkCalibration), и брать его по имени грани
+  // значило бы верить имени там, где есть измерение.
+  const whiteL = Math.max(...COLOR_NAMES.map((name) => refs[name][0]));
   for (const face of faces) {
     for (let c = 0; c < 9; c++) {
+      // Той же метрикой, что и решение: диагностика, посчитанная другой,
+      // печатала бы «прочитано U, а ближайший B» — ровно то враньё, из-за
+      // которого её однажды уже чинили.
       const ranked = COLOR_NAMES.map((name) => ({
         name: name as string,
-        de: deltaE(face.lab[c], refs[name]),
+        de: deltaEClassify(face.lab[c], refs[name]),
       })).sort((a, b) => a.de - b.de);
       const [r, g, b] = face.rgb[c];
       out.push({
@@ -607,6 +720,9 @@ function cellDiagnostics(faces: FaceSample[], refs: Refs): CellDiag[] {
         bestDE: ranked[0].de,
         second: ranked[1].name,
         secondDE: ranked[1].de,
+        skin: face.skin[c] ?? 0,
+        lift: face.lab[c][0] - whiteL,
+        chroma: chroma(face.lab[c]),
       });
     }
   }
@@ -628,6 +744,15 @@ export function useCubeReader(workRef: React.RefObject<HTMLCanvasElement | null>
   const calibRgbRef = useRef<Partial<Record<ColorName, RGB>>>({});
   const collectorRef = useRef<FaceSample[] | null>(null);
   const accCollectorRef = useRef<FaceSample[] | null>(null);
+  // Какие грани уже забракованы замком решётки в ТЕКУЩЕМ чтении. Бюджет — одна
+  // пересъёмка на грань: у грани, где рядом лежат наклейки одного цвета, оба
+  // признака решётки законно слабые, и бесконечный отказ превратил бы харнесс в
+  // тупик. Один раз просим переснять, второй — принимаем как есть.
+  const latticeRefusedRef = useRef<Set<number>>(new Set());
+  // Требовать ли порядок граней U R F D L B. Только строгая хватка его задаёт;
+  // в свободной и «по картинке» человек показывает грани как удобно, и
+  // требовать там порядок значило бы мерить память, а не зрение.
+  const enforceOrderRef = useRef(false);
   // Сколько раз подряд грань отклонена по неуверенности (см. пороги в config).
   const lowConfidenceRef = useRef(0);
 
@@ -829,14 +954,17 @@ export function useCubeReader(workRef: React.RefObject<HTMLCanvasElement | null>
 
   // ---- Accuracy collector (fixed capture order URFDLB) ----------------------
 
-  const beginAccuracy = (): void => {
+  const beginAccuracy = (enforceOrder = false): void => {
     accCollectorRef.current = [];
+    latticeRefusedRef.current = new Set();
+    enforceOrderRef.current = enforceOrder;
     setAccFacesLength(0);
     setCollectingAccuracy(true);
   };
 
   const resetAccuracy = (): void => {
     accCollectorRef.current = null;
+    latticeRefusedRef.current = new Set();
     setAccFacesLength(0);
     setCollectingAccuracy(false);
   };
@@ -863,7 +991,64 @@ export function useCubeReader(workRef: React.RefObject<HTMLCanvasElement | null>
       return { kind: "unreadable", diag: notACubeFaceRu(medianDE), reason: "not-a-face" };
     }
 
+    // Палец на грани. Проверяется РАНЬШЕ решётки и центра: закрытая наклейка
+    // портит и то, и другое, и сообщать надо о причине, а не о следствии.
+    const fingers = face.skin
+      .map((f, i) => ({ i, f }))
+      .filter((c) => c.f > config.CELL_SKIN_FRAC_MAX);
+    if (fingers.length > 0) {
+      const worst = fingers.reduce((a, b) => (b.f > a.f ? b : a));
+      return {
+        kind: "unreadable",
+        reason: "finger",
+        diag: fingerOnFaceRu(fingers.length, worst.f * 100),
+      };
+    }
+
+    // Решётка этой съёмки против решётки уже снятых граней. Цветовые замки выше
+    // сюда не достают: белый стол за краем рамки — законный цвет кубика, и по
+    // ΔE такая съёмка выглядит здоровой. Мимо грани выдаёт структура.
+    const lattice = latticeVerdict(
+      face.fit,
+      accCollectorRef.current.map((f) => f.fit),
+    );
+    if (lattice.collapsed && !latticeRefusedRef.current.has(faceIndex)) {
+      latticeRefusedRef.current.add(faceIndex);
+      return {
+        kind: "unreadable",
+        reason: "no-lattice",
+        diag: latticeCollapsedRu(
+          expectedColor,
+          face.fit.edge ?? 0,
+          lattice.edgeMedian,
+          face.fit.gap,
+          lattice.gapMedian,
+        ),
+      };
+    }
+
     const de = deltaE(face.lab[4], refs[expectedColor]);
+    // Показали не ту грань — при строгой хватке это отказ, а не замечание.
+    //
+    // Отличаем от уехавшего света по направлению, а не по величине: свет уводит
+    // центр далеко от ВСЕХ эталонов сразу, чужая грань садится ТОЧНО на другой.
+    // Поэтому мало «далеко от ожидаемого» — нужно ещё «уверенно близко к
+    // чужому», иначе отказ начнёт срабатывать на дрейфе, ради терпимости к
+    // которому проверку и сделали совещательной.
+    const own = argminRef(face.lab[4], refs);
+    const ownDE = deltaE(face.lab[4], refs[own]);
+    if (
+      enforceOrderRef.current &&
+      own !== expectedColor &&
+      de > config.CENTER_OUTLIER_DE &&
+      ownDE * 2 < de
+    ) {
+      return {
+        kind: "unreadable",
+        reason: "wrong-face",
+        diag: wrongFaceRu(expectedColor, own, faceIndex + 1, de, ownDE),
+      };
+    }
     // Drift is ADVISORY, not a block: on a real webcam the center can legitimately
     // drift > CENTER_DRIFT_DE (auto-WB/exposure) and refusing the capture just stops
     // any data from ever being collected. Capture the face anyway and surface the
@@ -881,6 +1066,30 @@ export function useCubeReader(workRef: React.RefObject<HTMLCanvasElement | null>
     accCollectorRef.current = null;
     setCollectingAccuracy(false);
     setAccFacesLength(0);
+
+    // Первые съёмки проверить в момент захвата было не с чем — медианы ещё не
+    // существовало. Теперь она есть: сверяем каждую грань со всеми остальными.
+    // Переснять одну грань уже поздно, поэтому чтение уходит в дроп целиком —
+    // это честнее, чем засчитать в гейт девять ячеек стола.
+    const collapsed = faces
+      .map((f, i) => ({
+        i,
+        v: latticeVerdict(
+          f.fit,
+          faces.filter((_, j) => j !== i).map((o) => o.fit),
+        ),
+      }))
+      .filter((x) => x.v.collapsed);
+    if (collapsed.length > 0) {
+      return {
+        kind: "unreadable",
+        // Своя причина, а не общая: отказ УЖЕ объясняет, что делать («сними
+        // чтение заново»), и обёртка «повтори грань, держи её в жёлтой рамке»
+        // поверх него говорит человеку противоположное.
+        reason: "no-lattice-late",
+        diag: latticeCollapsedLateRu(collapsed.map((x) => String(COLOR_NAMES[x.i]))),
+      };
+    }
 
     const {
       rawFaceGrids,

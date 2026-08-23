@@ -49,7 +49,13 @@ vi.mock("../../src/vision/hooks/useCubeReader", () => ({
   useCubeReader: () => readerStub,
 }));
 vi.mock("../../src/vision/hooks/useCamera", () => ({
-  useCamera: () => ({ start: vi.fn(), stop: vi.fn(), isLive: () => false }),
+  useCamera: () => ({
+    start: vi.fn(),
+    stop: vi.fn(),
+    isLive: () => false,
+    // Состояние замка камеры печатается в отчёте как условие замера.
+    lockState: () => ({ exposure: false, whiteBalance: false, supported: false }),
+  }),
   CameraError: class CameraError extends Error {
     kind = "denied";
   },
@@ -277,5 +283,243 @@ describe("useAccuracySession — honesty barrier", () => {
     expect(result.current.buildExport()).toContain("Per-sticker accuracy");
 
     scrambleStub.expectedFacelets = null;
+  });
+  // Прогон 2026-08-19 (stickerless, LED) ушёл в дроп целиком, и «Копировать
+  // отчёт» отдал сводку из одних нулей: причина жила строкой на экране и в
+  // буфер не попадала. Диагностика, которую нельзя скопировать, пересказывается
+  // руками — то есть теряется.
+  it("брак на раскладке центров уезжает в отчёт вместе с ячейками съёмок", async () => {
+    const uniform = (c: string): string[] => Array.from({ length: 9 }, () => c);
+    const grids = (): string[][] => ["U", "R", "F", "D", "L", "B"].map(uniform);
+
+    readerStub.calibrated = true;
+    readerStub.collectingAccuracy = true;
+    readerStub.pushAccuracyFace.mockResolvedValue({
+      kind: "complete",
+      rawFaceGrids: grids(),
+      productFaceGrids: grids(),
+      // Раскладка отказала: две съёмки тянутся к одному цвету.
+      rawCenterFaces: null,
+      rawCenterOffenders: [
+        { capture: 4, face: "B", de: 46.4, relative: true, own: "R", ownDE: 5, duplicateOf: 1 },
+      ],
+      rawCenterSpread: {
+        faces: ["F", "R", "D", "U", "B", "L"],
+        des: [3, 3, 2, 38, 46, 43],
+        medianDE: 20.4,
+        own: ["F", "R", "D", "D", "R", "D"],
+        ownDes: [3, 3, 2, 2, 5, 3],
+        rgb: [
+          [0, 185, 95],
+          [249, 79, 75],
+          [216, 219, 76],
+          [216, 216, 75],
+          [255, 83, 87],
+          [211, 211, 68],
+        ],
+      },
+      cellDiags: Array.from({ length: 54 }, () => ({
+        rgb: [200, 200, 200] as [number, number, number],
+        kept: 0.9,
+        best: "U",
+        bestDE: 3,
+        second: "D",
+        secondDE: 40,
+      })),
+      fitDiags: Array.from({ length: 6 }, () => ({ gain: 5, used: true, gap: 18 })),
+      resolved: null,
+    });
+
+    const { result } = renderHook(() => useAccuracySession());
+    await act(async () => result.current.setMode("solved"));
+    await act(async () => result.current.setGrip("picture"));
+    result.current.videoRef.current = {} as HTMLVideoElement;
+    await act(async () => {
+      await result.current.captureFace();
+    });
+
+    // На экране — причина и сама грань, а не один центр.
+    expect(result.current.captureError).toContain("не опознана");
+    expect(result.current.captureError).toContain("Ячейки съёмок");
+
+    const out = result.current.buildExport();
+    expect(out).toContain("=== Последний брак (дроп) ===");
+    expect(out).toContain("Ячейки съёмок");
+    expect(out).toContain("assign");
+    // Брак стоит ПЕРЕД сводкой: сводка из нулей без причины бесполезна.
+    expect(out.indexOf("Последний брак")).toBeLessThan(out.indexOf("=== Сводка прогона ==="));
+  });
+
+  it("сброс прогона убирает брак из отчёта", async () => {
+    const { result } = renderHook(() => useAccuracySession());
+    await act(async () => result.current.setMode("solved"));
+    await act(async () => result.current.setGrip("picture"));
+    result.current.videoRef.current = {} as HTMLVideoElement;
+    await act(async () => {
+      await result.current.captureFace();
+    });
+    expect(result.current.buildExport()).toContain("Последний брак");
+    await act(async () => result.current.resetRun());
+    expect(result.current.buildExport()).not.toContain("Последний брак");
+  });
+  // Замок решётки просит переснять ОДНУ грань — как и «сняли не кубик». Если бы
+  // он бросал всё чтение в дроп, тестировщик терял бы пять честно снятых граней
+  // из-за одной, и drop-rate гейта наполнялся бы отказами инструмента, а не
+  // ошибками зрения.
+  it("«нет решётки» не бракует чтение и не пишет дроп", async () => {
+    readerStub.calibrated = true;
+    readerStub.collectingAccuracy = true;
+    readerStub.pushAccuracyFace.mockResolvedValue({
+      kind: "unreadable",
+      reason: "no-lattice",
+      diag: "Грань U снята мимо: у неё нет решётки — контраст границ 5.3 при 41.9 у соседних граней",
+    });
+    readerStub.resetAccuracy.mockClear();
+
+    const { result } = renderHook(() => useAccuracySession());
+    await act(async () => result.current.setMode("solved"));
+    result.current.videoRef.current = {} as HTMLVideoElement;
+    await act(async () => {
+      await result.current.captureFace();
+    });
+
+    expect(result.current.captureError).toContain("нет решётки");
+    expect(result.current.captureError).not.toContain("Грань не прочиталась");
+    expect(readerStub.resetAccuracy).not.toHaveBeenCalled();
+    expect(result.current.buildExport()).not.toContain("Последний брак");
+  });
+});
+
+// Три дропа подряд — это и есть случай, ради которого брак начали запоминать.
+// Кнопка «Копировать отчёт» гасла ровно в нём: считанных чтений нет, условий в
+// прогоне нет, значит копировать «нечего». Отчёт обязан быть доступен, пока
+// есть хоть одна причина отказа.
+describe("отчёт доступен и без единого засчитанного чтения", () => {
+  it("после брака сессия отдаёт его текст наружу", async () => {
+    const uniform = (c: string): string[] => Array.from({ length: 9 }, () => c);
+    readerStub.calibrated = true;
+    readerStub.collectingAccuracy = true;
+    readerStub.pushAccuracyFace.mockResolvedValue({
+      kind: "complete",
+      rawFaceGrids: ["U", "R", "F", "D", "L", "B"].map(uniform),
+      productFaceGrids: ["U", "R", "F", "D", "L", "B"].map(uniform),
+      rawCenterFaces: null,
+      rawCenterOffenders: [{ capture: 5, face: "B", de: 55.6, relative: true, own: "F", ownDE: 4 }],
+      cellDiags: [],
+      fitDiags: [],
+      resolved: null,
+    });
+
+    const { result } = renderHook(() => useAccuracySession());
+    await act(async () => result.current.setMode("solved"));
+    await act(async () => result.current.setGrip("picture"));
+    result.current.videoRef.current = {} as HTMLVideoElement;
+    expect(result.current.lastDropText).toBeNull();
+
+    await act(async () => {
+      await result.current.captureFace();
+    });
+
+    expect(result.current.lastReport).toBeNull(); // считанных чтений нет
+    expect(result.current.lastDropText).toContain("не опознана");
+  });
+});
+
+// Показанная не та грань — ошибка условия замера, а не зрения. Она обязана
+// стоить пересъёмки ОДНОЙ грани, а не девяти ошибок в гейте.
+describe("строгая хватка требует порядок граней", () => {
+  it("«не та грань» уходит в дроп, а не в тихую пересъёмку", async () => {
+    readerStub.calibrated = true;
+    readerStub.collectingAccuracy = true;
+    readerStub.pushAccuracyFace.mockResolvedValue({
+      kind: "unreadable",
+      reason: "wrong-face",
+      diag: "Это грань с жёлтым центром (ΔE 1.4), а 5-й по протоколу снимается грань с оранжевым центром",
+    });
+    readerStub.resetAccuracy.mockClear();
+
+    const { result } = renderHook(() => useAccuracySession());
+    await act(async () => result.current.setMode("solved"));
+    result.current.videoRef.current = {} as HTMLVideoElement;
+    await act(async () => {
+      await result.current.captureFace();
+    });
+
+    expect(result.current.captureError).toContain("жёлтым центром");
+    // ДРОП, а не пересъёмка. Проверка знает о показанной грани только цвет её
+    // центра и потому не отличает ошибку человека от промаха зрения по центру
+    // (red↔orange — главный hotspot R1). Пересъёмка выбрасывала бы такие
+    // съёмки мимо числителя И знаменателя, то есть умела бы только улучшать
+    // цифру гейта; дроп кладёт их в знаменатель и в drop-rate.
+    const out = result.current.buildExport();
+    expect(out).toContain("wrong-face");
+    expect(out).toContain("Последний брак");
+    expect(out).not.toContain("показана не та грань: 1");
+  });
+
+  it("порядок требуется только строгой хваткой", async () => {
+    readerStub.calibrated = true;
+    readerStub.collectingAccuracy = false;
+    readerStub.beginAccuracy.mockClear();
+
+    const { result } = renderHook(() => useAccuracySession());
+    await act(async () => result.current.setMode("solved"));
+    result.current.videoRef.current = {} as HTMLVideoElement;
+
+    await act(async () => {
+      await result.current.captureFace();
+    });
+    expect(readerStub.beginAccuracy).toHaveBeenLastCalledWith(true);
+
+    await act(async () => result.current.setGrip("free"));
+    await act(async () => {
+      await result.current.captureFace();
+    });
+    expect(readerStub.beginAccuracy).toHaveBeenLastCalledWith(false);
+  });
+});
+
+// Палец на грани — ошибка условия съёмки, а не зрения: наклейка физически
+// закрыта. Лечится пересъёмкой одной грани, как «не грань кубика», и обязан
+// попасть в счётчик — иначе неограниченная пересъёмка станет способом тихо
+// улучшить замер.
+describe("палец на грани", () => {
+  it("просит переснять одну грань и попадает в счётчик пересъёмок", async () => {
+    readerStub.calibrated = true;
+    readerStub.collectingAccuracy = true;
+    readerStub.pushAccuracyFace.mockResolvedValue({
+      kind: "unreadable",
+      reason: "finger",
+      diag: "Палец на грани: закрытых ячеек 2 (худшая — на 98%).",
+    });
+    readerStub.resetAccuracy.mockClear();
+
+    const { result } = renderHook(() => useAccuracySession());
+    await act(async () => result.current.setMode("solved"));
+    result.current.videoRef.current = {} as HTMLVideoElement;
+    await act(async () => {
+      await result.current.captureFace();
+    });
+
+    expect(result.current.captureError).toContain("Палец на грани");
+    expect(readerStub.resetAccuracy).not.toHaveBeenCalled();
+    const out = result.current.buildExport();
+    expect(out).not.toContain("Последний брак");
+    expect(out).toContain("палец на грани: 1");
+  });
+});
+
+// Замок камеры — часть условия замера. Chrome на macOS ручные режимы для
+// большинства камер не даёт, и тогда автобаланс белого гуляет МЕЖДУ калибровкой
+// и чтением: расхождение эталонов от сессии к сессии (min ΔE R–L 16.2 / 16.1 /
+// 14.7 / 13.5) объясняется этим, а не кубиком. Отчёт обязан называть состояние,
+// а не молчать о нём.
+describe("состояние камеры в отчёте", () => {
+  it("говорит прямо, что режимы автоматические и почему", () => {
+    const { result } = renderHook(() => useAccuracySession());
+    const out = result.current.buildExport();
+    expect(out).toContain("экспозиция авто");
+    expect(out).toContain("баланс белого авто");
+    expect(out).toContain("не поддерживаются");
   });
 });

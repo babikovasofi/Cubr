@@ -37,6 +37,15 @@
   design-process, anti-ai-slop-writing, anti-slop-design, mattermost, solidtime,
   reflect. Dev-loop: plan, build, review, debug. Обновление:
   `bash <startpoint>/scripts/bootstrap.sh --upgrade-skills . --force`.
+- **Standalone-ревью (`diff-reviewer`):** ревьюер со свежим контекстом для дифа/ветки/PR —
+  когда плана нет и `/review` неприменим (чужая ветка, PR, правка вне цикла). Read-only:
+  ничего не чинит и не делает git-мутаций. Идёт по классам (корректность → безопасность →
+  поддерживаемость → соответствие проекту), каждую находку прогоняет через гейты
+  (достижимость, доверие к источнику, «уже обработано выше», доказательство `file:line`,
+  «это и так ловит CI»), реально гоняет build+тесты и выдаёт 🔴 BLOCK / 🟡 WARN / ✅ PASS.
+  Журнал `.memory-bank/review-log.md` — читает его перед ревью, чтобы не поднимать заново
+  сознательно отклонённую находку. Промпт: `.claude/agents/diff-reviewer.md`, модель `opus`.
+  Не путать с `reviewer` (haiku) — тот сверяет готовую работу с планом внутри `/review`.
 - **Ночной режим (`night-runner`):** автономный автопилот на время сна — сам берёт
   задачи из Memory Bank и работает задача-за-задачей, без вопросов. Пишет ТОЛЬКО в
   изолированную ветку `night/<slug>-<timestamp>` от `main`; в `main` не коммитит, не

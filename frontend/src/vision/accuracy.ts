@@ -23,6 +23,7 @@ import { config } from "./config";
 import { pinRotationsByPhysics, rotateGrid } from "./cubeGrid";
 import { SOLVED, FACE_ORDER, type Face, type Facelet } from "./cubeState";
 import { deltaE, rgb2lab } from "./colors";
+import { fitSpreadRu } from "./guide";
 
 export interface StickerResult {
   index: number;
@@ -361,6 +362,46 @@ export interface CellDiag {
   /** Второй по близости эталон и ΔE до него. */
   second: string;
   secondDE: number;
+  /**
+   * Доля пикселей ячейки в гамме кожи (colors.skinFraction), 0..1.
+   *
+   * Мерится, а не выводится из расстояния до «среднего телесного»: кожа лежит
+   * рядом с оранжевой наклейкой в Lab, и сравнение ΔE честно отвечает
+   * «оранжевый» на палец. Разделяет их хрома в YCbCr, а не близость в Lab.
+   */
+  skin?: number;
+  /**
+   * Насколько ячейка светлее самого светлого эталона калибровки (L в Lab).
+   *
+   * Отдельно от `kept`, потому что ловит другое. `kept` считает долю КЛИПНУТЫХ
+   * пикселей — ячейку, съеденную пересветом целиком. Равномерная плёнка блика
+   * ничего не клипует: она тянет цвет наклейки к цвету источника, `kept`
+   * остаётся 100%, а ΔE уверенно указывает на белый. Живой прогон 2026-08-21
+   * дал ровно это — зелёные ячейки грани U прочитаны белыми при kept 75–100%.
+   *
+   * НЕОБЯЗАТЕЛЬНОЕ: отчёты, снятые до появления замера, поля не несут.
+   */
+  lift?: number;
+  /** Хрома ячейки (colors.chroma) — второй половиной того же признака. */
+  chroma?: number;
+}
+
+/**
+ * Похожа ли ячейка на наклейку под плёнкой блика: светлее снятого белого И без
+ * цвета.
+ *
+ * Нужны ОБА условия. Одна светлота ловила бы честный белый на ярко освещённой
+ * грани; одна хрома — любую белую наклейку, у которой хромы нет по определению.
+ * Вместе они описывают то, чего у настоящей наклейки не бывает: белее самого
+ * светлого эталона в этом же свете.
+ *
+ * ТЕЛЕМЕТРИЯ. Ни одного отказа на этом признаке нет намеренно: отказ меняет
+ * drop-rate, то есть само число гейта, и старые чтения стали бы несравнимы.
+ * Сначала смотрим, сколько таких ячеек и совпадают ли они с промахами.
+ */
+export function glareFilmSuspect(d: CellDiag): boolean {
+  if (d.lift === undefined || d.chroma === undefined) return false;
+  return d.lift >= config.GLARE_LIFT_L && d.chroma <= config.GLARE_MAX_CHROMA;
 }
 
 /**
@@ -399,6 +440,161 @@ export interface FaceFitDiag {
   decided?: boolean;
 }
 
+/**
+ * Сколько раз каждый цвет встретился в сыром чтении при норме девять.
+ *
+ * Самая дешёвая проверка на свете и самая наглядная: на кубике по девять
+ * наклеек каждого цвета, точка. Перекос значит, что цвета перепутаны — и
+ * говорит это ДО поворотов, эталона и физики, то есть тогда, когда все прочие
+ * сообщения ещё рассуждают о своём.
+ *
+ * Живой прогон 2026-08-19 отказал словами «физика не определила поворот граней:
+ * 2 комбинации нарушают её одинаково (6)» — формально верно и бесполезно.
+ * Баланс на тех же данных: R 5 при норме 9, L 12, U 12. Четыре красных
+ * прочитаны не красными — вот отчего физика и не сошлась, и это R1, главный
+ * риск проекта, а не свойство поворотов.
+ *
+ * Строка печатается ТОЛЬКО при перекосе: у здорового чтения она была бы шумом.
+ */
+export function colorBalanceRu(grids: readonly (readonly string[])[]): string | null {
+  const counts = new Map<string, number>();
+  for (const g of grids) for (const c of g) counts.set(c, (counts.get(c) ?? 0) + 1);
+  const off = [...counts.entries()]
+    .filter(([, n]) => n !== 9)
+    .sort((a, b) => Math.abs(b[1] - 9) - Math.abs(a[1] - 9));
+  if (off.length === 0) return null;
+  const parts = off.map(([c, n]) => `${c} ${n} (${n > 9 ? "+" : "\u2212"}${Math.abs(n - 9)})`);
+  const worst = off[0];
+  const tail =
+    worst[1] < 9
+      ? ` Больше всего недостаёт цвета ${worst[0]}: ${9 - worst[1]} наклеек прочитаны не им.`
+      : ` Больше всего лишнего цвета ${worst[0]}: +${worst[1] - 9}.`;
+  return `Баланс цветов (на кубике ровно по 9): ${parts.join(", ")}.${tail}`;
+}
+
+/**
+ * Все 9 ячеек каждой съёмки — сырым argmin, без раскладки и без квот.
+ *
+ * Зачем отдельно от `formatReport`. Тот печатает промахи ПРОЧИТАННОГО кубика, а
+ * съёмка, развалившаяся на раскладке центров, до счёта не доходит вовсе: в
+ * отчёт не попадает ни одна её ячейка. Живой прогон 2026-08-19 (stickerless,
+ * LED) уперся ровно в это: три чтения подряд ушли в дроп, наружу торчали только
+ * шесть центров, и по ним неразличимы две болезни с противоположным лечением —
+ * человек показал одну грань дважды, ИЛИ сетка села на грань со сдвигом и
+ * «центром» стала соседняя наклейка. Грань целиком разводит их сразу: у сдвига
+ * ряды выглядят как срез чужой грани, у дубликата — как честная грань, просто
+ * не та.
+ *
+ * Строчная буква = ΔE до ближайшего эталона больше `STICKER_MAX_DELTA_E`: ячейка
+ * не похожа ни на один цвет кубика (щель, фон, блик). Три строчных подряд в
+ * крайнем ряду — почерк сползшей сетки, и это видно глазом без единого числа.
+ */
+export function formatRawGrids(
+  grids: readonly (readonly string[])[],
+  diags?: readonly CellDiag[],
+  fits?: readonly FaceFitDiag[],
+): string {
+  const lines: string[] = [];
+  // Баланс идёт ПЕРВЫМ: он один отвечает на вопрос «чтение вообще возможно?»,
+  // и без него человек читает буквы, не зная, что искать.
+  const balance = colorBalanceRu(grids);
+  if (balance) lines.push(balance);
+  lines.push(
+    "Ячейки съёмок (сырой argmin, 3 ряда по 3, центр в скобках; строчная буква — " +
+      `ΔE больше ${config.STICKER_MAX_DELTA_E}, то есть не цвет кубика):`,
+  );
+  grids.forEach((grid, cap) => {
+    const cells = grid.map((face, i) => {
+      const d = diags?.[cap * 9 + i];
+      const ch = d && d.bestDE > config.STICKER_MAX_DELTA_E ? face.toLowerCase() : face;
+      return i === 4 ? `(${ch})` : ` ${ch} `;
+    });
+    const rows = [cells.slice(0, 3), cells.slice(3, 6), cells.slice(6, 9)].map((r) => r.join(""));
+    const capDiags = diags?.slice(cap * 9, cap * 9 + 9);
+    let tail = "";
+    if (capDiags && capDiags.length === 9) {
+      const worst = Math.max(...capDiags.map((d) => d.bestDE));
+      const blown = capDiags.filter((d) => d.kept < config.CELL_MIN_KEPT_FRAC).length;
+      // Худшая ячейка по доле выживших пикселей, а не только счётчик выбитых.
+      // Порог `CELL_MIN_KEPT_FRAC` ловит ячейку, которую блик съел целиком; блик
+      // на ПОЛОВИНЕ ячейки его не достигает, но цвет уже тянет к белому — и
+      // именно так тёмно-синяя наклейка становится белой, не подняв ни одного
+      // флага. Живой прогон 2026-08-19: синего 6 из 9 при здоровых эталонах.
+      const minKept = Math.min(...capDiags.map((d) => d.kept));
+      tail =
+        `  [центр ΔE ${capDiags[4].bestDE.toFixed(1)}` +
+        `, макс по ячейкам ${worst.toFixed(1)}` +
+        `, худшая ячейка выжила на ${(minKept * 100).toFixed(0)}%` +
+        (blown ? `, выбито бликом ${blown}` : "") +
+        "]";
+    }
+    lines.push(`  ${cap + 1}: ${rows.join(" | ")}${tail}`);
+  });
+  // Как легла сетка — часть той же картины: «ячейка прочиталась белой» и «сетка
+  // на этой грани ничего не нашла» объясняют друг друга. Раньше эта строка
+  // печаталась ровно у одного отказа из шести, и у остальных пяти читателю
+  // приходилось гадать о геометрии по буквам.
+  if (fits && fits.length > 0) lines.push(`  ${fitSpreadRu([...fits])}`);
+  return lines.join("\n");
+}
+
+/**
+ * Все промахи собрались в одной съёмке, и цвета в ней чистые — значит спорит не
+ * зрение, а содержимое грани.
+ *
+ * Живая сессия 2026-08-20, скрамбл-режим: два чтения по 49/54, и в обоих ВСЕ
+ * промахи сидят на съёмке U. Ячейки при этом сняты безупречно — ΔE до своего
+ * эталона 1.1…4.3, ни блика, ни выбитых пикселей. Классификатор не ошибался: он
+ * прочитал ровно те цвета, что были в кадре. Значит в кадре была не та грань,
+ * какую ждал эталон: либо скрамбл на кубике собран не тот, либо эту грань
+ * показали повёрнутой (при строгой хватке поворот грани — нарушение).
+ *
+ * Без этой строки человек видит «5 ошибок» и идёт чинить свет и калибровку —
+ * то есть ровно то, что здесь ни при чём.
+ *
+ * Пороги. `MIN` — меньше трёх промахов не образуют «почерка», это шум. `SHARE`
+ * — доля одной съёмки: 0.8 отделяет «всё в одной» от размазанного по кубику.
+ * `CLEAN_DE` — что считать чистым цветом: 8 вчетверо ниже
+ * `STICKER_MAX_DELTA_E` и вдвое выше типичной медианы здорового чтения (2–4).
+ */
+export function concentratedMismatchRu(
+  wrong: readonly StickerResult[],
+  diags?: readonly CellDiag[],
+): string | null {
+  const MIN = 3;
+  const SHARE = 0.8;
+  const CLEAN_DE = 8;
+  if (wrong.length < MIN) return null;
+
+  const byFace = new Map<string, StickerResult[]>();
+  for (const s of wrong) {
+    const list = byFace.get(s.face) ?? [];
+    list.push(s);
+    byFace.set(s.face, list);
+  }
+  let worst: { face: string; list: StickerResult[] } | null = null;
+  for (const [face, list] of byFace) {
+    if (!worst || list.length > worst.list.length) worst = { face, list };
+  }
+  if (!worst || worst.list.length < wrong.length * SHARE) return null;
+
+  // Чистота — по диагностике тех самых ячеек. Без неё утверждать нечего:
+  // грязные цвета означали бы как раз ошибку зрения, а не подмену содержимого.
+  if (!diags) return null;
+  const des = worst.list.map((s) => diags[s.index]?.bestDE).filter((d): d is number => d != null);
+  if (des.length !== worst.list.length) return null;
+  const worstDE = Math.max(...des);
+  if (worstDE > CLEAN_DE) return null;
+
+  return (
+    `Почерк: все ${wrong.length} промахов — в одной съёмке (грань ${worst.face}), и цвета в ней ` +
+    `сняты чисто (худший ΔE ${worstDE.toFixed(1)} при пороге «не цвет кубика» ` +
+    `${config.STICKER_MAX_DELTA_E}). Зрение прочитало то, что было в кадре, — значит в кадре ` +
+    "была не та грань, какую ждёт эталон: либо на кубике собран не тот скрамбл, либо эта грань " +
+    "показана повёрнутой. Свет и калибровку здесь чинить нечего."
+  );
+}
+
 /** Human-readable multi-line report string for printing to the page. */
 export function formatReport(
   rep: AccuracyReport,
@@ -428,11 +624,21 @@ export function formatReport(
           `${d.kept < config.CELL_MIN_KEPT_FRAC ? " (ВЫБИТА)" : ""}` +
           `, ΔE ${d.best} ${d.bestDE.toFixed(1)} / ${d.second} ${d.secondDE.toFixed(1)}` +
           `, отрыв ${(d.secondDE - d.bestDE).toFixed(1)}` +
-          `${d.bestDE > config.STICKER_MAX_DELTA_E ? " (НЕ ЦВЕТ КУБИКА)" : ""}`
+          `${d.bestDE > config.STICKER_MAX_DELTA_E ? " (НЕ ЦВЕТ КУБИКА)" : ""}` +
+          `${
+            glareFilmSuspect(d)
+              ? ` (ПЛЁНКА БЛИКА: светлее белого на ${d.lift!.toFixed(1)}, хрома ${d.chroma!.toFixed(1)})`
+              : ""
+          }`
         : "";
       lines.push(
         `  ${s.face}[${s.cellInFace}] (idx ${s.index}): read ${s.read}, expected ${s.expected}${why}`,
       );
+    }
+    const verdict = concentratedMismatchRu(wrong, diags);
+    if (verdict) {
+      lines.push("");
+      lines.push(verdict);
     }
   }
   if (diags) {
@@ -455,14 +661,47 @@ export function formatReport(
     lines.push(`  без отрыва от второго кандидата (< ${config.STICKER_MARGIN_MIN}): ${tight}`);
     lines.push(`  не похожих ни на один цвет кубика (ΔE > ${config.STICKER_MAX_DELTA_E}): ${far}`);
     lines.push(`  медианный ΔE до ближайшего эталона: ${medianDE.toFixed(1)}`);
-    // Скептик (LOW): «кожа в ячейках — следствие съехавшей сетки» была
-    // недоказанной посылкой. Число вместо декларации: сколько из 54 ячеек
-    // реально ближе к телесному тону, чем к любому из шести эталонов кубика —
-    // палец/ладонь в кадре даёт именно такой промах, и его нельзя чинить
-    // порогом STICKER_MAX_DELTA_E (out of scope, см. план).
-    const skinLab = rgb2lab(config.FACE_FIT_SKIN_RGB);
-    const skinLike = diags.filter((d) => deltaE(rgb2lab(d.rgb), skinLab) < d.bestDE).length;
-    lines.push(`  ближе к телесному тону, чем к эталону кубика: ${skinLike}`);
+    // Плёнка блика — то, чего не видит счётчик выше: kept у таких ячеек целый.
+    // Печатается только там, где замер есть (старые отчёты поля не несут), и
+    // сразу с раскладкой «сколько из них ушло в промах»: признак, совпадающий с
+    // промахами, объясняет чтение, а признак, рассыпанный по верным ячейкам,
+    // означает, что порог взят слишком низко и его надо двигать, а не верить.
+    const measuredLift = diags.some((d) => typeof d.lift === "number");
+    if (measuredLift) {
+      const veiled: number[] = [];
+      diags.forEach((d, i) => {
+        if (glareFilmSuspect(d)) veiled.push(i);
+      });
+      const wrongIdx = new Set(wrong.map((s) => s.index));
+      const veiledWrong = veiled.filter((i) => wrongIdx.has(i)).length;
+      lines.push(
+        `  белее калиброванного белого при упавшей хроме (плёнка блика, kept целый): ` +
+          `${veiled.length}, из них в промахах: ${veiledWrong}`,
+      );
+    }
+    // Пальцы в кадре — измеренная величина, а не догадка по расстоянию.
+    //
+    // Раньше здесь считалось «ячейка ближе к среднему телесному тону, чем к
+    // своему эталону», и это заведомо занижало счёт: кожа ближе к ОРАНЖЕВОЙ
+    // наклейке, чем к среднему телесному, поэтому закрытая пальцем ячейка в
+    // старый счётчик часто не попадала. Теперь берётся доля пикселей ячейки в
+    // гамме кожи (YCbCr), посчитанная на самом кадре.
+    const measured = diags.filter((d) => typeof d.skin === "number");
+    if (measured.length > 0) {
+      const touched = measured.filter((d) => (d.skin ?? 0) > config.CELL_SKIN_FRAC_MAX).length;
+      const grazed = measured.filter(
+        (d) => (d.skin ?? 0) > 0.1 && (d.skin ?? 0) <= config.CELL_SKIN_FRAC_MAX,
+      ).length;
+      lines.push(
+        `  закрытых пальцем (кожи больше ${(config.CELL_SKIN_FRAC_MAX * 100).toFixed(0)}%): ${touched}` +
+          `, задетых краем пальца: ${grazed}`,
+      );
+    } else {
+      // Старая оценка остаётся для отчётов, снятых до появления замера.
+      const skinLab = rgb2lab(config.FACE_FIT_SKIN_RGB);
+      const skinLike = diags.filter((d) => deltaE(rgb2lab(d.rgb), skinLab) < d.bestDE).length;
+      lines.push(`  ближе к телесному тону, чем к эталону кубика: ${skinLike}`);
+    }
   }
   if (fits?.length) {
     const fellBack = fits.filter((f) => !f.used).length;

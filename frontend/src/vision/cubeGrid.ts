@@ -11,7 +11,7 @@
 //       a LEGAL cube. Ambiguous / none legal -> FAIL LOUD (re-capture).
 
 import { hungarian } from "./assignment";
-import { deltaE, COLOR_NAMES, type Lab, type ColorName, type Refs } from "./colors";
+import { deltaEClassify, COLOR_NAMES, type Lab, type ColorName, type Refs } from "./colors";
 import { config } from "./config";
 import { countPhysicsViolations } from "./cubePhysics";
 import { orientationVariants } from "./faceletRotations";
@@ -124,7 +124,10 @@ export function assignFacesByCenter(faceGridsLab: Lab[][], refs: Refs): CenterAs
     };
   }
 
-  const cost = centers.map((lab) => COLOR_NAMES.map((name) => deltaE(lab, refs[name])));
+  // Раскладка центров — тот же вопрос «какой из шести», поэтому метрика
+  // выбора (ослабленная светлота). Замки на ВЕЛИЧИНУ отрыва ниже считаются по
+  // ней же, иначе сравнивались бы числа из разных метрик.
+  const cost = centers.map((lab) => COLOR_NAMES.map((name) => deltaEClassify(lab, refs[name])));
   const pick = hungarian(cost);
   const faces = pick.map((colorIdx) => COLOR_NAMES[colorIdx] as Face);
   const centerDEs = pick.map((colorIdx, c) => cost[c][colorIdx]);
@@ -161,7 +164,7 @@ export function assignFacesByCenter(faceGridsLab: Lab[][], refs: Refs): CenterAs
       // прочитан (своё лучшее тоже далеко). Живой прогон 2026-08-05 дал второй
       // случай, а текст уверенно заявил первый.
       const own = nearestRef(centers[c], refs) as Face;
-      const ownDE = deltaE(centers[c], refs[own]);
+      const ownDE = deltaEClassify(centers[c], refs[own]);
       const takenBy = faces.findIndex((f, i) => f === own && i !== c);
       offenders.push({
         capture: c,
@@ -206,7 +209,7 @@ function nearestRef(lab: Lab, refs: Refs): ColorName {
   let best: ColorName = COLOR_NAMES[0];
   let bestD = Infinity;
   for (const name of COLOR_NAMES) {
-    const d = deltaE(lab, refs[name]);
+    const d = deltaEClassify(lab, refs[name]);
     if (d < bestD) {
       bestD = d;
       best = name;

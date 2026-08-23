@@ -1,0 +1,148 @@
+// Метрика выбора цвета против метрики принадлежности кубику.
+//
+// Живой прогон 2026-08-20 (собранный кубик, stickerless, LED): 51/54, и все три
+// промаха — нижний ряд синей грани, прочитанный белым. Ячейки сняты чисто
+// (kept 100%, ни блика, ни промаха сетки), просто освещены ярче остальных:
+// цветовой тон синий, светлота выше на два десятка. Обычная метрика считает
+// разницу света разницей цвета и отвечает «белый».
+
+import { describe, it, expect } from "vitest";
+import {
+  COLOR_NAMES,
+  checkCalibration,
+  deltaE,
+  deltaEClassify,
+  minSeparation,
+  rgb2lab,
+  type Lab,
+  type Refs,
+  type RGB,
+} from "../../src/vision/colors";
+import { stickerConfidence, faceMedianDE } from "../../src/vision/hooks/useCubeReader";
+import { config } from "../../src/vision/config";
+
+// Эталоны той самой сессии.
+const REF_RGB: Record<string, RGB> = {
+  U: [178, 198, 216],
+  R: [249, 52, 54],
+  F: [0, 171, 81],
+  D: [195, 201, 66],
+  L: [255, 116, 46],
+  B: [9, 101, 207],
+};
+const REFS = Object.fromEntries(
+  Object.entries(REF_RGB).map(([k, v]) => [k, rgb2lab(v)]),
+) as unknown as Refs;
+
+/** Три ячейки синей грани, прочитанные белыми. */
+const WASHED_BLUE: RGB[] = [
+  [89, 159, 249],
+  [97, 162, 250],
+  [96, 161, 249],
+];
+
+function nearest(rgb: RGB, metric: (a: Lab, b: Lab) => number): string {
+  const lab = rgb2lab(rgb);
+  return [...COLOR_NAMES].sort((x, y) => metric(lab, REFS[x]) - metric(lab, REFS[y]))[0] as string;
+}
+
+describe("deltaEClassify", () => {
+  it("обычная метрика на этих ячейках ошибается — иначе чинить было бы нечего", () => {
+    for (const rgb of WASHED_BLUE) {
+      expect(nearest(rgb, deltaE), String(rgb)).toBe("U");
+    }
+  });
+
+  it("метрика выбора читает пересвеченный синий синим", () => {
+    for (const rgb of WASHED_BLUE) {
+      expect(nearest(rgb, deltaEClassify), String(rgb)).toBe("B");
+    }
+  });
+
+  it("и делает это с запасом, а не на границе", () => {
+    for (const rgb of WASHED_BLUE) {
+      const lab = rgb2lab(rgb);
+      const toBlue = deltaEClassify(lab, REFS.B);
+      const toWhite = deltaEClassify(lab, REFS.U);
+      expect(toWhite - toBlue, String(rgb)).toBeGreaterThan(1.5);
+    }
+  });
+
+  // Цена ослабления светлоты: эталоны сближаются. Проверяем, что запас до
+  // порога вердикта остаётся, иначе лечение хуже болезни.
+  it("эталоны остаются различимы: пара R–L держится выше порога вердикта", () => {
+    const plain = minSeparation(REFS);
+    let worst = Infinity;
+    for (let i = 0; i < COLOR_NAMES.length; i++) {
+      for (let j = i + 1; j < COLOR_NAMES.length; j++) {
+        worst = Math.min(worst, deltaEClassify(REFS[COLOR_NAMES[i]], REFS[COLOR_NAMES[j]]));
+      }
+    }
+    expect(plain.de).toBeGreaterThan(worst); // ослабление действительно сближает
+    expect(worst).toBeGreaterThan(config.CALIB_MIN_SEPARATION_DE + 3);
+  });
+});
+
+describe("stickerConfidence — две метрики в одном ответе", () => {
+  // `d` обязан остаться на обычной метрике: пороги «это вообще наклейка»
+  // калиброваны на ней, и именно светлота отличает щель и стол от наклейки.
+  it("расстояние считается обычной метрикой, а выбор — метрикой выбора", () => {
+    const lab = rgb2lab(WASHED_BLUE[0]);
+    const { best, d } = stickerConfidence(lab, REFS);
+    expect(best).toBe("B");
+    expect(d).toBeCloseTo(deltaE(lab, REFS.B), 6);
+    expect(d).not.toBeCloseTo(deltaEClassify(lab, REFS.B), 6);
+  });
+
+  it("замок «в рамке не кубик» ослабление светлоты не задело", () => {
+    // Тёмная щель между деталями: далека от всех шести именно по светлоте.
+    const gap: RGB = [26, 28, 30];
+    const face = Array.from({ length: 9 }, () => rgb2lab(gap));
+    expect(faceMedianDE(face, REFS)).toBeGreaterThan(config.FACE_MAX_MEDIAN_DE);
+  });
+});
+
+// Эталоны прогона, где синий снялся ПЕРЕСВЕЧЕННЫМ: RGB(88,162,255) вместо
+// привычного RGB(0,100,210). Отдельная фикстура, потому что именно на ней
+// метрики расходятся в выводах, а не только в числах.
+const WASHED_REF_RGB: Record<string, RGB> = {
+  U: [183, 208, 224],
+  R: [255, 61, 61],
+  F: [0, 203, 114],
+  D: [200, 207, 61],
+  L: [255, 121, 48],
+  B: [88, 162, 255],
+};
+const WASHED_REFS = Object.fromEntries(
+  Object.entries(WASHED_REF_RGB).map(([k, v]) => [k, rgb2lab(v)]),
+) as unknown as Refs;
+
+describe("самая тесная пара эталонов", () => {
+  // Живой прогон 2026-08-20. Отчёт называл красный–оранжевый, а классификатор
+  // в это время был ближе всего к тому, чтобы спутать белый с синим.
+  it("обычная метрика и метрика выбора называют РАЗНЫЕ пары", () => {
+    const plain = minSeparation(WASHED_REFS);
+    const classify = minSeparation(WASHED_REFS, config.DELTA_E_MODE, deltaEClassify);
+
+    expect(`${plain.a}-${plain.b}`).toBe("R-L");
+    expect(`${classify.a}-${classify.b}`).toBe("U-B");
+    expect(classify.de).toBeLessThan(plain.de);
+  });
+
+  it("вердикт калибровки считается по метрике выбора", () => {
+    // Порог такой, что обычная метрика набор пропустила бы (16.8 > 16), а
+    // решающая — нет (14.5 < 16). Вердикт обязан следовать за решающей.
+    const problem = checkCalibration(WASHED_REFS, config.CALIB_WHITE_LIGHTNESS_SLACK, 16);
+    expect(problem?.kind).toBe("collapsed");
+    if (problem?.kind === "collapsed") {
+      expect([problem.a, problem.b].sort().join("-")).toBe("B-U");
+    }
+  });
+
+  it("здоровый набор проходит обе метрики", () => {
+    expect(checkCalibration(REFS)).toBeNull();
+    expect(minSeparation(REFS, config.DELTA_E_MODE, deltaEClassify).de).toBeGreaterThan(
+      config.CALIB_MIN_SEPARATION_DE,
+    );
+  });
+});

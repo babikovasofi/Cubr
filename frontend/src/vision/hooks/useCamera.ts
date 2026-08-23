@@ -41,6 +41,22 @@ type VideoWithRvfc = HTMLVideoElement & {
   cancelVideoFrameCallback?: (id: number) => void;
 };
 
+/**
+ * Что удалось зафиксировать у камеры. Это ТЕЛЕМЕТРИЯ, а не настройка: на
+ * большинстве связок (в частности Chrome на macOS) ручные режимы просто не
+ * поддерживаются, и знать это надо не «вообще», а про конкретную машину, на
+ * которой снимается гейт. Пока эта строка была неизвестна, дрейф цвета между
+ * калибровкой и чтением нельзя было ни подтвердить, ни исключить.
+ */
+export interface CameraLockState {
+  /** Камера объявила ручной режим экспозиции и он применён. */
+  exposure: boolean;
+  /** То же про баланс белого. */
+  whiteBalance: boolean;
+  /** Ни один ручной режим не поддерживается — автоматика продолжит гулять. */
+  supported: boolean;
+}
+
 export class Camera {
   private video: HTMLVideoElement;
   private stream: MediaStream | null = null;
@@ -54,10 +70,16 @@ export class Camera {
   // такой повторный запрос отклоняется, и на экране остаётся работающее видео
   // с красной надписью «нет доступа к камере». Реальный багрепорт.
   private starting: Promise<void> | null = null;
+  private lock: CameraLockState = { exposure: false, whiteBalance: false, supported: false };
 
   constructor(video: HTMLVideoElement, onLost?: () => void) {
     this.video = video;
     this.onLost = onLost;
+  }
+
+  /** Что удалось зафиксировать: экспозиция, баланс белого, поддержка вообще. */
+  lockState(): CameraLockState {
+    return { ...this.lock };
   }
 
   /** True while a stream is attached and its video track is still live. */
@@ -105,11 +127,20 @@ export class Camera {
     this.video.muted = true;
     await this.video.play();
 
-    // Best-effort: pin exposure + white balance so a seeded colour profile / quick
-    // adjust isn't chased by the camera's auto-WB drifting the observed white after
-    // calibration. Unsupported constraints reject or no-op on most devices — we
-    // swallow every failure (never crash the camera over a nice-to-have lock).
-    void lockExposureAndWhiteBalance(this.stream);
+    // Фиксируем экспозицию и баланс белого НЕ сразу, а дав автоматике сойтись.
+    //
+    // Сразу после `play()` камера ещё в переходном процессе: первые кадры идут
+    // с бегущей экспозицией и балансом. Замок, поставленный в этот момент,
+    // консервирует случайное промежуточное состояние — то есть делает ровно
+    // обратное задуманному. Ждём, пока картина устоится, и только потом просим
+    // ручной режим; всё это — best-effort поверх нестандартных ограничений
+    // (ImageCapture), которые на большинстве связок просто не поддерживаются.
+    const stream = this.stream;
+    void (async () => {
+      await new Promise((r) => setTimeout(r, config.CAMERA_SETTLE_MS));
+      if (this.stream !== stream) return; // поток успели заменить
+      this.lock = await lockExposureAndWhiteBalance(stream);
+    })();
 
     this.running = true;
 
@@ -182,22 +213,31 @@ export class Camera {
 // constraints (ImageCapture spec, partial Chromium support). We probe the track
 // capabilities and only request modes it advertises, then swallow any rejection —
 // on Safari/Firefox/most cameras this is simply a no-op.
-async function lockExposureAndWhiteBalance(stream: MediaStream): Promise<void> {
+export async function lockExposureAndWhiteBalance(stream: MediaStream): Promise<CameraLockState> {
+  const none: CameraLockState = { exposure: false, whiteBalance: false, supported: false };
   const track = stream.getVideoTracks()[0];
-  if (!track || typeof track.applyConstraints !== "function") return;
+  if (!track || typeof track.applyConstraints !== "function") return none;
   try {
     const caps = (track.getCapabilities?.() ?? {}) as Record<string, unknown>;
     const advanced: Record<string, unknown>[] = [];
-    if (Array.isArray(caps.exposureMode) && caps.exposureMode.includes("manual")) {
-      advanced.push({ exposureMode: "manual" });
-    }
-    if (Array.isArray(caps.whiteBalanceMode) && caps.whiteBalanceMode.includes("manual")) {
-      advanced.push({ whiteBalanceMode: "manual" });
-    }
-    if (advanced.length === 0) return;
+    const exposure = Array.isArray(caps.exposureMode) && caps.exposureMode.includes("manual");
+    const whiteBalance =
+      Array.isArray(caps.whiteBalanceMode) && caps.whiteBalanceMode.includes("manual");
+    if (exposure) advanced.push({ exposureMode: "manual" });
+    if (whiteBalance) advanced.push({ whiteBalanceMode: "manual" });
+    if (advanced.length === 0) return none;
     await track.applyConstraints({ advanced } as MediaTrackConstraints);
+    // Сверяемся с ФАКТОМ, а не с намерением: applyConstraints может пройти без
+    // ошибки и не переключить режим.
+    const settings = (track.getSettings?.() ?? {}) as Record<string, unknown>;
+    return {
+      exposure: settings.exposureMode === "manual",
+      whiteBalance: settings.whiteBalanceMode === "manual",
+      supported: true,
+    };
   } catch {
     /* unsupported / overconstrained — auto mode stays; not fatal. */
+    return none;
   }
 }
 
@@ -237,5 +277,7 @@ export function useCamera(videoRef: RefObject<HTMLVideoElement | null>, onLost?:
       ref.current?.stop();
     },
     isLive: (): boolean => ref.current?.isLive() ?? false,
+    lockState: (): CameraLockState =>
+      ref.current?.lockState() ?? { exposure: false, whiteBalance: false, supported: false },
   };
 }

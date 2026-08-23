@@ -318,8 +318,16 @@ export function gapContrast(
 export function edgeContrast(
   patch: Patch,
   region: FitRegion,
-  bandFrac: number = config.FACE_FIT_GAP_BAND_FRAC,
+  // Именованный параметр, а не голое число, НАМЕРЕННО. У близнеца
+  // `gapContrast` третий аргумент — `centerFrac`, здесь — `bandFrac`; типы у
+  // обоих `number`, поэтому перепутанный аргумент компилировался молча. Так и
+  // произошло: `useCubeReader` передавал сюда `CELL_CENTER_FRAC = 0.5` вместо
+  // полосы 0.12, и телеметрия с замком мерили границы полосой, в четыре раза
+  // более широкой, чем та, которой штрафует `regionCost`. Объект делает такую
+  // подмену ошибкой типов, а не тихим расхождением величин.
+  opts: { bandFrac?: number } = {},
 ): number {
+  const bandFrac = opts.bandFrac ?? config.FACE_FIT_GAP_BAND_FRAC;
   const cw = region.side / 3;
   let total = 0;
   for (let row = 0; row < 3; row++) {
@@ -367,13 +375,28 @@ export function regionCost(
       const lab = rgb2lab(rgb);
       let best = Infinity;
       for (const name of COLOR_NAMES) best = Math.min(best, deltaE(lab, refs[name]));
-      // Недобор окантовки. Насыщается на gapTarget: у белой наклейки щели темнее
-      // её на сотню единиц, у синей — на десятки, и штрафовать синюю нельзя.
-      const deficit = Math.max(
-        0,
-        gapTarget - cellGapContrast(patch, x0, y0, w, h, luma(rgb), bandFrac, samples),
+      // Недобор окантовки, зажатый С ОБЕИХ сторон.
+      //
+      // Нижняя граница была всегда; верхней не было, и комментарий на этом
+      // месте утверждал «насыщается на gapTarget», хотя `max(0, target − c)`
+      // сверху не насыщается ни на чём. У монолитного кубика окантовка бывает
+      // ЯРЧЕ наклейки, contrast уходит в минус (живые −7.7, на синтетике до
+      // −52), и штраф растёт неограниченно — тем сильнее, чем точнее сетка
+      // стоит на цветной наклейке. На светлом столе это уводило подгонку с
+      // кубика на столешницу при `gain 31` и вердикте «ПОДОГНАНА».
+      //
+      // Верхний зажим на gapTarget возвращает слагаемому тот смысл, который у
+      // него и был заявлен: «щели нет» — фиксированная цена, одинаковая для
+      // кубика без корпуса и для ровного фона, и решает тогда признак границ,
+      // написанный ровно для этого случая.
+      const deficit = Math.min(
+        gapTarget,
+        Math.max(0, gapTarget - cellGapContrast(patch, x0, y0, w, h, luma(rgb), bandFrac, samples)),
       );
       // Недобор контраста границ — тот же приём, что и у щели, но по цвету.
+      // Верхний зажим тут избыточен (ΔE неотрицателен, значит недобор и так не
+      // превысит edgeTarget) и поставлен для симметрии смысла: «признака нет» —
+      // фиксированная цена, а не растущая.
       const deficitEdge = Math.max(
         0,
         edgeTarget -
@@ -642,5 +665,83 @@ function fitParams(): {
     EDGE_TARGET: config.FACE_FIT_EDGE_TARGET,
     EDGE_WEIGHT: config.FACE_FIT_EDGE_WEIGHT,
     MIN_MARGIN: config.FACE_FIT_MIN_MARGIN,
+  };
+}
+
+/** Решётка съёмки против решётки её соседей по тому же чтению. */
+export interface LatticeVerdict {
+  /** Признаки решётки обвалились у ОБОИХ замеров — съёмка сделана не по грани. */
+  collapsed: boolean;
+  /** Контраст границ этой съёмки к медиане соседей (1 = как у всех). */
+  edgeRatio: number;
+  /** То же для контраста щелей. */
+  gapRatio: number;
+  /** Медианы соседей — их печатает отказ, чтобы человек видел, с чем сравнили. */
+  edgeMedian: number;
+  gapMedian: number;
+}
+
+/**
+ * Съёмка сделана мимо грани? Сравниваем её решётку с решёткой соседних съёмок
+ * ТОГО ЖЕ чтения.
+ *
+ * Зачем нужен отдельный замок. `regionCost` штрафует недобор контраста щелей и
+ * границ, но это СЛАГАЕМЫЕ стоимости, а не отказ: кандидат с нулевой решёткой
+ * всё равно побеждает рамку, если фон ближе к эталонам, чем края кубика, — и
+ * подгонка отчитывается «ПОДОГНАНА, выигрыш 30.7» о сетке, половина которой
+ * стоит на столе. Живой прогон 2026-08-19 (stickerless, LED) на этом и
+ * развалился: пять ячеек грани U прочитались белыми с ΔE 2–4, потому что там
+ * был белый стол, а не белая наклейка. Замок `FACE_MAX_MEDIAN_DE` такое не
+ * ловит по устройству — белый стол похож на цвет кубика, он и есть цвет кубика.
+ *
+ * Почему сравнение с соседями, а не с числом. Абсолютного порога тут не
+ * существует: в том же прогоне здоровая грань F дала контраст щелей 3.3, а
+ * сломанная U — 4.0. Разделяет их только контекст: у F границы 39.5 при медиане
+ * соседей 41, у U — 5.3. Соседи сняты тем же кубиком в том же свете минуту
+ * назад, это самая честная мерка, какая есть.
+ *
+ * Почему нужны ОБА признака. Грань, где рядом лежат наклейки одного цвета, даёт
+ * низкий контраст границ законно — по одному этому признаку её забраковали бы
+ * ни за что. Щели у такой грани на месте. И наоборот: у stickerless щелей почти
+ * нет, но цвета через границу меняются. Обвал ОБОИХ разом — это уже не грань.
+ */
+/**
+ * Медиана БЕЗ округления, в отличие от `colors.median`.
+ *
+ * Та округляет до целого — для RGB это правильно, а здесь нет: контрасты у
+ * монолитного кубика живут в единицах, порог `FACE_FIT_COLLAPSE_FRAC`
+ * откалиброван по значениям с двумя знаками, и на чётном числе соседей (их
+ * бывает 2 и 4 — замок работает по уже снятым граням) округление даёт до 15%
+ * относительной ошибки. Опаснее всего вниз: соседи со щелями 0.3 и 0.6 дают
+ * округлённую медиану 0, `comparable` становится false, и замок молча
+ * выключается ровно на stickerless — на кубике, ради которого написан.
+ */
+function exactMedian(values: readonly number[]): number {
+  const s = [...values].sort((a, b) => a - b);
+  const mid = Math.floor(s.length / 2);
+  return s.length % 2 ? s[mid] : (s[mid - 1] + s[mid]) / 2;
+}
+
+export function latticeVerdict(
+  face: { gap: number; edge?: number },
+  others: readonly { gap: number; edge?: number }[],
+  frac: number = config.FACE_FIT_COLLAPSE_FRAC,
+): LatticeVerdict {
+  const edges = others.map((o) => o.edge).filter((e): e is number => typeof e === "number");
+  const gaps = others.map((o) => o.gap);
+  const edgeMedian = edges.length ? exactMedian(edges) : 0;
+  const gapMedian = gaps.length ? exactMedian(gaps) : 0;
+  const edgeRatio = edgeMedian > 0 && typeof face.edge === "number" ? face.edge / edgeMedian : 1;
+  const gapRatio = gapMedian > 0 ? face.gap / gapMedian : 1;
+  // Меньше двух соседей — медиана ещё не медиана, а случайное число; молчим.
+  // Так же молчим, если у соседей самих нет решётки: тогда сравнивать не с чем,
+  // и вопрос не к этой съёмке, а ко всему чтению.
+  const comparable = others.length >= 2 && edgeMedian > 0 && gapMedian > 0;
+  return {
+    collapsed: comparable && edgeRatio < frac && gapRatio < frac,
+    edgeRatio,
+    gapRatio,
+    edgeMedian,
+    gapMedian,
   };
 }

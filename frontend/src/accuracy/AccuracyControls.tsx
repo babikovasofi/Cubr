@@ -169,7 +169,13 @@ export default function AccuracyControls({ session }: AccuracyControlsProps) {
               gate.pass ? "bg-success text-white" : "bg-danger text-white",
             ].join(" ")}
           >
-            {gate.conditions.length === 0 ? "НЕТ ДАННЫХ" : gate.pass ? "PASS" : "FAIL"}
+            {gate.conditions.length === 0
+              ? "НЕТ ДАННЫХ"
+              : gate.sanityOnly
+                ? "ТОЛЬКО САНИТИ"
+                : gate.pass
+                  ? "PASS"
+                  : "FAIL"}
           </span>
         </div>
 
@@ -209,11 +215,16 @@ export default function AccuracyControls({ session }: AccuracyControlsProps) {
                         {c.nDropped} ({pct(c.dropRate)})
                       </td>
                       <td
-                        className={["p-1 font-bold", c.pass ? "text-success" : "text-danger"].join(
-                          " ",
-                        )}
+                        className={[
+                          "p-1 font-bold",
+                          !c.countsTowardGate
+                            ? "text-muted"
+                            : c.pass
+                              ? "text-success"
+                              : "text-danger",
+                        ].join(" ")}
                       >
-                        {c.pass ? "PASS" : "FAIL"}
+                        {!c.countsTowardGate ? "САНИТИ" : c.pass ? "PASS" : "FAIL"}
                       </td>
                     </tr>
                   );
@@ -222,6 +233,14 @@ export default function AccuracyControls({ session }: AccuracyControlsProps) {
             </table>
           </div>
         )}
+
+        {gate.sanityOnly && gate.conditions.length > 0 ? (
+          <p className="font-sans text-small text-warning">
+            Сняты только санити-условия: гейт по ним не закрывается ни при каком числе чтений. На
+            собранном кубике красный не лежит рядом с оранжевым, а белый — рядом с жёлтым, и
+            адъяцентности (риск R1) остаются непроверенными. Переключись на «Известный скрамбл».
+          </p>
+        ) : null}
 
         {gate.min ? (
           <p className="font-sans text-small text-muted">
@@ -247,7 +266,10 @@ export default function AccuracyControls({ session }: AccuracyControlsProps) {
         </div>
 
         <div className="flex flex-wrap gap-2">
-          <Button onClick={onCopy} disabled={gate.conditions.length === 0 && !session.lastReport}>
+          <Button
+            onClick={onCopy}
+            disabled={gate.conditions.length === 0 && !session.lastReport && !session.lastDropText}
+          >
             {copied ? "Скопировано ✓" : "Копировать отчёт"}
           </Button>
           <Button onClick={session.resetRun} className="bg-surface-2 text-ink">

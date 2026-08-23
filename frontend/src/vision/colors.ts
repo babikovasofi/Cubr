@@ -78,6 +78,20 @@ export function lab2rgb([L, a, b]: Lab): RGB {
   return [linearToSrgb(rl), linearToSrgb(gl), linearToSrgb(bl)];
 }
 
+/**
+ * Насыщенность цвета в Lab — длина вектора (a, b).
+ *
+ * Отдельная величина, а не расстояние до эталона, потому что отвечает на другой
+ * вопрос. ΔE говорит «на какой из шести цветов это похоже»; хрома говорит, ЕСТЬ
+ * ли в ячейке цвет вообще. Зеркальная плёнка блика тянет наклейку к цвету
+ * источника — светлота вверх, хрома в ноль — и по ΔE такая ячейка уверенно
+ * белая, потому что она И ПРАВДА белая на снимке. Различить её от настоящего
+ * белого можно только тем, что белее снятого белого в этом свете ничего нет.
+ */
+export function chroma([, a, b]: Lab): number {
+  return Math.hypot(a, b);
+}
+
 // ---------------------------------------------------------------------------
 // deltaE: CIE76 (fallback) and CIEDE2000 (default)
 // ---------------------------------------------------------------------------
@@ -93,11 +107,15 @@ const deg2rad = (d: number) => (d * Math.PI) / 180;
 const rad2deg = (r: number) => (r * 180) / Math.PI;
 
 // CIEDE2000 per Sharma, Wu & Dalal (2005), the standard implementation.
-export function deltaE2000(lab1: Lab, lab2: Lab): number {
+export function deltaE2000(lab1: Lab, lab2: Lab, kL = 1): number {
   const [L1, a1, b1] = lab1;
   const [L2, a2, b2] = lab2;
 
-  const kL = 1;
+  // kL — штатный параметрический множитель CIEDE2000 (Sharma, Wu & Dalal),
+  // ослабляющий вклад светлоты. В текстильной промышленности стандартно
+  // берут kL=2 по той же причине, по которой он нужен здесь: образец и
+  // эталон освещены по-разному, и разницу светлоты нельзя считать разницей
+  // цвета. См. `deltaEClassify` — там объяснено, почему у нас две метрики.
   const kC = 1;
   const kH = 1;
 
@@ -170,6 +188,38 @@ function aHpF(C1p: number, C2p: number, h1p: number, h2p: number): number {
   return (h1p + h2p - 360) / 2;
 }
 
+/**
+ * Расстояние для ВЫБОРА ЦВЕТА из шести: то же CIEDE2000, но с ослабленной
+ * светлотой (`config.CLASSIFY_KL`).
+ *
+ * Зачем отдельно от `deltaE`. Живой прогон 2026-08-20 (stickerless, LED,
+ * собранный кубик) дал 51/54, и все три промаха — нижний ряд синей грани:
+ * RGB(89,159,249) при эталоне синего RGB(9,101,207). Это синий, просто
+ * освещённый ярче: цветовой тон тот же, светлота выше на два десятка. По
+ * обычной метрике до белого 16.6, до синего 20.4 — и argmin честно отвечает
+ * «белый», потому что разницу СВЕТА он считает разницей ЦВЕТА. При kL=2 те же
+ * ячейки дают 11.0 до синего против 13.7 до белого, то есть читаются верно.
+ *
+ * Почему это не подпорка под ответ. Метрика фиксирована, одна на все чтения,
+ * ничего не знает ни об эталоне сборки, ни о том, какая грань показана. В
+ * отличие от нормировки по центру (продуктовый путь), она не использует
+ * никакого предположения о содержимом кадра.
+ *
+ * Почему ослабление светлоты НЕ применяется к структурным замкам
+ * (`FACE_MAX_MEDIAN_DE`, `STICKER_MAX_DELTA_E`, разделимость эталонов при
+ * калибровке, стоимость подгонки сетки). Там вопрос другой: «это вообще
+ * наклейка или щель, тень, фон» — а его решает как раз светлота. Ослабить её
+ * в этих замках значило бы приблизить тёмную щель к цветам кубика.
+ *
+ * Цена измерена: минимальное попарное расстояние между эталонами живой
+ * сессии падает с 16.3 до 14.4 (пара красный–оранжевый) при пороге вердикта
+ * 10 — запас сохраняется.
+ */
+export function deltaEClassify(a: Lab, b: Lab, mode: DeltaEMode = config.DELTA_E_MODE): number {
+  // В режиме cie76 параметрических множителей не существует — метрика та же.
+  return mode === "cie76" ? deltaE76(a, b) : deltaE2000(a, b, config.CLASSIFY_KL);
+}
+
 export function deltaE(a: Lab, b: Lab, mode: DeltaEMode = config.DELTA_E_MODE): number {
   return mode === "cie76" ? deltaE76(a, b) : deltaE2000(a, b);
 }
@@ -200,6 +250,56 @@ export interface RobustCell {
   rgb: RGB;
   /** Доля пикселей, переживших отбраковку (0..1). Низкая — ячейка ненадёжна. */
   kept: number;
+}
+
+/**
+ * Доля пикселей ячейки, попавших в гамму КОЖИ (0..1).
+ *
+ * Зачем отдельный признак, когда уже есть расстояние до эталонов. Палец на
+ * грани — не «непохожий цвет»: телесный тон лежит близко к оранжевой наклейке,
+ * argmin честно выбирает ближайший цвет кубика, и ячейка уходит в счёт как
+ * уверенно прочитанный оранжевый. Живой прогон 2026-08-19: три-четыре таких
+ * ячейки на чтение, все ошибки red↔orange в ту же сторону (R→L 3, L→R 0) —
+ * это не путаница красного с оранжевым, это пальцы.
+ *
+ * Правило — классическое ограничение по хроме в YCbCr (Chai & Ngan): кожа
+ * любого оттенка и любой освещённости держится в узком прямоугольнике
+ * 77 ≤ Cb ≤ 127 и 133 ≤ Cr ≤ 173, потому что цвет кожи задаётся меланином и
+ * гемоглобином, а яркость уходит в Y и из решения выпадает. Проверено на
+ * живых цветах этой сессии: пальцы попадают, все шесть эталонов кубика — нет.
+ * Ближе всех оранжевый (Cb 76.8 — на границе), но его спасает Cr 197 при
+ * потолке 173, то есть решает не одно условие, а пара.
+ *
+ * Считается по тем же центральным `centerFrac` ячейки, что и цвет: край ячейки
+ * законно захватывает соседнюю наклейку, и штрафовать за это нельзя.
+ */
+export function skinFraction(
+  pixels: Uint8ClampedArray | number[],
+  w: number,
+  h: number,
+  centerFrac: number = config.CELL_CENTER_FRAC,
+): number {
+  const marginX = Math.floor((w * (1 - centerFrac)) / 2);
+  const marginY = Math.floor((h * (1 - centerFrac)) / 2);
+  let skin = 0;
+  let total = 0;
+  for (let y = marginY; y < h - marginY; y++) {
+    for (let x = marginX; x < w - marginX; x++) {
+      const i = (y * w + x) * 4;
+      const r = pixels[i];
+      const g = pixels[i + 1];
+      const b = pixels[i + 2];
+      // Rec. 601 — та же матрица, которой камеры и кодеки считают YCbCr.
+      const yy = 0.299 * r + 0.587 * g + 0.114 * b;
+      const cb = 128 + 0.564 * (b - yy);
+      const cr = 128 + 0.713 * (r - yy);
+      total += 1;
+      if (cb >= config.SKIN_CB_MIN && cb <= config.SKIN_CB_MAX) {
+        if (cr >= config.SKIN_CR_MIN && cr <= config.SKIN_CR_MAX) skin += 1;
+      }
+    }
+  }
+  return total === 0 ? 0 : skin / total;
 }
 
 export function robustCellColor(
@@ -394,11 +494,23 @@ export function anchorDistances(
 export function minSeparation(
   refs: Refs,
   mode: DeltaEMode = config.DELTA_E_MODE,
+  /**
+   * Какой метрикой мерить. По умолчанию обычная; `deltaEClassify` отвечает на
+   * вопрос «а перепутает ли их КЛАССИФИКАТОР» — а он считает другой.
+   *
+   * Живой прогон 2026-08-20 показал, зачем это разделение. Синий снялся
+   * пересвеченным, RGB(88,162,255) вместо привычного RGB(0,100,210). По
+   * обычной метрике самая тесная пара осталась красный–оранжевый (16.8), и
+   * отчёт честно называл её. Но решает-то метрика выбора, а в ней самой
+   * тесной парой стала БЕЛЫЙ–СИНИЙ: 14.5 против 15.5 у красного с оранжевым.
+   * То есть человеку показывали не ту пару и не то число.
+   */
+  metric: (a: Lab, b: Lab, mode?: DeltaEMode) => number = deltaE,
 ): { de: number; a: ColorName; b: ColorName } {
   let best = { de: Infinity, a: COLOR_NAMES[0], b: COLOR_NAMES[1] };
   for (let i = 0; i < COLOR_NAMES.length; i++) {
     for (let j = i + 1; j < COLOR_NAMES.length; j++) {
-      const de = deltaE(refs[COLOR_NAMES[i]], refs[COLOR_NAMES[j]], mode);
+      const de = metric(refs[COLOR_NAMES[i]], refs[COLOR_NAMES[j]], mode);
       if (de < best.de) best = { de, a: COLOR_NAMES[i], b: COLOR_NAMES[j] };
     }
   }
@@ -417,13 +529,15 @@ export function minSeparation(
 export function nearestNeighbours(
   refs: Refs,
   mode: DeltaEMode = config.DELTA_E_MODE,
+  /** См. `minSeparation`: «с кем спутает» — вопрос к метрике выбора. */
+  metric: (a: Lab, b: Lab, mode?: DeltaEMode) => number = deltaE,
 ): Record<ColorName, { name: ColorName; de: number }> {
   const out = {} as Record<ColorName, { name: ColorName; de: number }>;
   for (const name of COLOR_NAMES) {
     let best = { name: COLOR_NAMES[0], de: Infinity };
     for (const other of COLOR_NAMES) {
       if (other === name) continue;
-      const de = deltaE(refs[name], refs[other], mode);
+      const de = metric(refs[name], refs[other], mode);
       if (de < best.de) best = { name: other, de };
     }
     out[name] = best;
@@ -474,7 +588,11 @@ export function checkCalibration(
     return { kind: "white-not-lightest", whiteL, lightest, lightestL: refs[lightest][0] };
   }
 
-  const sep = minSeparation(refs, mode);
+  // Замок «цвета слиплись» смотрит МЕТРИКОЙ ВЫБОРА, потому что вопрос ровно про
+  // неё: перепутает ли их классификатор. Обычная метрика на пересвеченном синем
+  // отвечала «нет» (16.8 у красного с оранжевым), пока решающая уже говорила
+  // «белый и синий в 14.5» — то есть замок охранял не то число.
+  const sep = minSeparation(refs, mode, deltaEClassify);
   if (sep.de < minSepDE) return { kind: "collapsed", a: sep.a, b: sep.b, de: sep.de };
   return null;
 }
@@ -575,6 +693,119 @@ export function normalizeFaceByCenter(faceRGB: RGB[], centerRef: Lab): RGB[] {
 }
 
 /** Simulate a global illuminant change: linear-sRGB per-channel gain on an sRGB color. */
+/** Матрица 3×3 в линейном RGB, по строкам. */
+export type ColorMatrix = readonly [
+  readonly [number, number, number],
+  readonly [number, number, number],
+  readonly [number, number, number],
+];
+
+export const IDENTITY_MATRIX: ColorMatrix = [
+  [1, 0, 0],
+  [0, 1, 0],
+  [0, 0, 1],
+];
+
+/**
+ * Цветовая коррекция по нескольким известным образцам: матрица 3×3, переводящая
+ * НАБЛЮДАЕМЫЕ цвета в ЭТАЛОННЫЕ (метод наименьших квадратов в линейном RGB).
+ *
+ * Зачем матрица, когда есть `vonKriesGain`. Тот — диагональ: три числа, по
+ * одному на канал, и он умеет только растянуть каналы по отдельности. Этого
+ * достаточно, когда свет меняет яркость, и мало, когда камера меняет СМЕСЬ
+ * каналов — а именно это делает автобаланс белого, и отключить его на большей
+ * части связок нельзя (Chrome на macOS ручной режим для типичной камеры не
+ * даёт). Матрица правит и поворот цветов, а не только их масштаб.
+ *
+ * Откуда шесть образцов. У прочитанного кубика известны ЦЕНТРЫ: центр не
+ * двигает ни один ход, значит после раскладки съёмок по граням мы знаем шесть
+ * пар «наблюдалось → должно быть». Это мини-мишень ColorChecker, снятая тем же
+ * кадром, в том же свете. Ответ (цвета остальных 48 наклеек) при этом не
+ * используется — коррекция считается ТОЛЬКО по центрам.
+ *
+ * Регуляризация к единичной матрице обязательна. Шесть точек в трёхмерном
+ * пространстве бывают почти вырожденными (тёмный кубик, узкий свет), и
+ * несглаженный МНК тогда выдаёт матрицу с огромными коэффициентами, которая
+ * идеально ложится на шесть образцов и разносит остальные 48. `ridge` — доля
+ * от масштаба задачи, а не абсолютное число: иначе порог пришлось бы менять
+ * вместе с экспозицией.
+ */
+export function fitColorMatrix(
+  observed: readonly RGB[],
+  target: readonly RGB[],
+  ridge = 0.05,
+): ColorMatrix {
+  const n = Math.min(observed.length, target.length);
+  // Меньше четырёх образцов — задача недоопределена настолько, что регуляризация
+  // просто вернёт единичную матрицу; честнее не делать вид, что коррекция была.
+  if (n < 4) return IDENTITY_MATRIX;
+
+  const X = observed.slice(0, n).map(linRGB);
+  const Y = target.slice(0, n).map(linRGB);
+
+  // Нормальные уравнения: XᵀX (3×3) и Xᵀy (3) для каждого выходного канала.
+  const xtx = [
+    [0, 0, 0],
+    [0, 0, 0],
+    [0, 0, 0],
+  ];
+  for (const x of X) {
+    for (let i = 0; i < 3; i++) for (let j = 0; j < 3; j++) xtx[i][j] += x[i] * x[j];
+  }
+  const scale = (xtx[0][0] + xtx[1][1] + xtx[2][2]) / 3;
+  const lambda = ridge * (scale > 0 ? scale : 1);
+
+  const rows: [number, number, number][] = [];
+  for (let k = 0; k < 3; k++) {
+    const a = [
+      [xtx[0][0] + lambda, xtx[0][1], xtx[0][2]],
+      [xtx[1][0], xtx[1][1] + lambda, xtx[1][2]],
+      [xtx[2][0], xtx[2][1], xtx[2][2] + lambda],
+    ];
+    // Правая часть тянет решение к k-й строке единичной матрицы — то есть «без
+    // данных ничего не меняем».
+    const b = [0, 0, 0];
+    for (let s = 0; s < n; s++) for (let i = 0; i < 3; i++) b[i] += X[s][i] * Y[s][k];
+    b[k] += lambda;
+    const w = solve3(a, b);
+    rows.push(w ?? [k === 0 ? 1 : 0, k === 1 ? 1 : 0, k === 2 ? 1 : 0]);
+  }
+  return [rows[0], rows[1], rows[2]];
+}
+
+/** Гаусс с частичным выбором ведущего элемента; `null` — матрица вырождена. */
+function solve3(a: number[][], b: number[]): [number, number, number] | null {
+  const m = [
+    [a[0][0], a[0][1], a[0][2], b[0]],
+    [a[1][0], a[1][1], a[1][2], b[1]],
+    [a[2][0], a[2][1], a[2][2], b[2]],
+  ];
+  for (let col = 0; col < 3; col++) {
+    let pivot = col;
+    for (let r = col + 1; r < 3; r++) {
+      if (Math.abs(m[r][col]) > Math.abs(m[pivot][col])) pivot = r;
+    }
+    if (Math.abs(m[pivot][col]) < 1e-12) return null;
+    [m[col], m[pivot]] = [m[pivot], m[col]];
+    for (let r = 0; r < 3; r++) {
+      if (r === col) continue;
+      const f = m[r][col] / m[col][col];
+      for (let c = col; c < 4; c++) m[r][c] -= f * m[col][c];
+    }
+  }
+  return [m[0][3] / m[0][0], m[1][3] / m[1][1], m[2][3] / m[2][2]];
+}
+
+/** Применить матрицу коррекции к цвету (вход и выход — sRGB 0..255). */
+export function applyColorMatrix(rgb: RGB, m: ColorMatrix): RGB {
+  const [r, g, b] = linRGB(rgb);
+  return delinRGB([
+    m[0][0] * r + m[0][1] * g + m[0][2] * b,
+    m[1][0] * r + m[1][1] * g + m[1][2] * b,
+    m[2][0] * r + m[2][1] * g + m[2][2] * b,
+  ]);
+}
+
 export function applyLightGain(rgb: RGB, g: [number, number, number]): RGB {
   const lin = linRGB(rgb);
   return delinRGB([lin[0] * g[0], lin[1] * g[1], lin[2] * g[2]]);
@@ -669,7 +900,10 @@ export function assignQuota(
   for (let i = 0; i < n; i++) if (!pinned.has(i)) freeIdx.push(i);
   const costs = freeIdx.map((i) => {
     const w = weights?.[i] ?? 1;
-    return COLOR_NAMES.map((name) => deltaE(labs[i], refs[name], mode) * w);
+    // Квоты решают, КАКОЙ из шести цветов достанется наклейке, — значит метрика
+    // выбора, та же, что у argmin. Иначе продуктовый путь и сырое чтение
+    // спорили бы не о подпорках, а о единицах измерения.
+    return COLOR_NAMES.map((name) => deltaEClassify(labs[i], refs[name], mode) * w);
   });
   const groups = minCostQuotaAssign(
     costs,

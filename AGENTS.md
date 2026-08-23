@@ -70,6 +70,17 @@ Confirm the actual stack from the repo (`package.json`, `pubspec.yaml`, `pyproje
 No scope matches → ask the user which exec agent should own the change. Edit these globs to
 fit each project's real layout.
 
+### Standalone review (outside the /plan → /build loop)
+| Agent                             | Owns                                                          |
+|-----------------------------------|---------------------------------------------------------------|
+| `.claude/agents/diff-reviewer.md` | Fresh-context, read-only review of a diff, branch, PR, or named files — no plan required. Scans four problem classes in order (correctness → security → maintainability → project fit), puts every candidate finding through the reachability / source-trust / already-handled / evidence / not-CI gates, actually runs build + tests, and returns a 🔴 BLOCK / 🟡 WARN / ✅ PASS verdict with every finding anchored to `file:line`. Appends a four-line entry to `.memory-bank/review-log.md` and reads that log first so a consciously rejected finding is not raised again. Runs on `opus`. |
+
+`reviewer` and `diff-reviewer` are different jobs and both stay. `reviewer` (haiku) is the
+loop step: it checks a finished change against its plan's acceptance criteria and is spawned
+by `/review`. `diff-reviewer` (opus) is the standalone gate before a merge: no plan, deeper
+scan, its own verdict scale and its own log. Use it for a PR, someone else's branch, or a
+change made outside the loop.
+
 ### Autonomous (runs while the user is away)
 | Agent                            | Owns                                                          |
 |----------------------------------|---------------------------------------------------------------|

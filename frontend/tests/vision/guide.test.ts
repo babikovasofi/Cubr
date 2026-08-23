@@ -5,6 +5,8 @@ import {
   verifyMismatchRu,
   cameraDeniedRu,
   modelFailedRu,
+  fitSpreadRu,
+  wrongFaceRu,
   type GuideSnapshot,
 } from "../../src/vision/guide";
 
@@ -154,5 +156,44 @@ describe("calibration helper", () => {
     expect(remainingCalibFacesRu(0)).toMatch(/белая/i);
     expect(remainingCalibFacesRu(5)).toMatch(/синяя/i);
     expect(remainingCalibFacesRu(6)).toBe("");
+  });
+});
+
+describe("fitSpreadRu — оба признака решётки", () => {
+  it("печатает щели и границы через дробь", () => {
+    const out = fitSpreadRu([
+      { used: true, gap: 0, edge: 41 },
+      { used: false, gap: 12, edge: 5 },
+    ]);
+    expect(out).toContain("1:подогнана 0/41");
+    expect(out).toContain("2:рамка 12/5");
+  });
+
+  // У stickerless щели штатно уходят в ноль: чёрного корпуса между наклейками
+  // нет. Без второго числа такая строка выглядит как приговор геометрии там,
+  // где решётка на месте и держится границами.
+  it("без границ печатает одни щели, ничего не выдумывая", () => {
+    const out = fitSpreadRu([{ used: true, gap: 7 }]);
+    expect(out).toContain("1:подогнана 7.");
+    // Дробь есть только в заголовке строки, но не в самом числе съёмки.
+    expect(out).not.toContain("7/");
+  });
+});
+
+describe("wrongFaceRu — показали не ту грань", () => {
+  // Живой прогон 2026-08-19: пятой вместо оранжевой показали жёлтую, и зрению
+  // записали девять ошибок, которых оно не делало (45/45 превратились в 45/54).
+  it("называет обе грани цветом, а не буквой, и место в порядке", () => {
+    const out = wrongFaceRu("L", "D", 5, 26.4, 1.4);
+    expect(out).toContain("жёлтым центром");
+    expect(out).toContain("оранжевым центром");
+    expect(out).toContain("5-й");
+    expect(out).toContain("U R F D L B");
+  });
+
+  it("печатает оба расстояния — по ним видно, насколько уверен отказ", () => {
+    const out = wrongFaceRu("L", "D", 5, 26.4, 1.4);
+    expect(out).toContain("26.4");
+    expect(out).toContain("1.4");
   });
 });
