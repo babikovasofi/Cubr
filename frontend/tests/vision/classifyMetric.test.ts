@@ -14,6 +14,7 @@ import {
   deltaEClassify,
   minSeparation,
   rgb2lab,
+  type Lab,
   type Refs,
   type RGB,
 } from "../../src/vision/colors";
@@ -40,7 +41,7 @@ const WASHED_BLUE: RGB[] = [
   [96, 161, 249],
 ];
 
-function nearest(rgb: RGB, metric: (a: number[], b: number[]) => number): string {
+function nearest(rgb: RGB, metric: (a: Lab, b: Lab) => number): string {
   const lab = rgb2lab(rgb);
   return [...COLOR_NAMES].sort((x, y) => metric(lab, REFS[x]) - metric(lab, REFS[y]))[0] as string;
 }

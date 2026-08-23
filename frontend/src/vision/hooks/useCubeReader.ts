@@ -38,7 +38,13 @@ import {
   latticeVerdict,
   type FitRegion,
 } from "../faceFit";
-import { notACubeFaceRu, latticeCollapsedRu, latticeCollapsedLateRu, wrongFaceRu } from "../guide";
+import {
+  notACubeFaceRu,
+  latticeCollapsedRu,
+  latticeCollapsedLateRu,
+  wrongFaceRu,
+  fingerOnFaceRu,
+} from "../guide";
 import {
   assignFacesByCenter,
   resolveRotations,
@@ -361,7 +367,7 @@ export function confidentCells(labs: Lab[], refs: Refs, kept: number[]): number 
   return n;
 }
 
-function classifyWithQuota(
+export function classifyWithQuota(
   faces: Lab[][],
   refs: Refs,
   centers: Face[] | null,
@@ -371,6 +377,22 @@ function classifyWithQuota(
   const argminGrids = (): Face[][] =>
     faces.map((grid) => grid.map((lab) => argminRef(lab, refs) as string as Face));
   if (!centers || faces.length !== 6) return argminGrids();
+
+  // Квоты применимы, только пока верна их посылка: заблудилась ОДНА наклейка.
+  // Перекос больше — значит сломалась целая грань (сетка заехала на соседнюю,
+  // блик выбелил ряд), и девять слотов цвета уже заняты честными ячейками.
+  // Тогда раздача не чинит виноватую грань, а ВЫТЕСНЯЕТ верно прочитанные
+  // ячейки на других гранях: каждая лишняя наклейка стоит двух ошибок вместо
+  // одной. Живые прогоны 2026-08-23 намеряли это дважды — 47/54 и 43/54
+  // продуктовых против 50/54 и 49/54 сырых.
+  const raw = argminGrids();
+  const counts = new Map<string, number>();
+  for (const grid of raw) for (const c of grid) counts.set(c, (counts.get(c) ?? 0) + 1);
+  let skew = 0;
+  for (const name of COLOR_NAMES) {
+    skew = Math.max(skew, Math.abs((counts.get(name) ?? 0) - config.QUOTA));
+  }
+  if (skew > config.QUOTA_MAX_SKEW) return raw;
 
   const labs: Lab[] = [];
   for (const grid of faces) labs.push(...grid);
