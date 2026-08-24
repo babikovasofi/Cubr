@@ -57,6 +57,7 @@ from app.schemas.duel import (
     WsStatusUpdateIn,
 )
 from app.services import badges as badges_service
+from app.services import cups as cups_service
 from app.services import duel as duel_service
 from app.services import duel_token
 from app.services.auth import current_active_user
@@ -124,6 +125,15 @@ async def _on_finalize(
             await badges_service.evaluate_duel_finalized(session, room)
         except Exception:
             logger.exception("badge evaluation failed for duel finalize (room_id=%s)", room_id)
+        # Same session/commit as the finished-transition above (same
+        # transaction) PLUS its own UNIQUE(room_id, user_id)-backed race
+        # guard — see app.services.cups module docstring for why both.
+        # Best-effort like badges, same rationale: a cups-engine fault must
+        # never abort the duel finalize itself.
+        try:
+            await cups_service.award_for_finished_room(session, room)
+        except Exception:
+            logger.exception("cups award failed for duel finalize (room_id=%s)", room_id)
         await session.commit()
         return room.winner_id
 
