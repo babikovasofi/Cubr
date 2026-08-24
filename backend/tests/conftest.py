@@ -30,6 +30,10 @@ from sqlalchemy.pool import StaticPool  # noqa: E402
 from app.db import Base, get_session  # noqa: E402
 from app.main import app  # noqa: E402
 from app.models import (  # noqa: E402
+    ChatBlock,
+    ChatMessage,
+    ChatRead,
+    Conversation,
     Cube,
     CupsEvent,
     DailyAttempt,
@@ -44,6 +48,7 @@ from app.models import (  # noqa: E402
     TournamentAttempt,
     User,
     UserBadge,
+    UserPresence,
 )
 from app.services import ratelimit  # noqa: E402
 
@@ -118,6 +123,11 @@ async def test_engine() -> AsyncGenerator[AsyncEngine, None]:
                     UserBadge.__table__,
                     CupsEvent.__table__,
                     Friendship.__table__,
+                    Conversation.__table__,
+                    ChatMessage.__table__,
+                    ChatRead.__table__,
+                    UserPresence.__table__,
+                    ChatBlock.__table__,
                 ],
             )
         )
@@ -139,6 +149,34 @@ async def client(
             yield session
 
     app.dependency_overrides[get_session] = override_get_session
+
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as ac:
+        yield ac
+
+    app.dependency_overrides.clear()
+
+
+@pytest_asyncio.fixture
+async def chat_client(
+    session_maker: async_sessionmaker[AsyncSession],
+    monkeypatch: pytest.MonkeyPatch,
+) -> AsyncGenerator[AsyncClient, None]:
+    """Async client for `/chat/*` tests. Like `client`, but ALSO patches
+    `app.db.async_session_maker` to the test engine — required because
+    `GET /chat/poll` deliberately does not use `Depends(get_session)` (see
+    `app.routers.chat` module docstring) and instead opens its own
+    short-lived sessions via a local `from app.db import async_session_maker`
+    at call time, which only picks up a patched module attribute, not the
+    `app.dependency_overrides` mechanism `client` relies on.
+    """
+
+    async def override_get_session() -> AsyncGenerator[AsyncSession, None]:
+        async with session_maker() as session:
+            yield session
+
+    app.dependency_overrides[get_session] = override_get_session
+    monkeypatch.setattr("app.db.async_session_maker", session_maker)
 
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as ac:

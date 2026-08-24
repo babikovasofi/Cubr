@@ -18,7 +18,7 @@ import uuid
 from dataclasses import dataclass
 from datetime import datetime, timezone
 
-from sqlalchemy import func, or_, select
+from sqlalchemy import func, or_, select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -135,6 +135,25 @@ async def send_request(
     if target.id == requester.id:
         raise FriendSelfError()
 
+    # Chat plan §6: a block in EITHER direction stops a fresh request —
+    # SAME 404 as an unknown handle, so the block itself never leaks (a
+    # distinct error here would be a signal "this handle exists AND has
+    # blocked you", which is exactly what must not be observable).
+    # Imported locally to avoid a module-level cycle (app.services.chat
+    # imports THIS module for now_utc/pair_key).
+    from app.models.chat import ChatBlock
+
+    block_result = await session.execute(
+        select(ChatBlock).where(
+            or_(
+                (ChatBlock.blocker_id == target.id) & (ChatBlock.blocked_id == requester.id),
+                (ChatBlock.blocker_id == requester.id) & (ChatBlock.blocked_id == target.id),
+            )
+        )
+    )
+    if block_result.scalar_one_or_none() is not None:
+        raise FriendNotFoundError()
+
     low, high = pair_key(requester.id, target.id)
     try:
         async with session.begin_nested():
@@ -223,6 +242,13 @@ async def remove_friend(session: AsyncSession, caller: User, friendship_id: uuid
     """Remove an existing friendship. `FriendNotFoundError` for anything
     else (unknown id, someone else's row, or a row that is still
     `pending`).
+
+    Also resolves the pair's chat, if one exists (friend-chat plan §4,
+    "Дружба удалена"): every still-`pending` `ChatMessage` of this pair is
+    flipped to `notify_state = 'unfriended'` in the SAME transaction, so no
+    email can go out for it even if the Этап B sweep runs a second later.
+    The conversation and its messages are NOT deleted — see
+    `app.models.chat` / the plan's §5 for why history survives an unfriend.
     """
     friendship = await session.get(Friendship, friendship_id)
     valid = (
@@ -232,6 +258,28 @@ async def remove_friend(session: AsyncSession, caller: User, friendship_id: uuid
     )
     if not valid or friendship is None:
         raise FriendNotFoundError()
+
+    # Imported locally to avoid a module-level cycle: app.services.chat
+    # imports THIS module (for now_utc/pair_key).
+    from app.models.chat import ChatMessage, Conversation
+
+    low, high = pair_key(friendship.user_low_id, friendship.user_high_id)
+    conversation_result = await session.execute(
+        select(Conversation).where(
+            Conversation.user_low_id == low, Conversation.user_high_id == high
+        )
+    )
+    conversation = conversation_result.scalar_one_or_none()
+    if conversation is not None:
+        await session.execute(
+            update(ChatMessage)
+            .where(
+                ChatMessage.conversation_id == conversation.id,
+                ChatMessage.notify_state == "pending",
+            )
+            .values(notify_state="unfriended", notify_resolved_at=now_utc())
+        )
+
     await session.delete(friendship)
     await session.flush()
 

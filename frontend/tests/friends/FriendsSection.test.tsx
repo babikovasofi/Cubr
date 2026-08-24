@@ -21,6 +21,8 @@ const {
   removeFriendMock,
   createRoomMock,
   navigateMock,
+  listConversationsMock,
+  pollChatMock,
 } = vi.hoisted(() => ({
   listFriendsMock: vi.fn(),
   listIncomingMock: vi.fn(),
@@ -31,6 +33,8 @@ const {
   removeFriendMock: vi.fn(),
   createRoomMock: vi.fn(),
   navigateMock: vi.fn(),
+  listConversationsMock: vi.fn(),
+  pollChatMock: vi.fn(),
 }));
 
 vi.mock("../../src/api/friends", () => ({
@@ -41,6 +45,26 @@ vi.mock("../../src/api/friends", () => ({
   acceptRequest: acceptRequestMock,
   deleteRequest: deleteRequestMock,
   removeFriend: removeFriendMock,
+}));
+
+// This section mounts <ChatSection>, which owns the per-tab long-poll loop —
+// chat/useChatPoll.test.tsx covers its behaviour in depth. Here it is mocked
+// so FriendsSection's own tests stay about the friend list, not the chat
+// poll loop, and never leave a real long-poll hanging after the test ends.
+vi.mock("../../src/api/chat", () => ({
+  listConversations: listConversationsMock,
+  listMessages: vi.fn().mockResolvedValue([]),
+  pollChat: pollChatMock,
+  sendMessage: vi.fn(),
+  markRead: vi.fn().mockResolvedValue(undefined),
+  deleteMessage: vi.fn(),
+  blockFriend: vi.fn(),
+  unblockFriend: vi.fn(),
+}));
+
+vi.mock("../../src/store/authStore", () => ({
+  useAuthStore: (selector: (s: { user: { id: string } | null }) => unknown) =>
+    selector({ user: { id: "me" } }),
 }));
 
 vi.mock("../../src/api/duel", () => ({
@@ -98,12 +122,19 @@ beforeEach(() => {
     removeFriendMock,
     createRoomMock,
     navigateMock,
+    listConversationsMock,
+    pollChatMock,
   ]) {
     m.mockReset();
   }
   listFriendsMock.mockResolvedValue([]);
   listIncomingMock.mockResolvedValue([]);
   listOutgoingMock.mockResolvedValue([]);
+  listConversationsMock.mockResolvedValue([]);
+  // Never resolves: ChatSection's poll loop just hangs quietly, same as the
+  // real long-poll waiting on the server (plan §2) — nothing to assert on it
+  // from these friend-list-focused tests.
+  pollChatMock.mockReturnValue(new Promise(() => undefined));
 });
 
 afterEach(cleanup);

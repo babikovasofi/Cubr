@@ -12,6 +12,7 @@ Client IP comes from ``request.client.host`` which is only rewritten from
 proxies (wired in ``main.py``). We never read raw XFF here.
 """
 
+import uuid
 from collections.abc import AsyncIterator, Awaitable, Callable
 from contextlib import asynccontextmanager
 
@@ -186,12 +187,16 @@ def login_account_rate_limit(limit: str) -> Callable[[Request], AsyncIterator[No
     return dependency
 
 
-def user_rate_limit(limit: str) -> Callable[[Request, User], Awaitable[None]]:
+def user_rate_limit(
+    limit: str, scope: str = "friend-request"
+) -> Callable[[Request, User], Awaitable[None]]:
     """Dependency: throttle by the CALLING user's `user.id` — for authed
     endpoints where an IP-keyed limit is not a real defense (rotating IP /
     a second worker resets it). First use: `POST /friends/requests`, where
     the thing being throttled is enumerating which `handle`s exist
     (see `app.routers.friends`, `app.services.friends` module docstring).
+    Second use: `app.routers.chat`'s per-user send/poll throttles — `scope`
+    keeps their budgets independent of each other and of the friends one.
 
     Mirrors `login_account_rate_limit`'s SHAPE — a per-account dependency
     layered on top of its own `Depends(current_active_user)`, so it shares
@@ -204,15 +209,55 @@ def user_rate_limit(limit: str) -> Callable[[Request, User], Awaitable[None]]:
     plain `ip_rate_limit` shape. A key built from `user.id` (never the raw
     handle being probed) so the limit stays about "how often did this
     ACCOUNT call this endpoint", not about any one target.
+
+    NOT usable on an endpoint that must not hold `Depends(get_session)` open
+    across a long wait (`GET /chat/poll` — see that router's module
+    docstring): this depends on `current_active_user`, which itself depends
+    on `get_session`. Such endpoints call `enforce_user_rate_limit` directly
+    instead, against their own short-lived session-free window check.
     """
     item = parse(limit)
 
     async def dependency(request: Request, user: User = Depends(current_active_user)) -> None:
-        key = f"friend-request:{user.id}"
+        key = f"{scope}:{user.id}"
         if not await _window.hit(item, key):
             _raise(item, _client_ip)
 
     return dependency
+
+
+def user_conversation_rate_limit(
+    limit: str, scope: str, path_param: str
+) -> Callable[[Request, User], Awaitable[None]]:
+    """Dependency: throttle by `(user.id, <path param>)` — e.g.
+    `CHAT_SEND_PER_CONVERSATION_LIMIT`, keyed by the sender AND the
+    `friendship_id` in the URL, so hammering one friend doesn't cost budget
+    against any other conversation. Same non-outcome-gated shape as
+    `user_rate_limit`.
+    """
+    item = parse(limit)
+
+    async def dependency(request: Request, user: User = Depends(current_active_user)) -> None:
+        path_value = request.path_params.get(path_param, "")
+        key = f"{scope}:{user.id}:{path_value}"
+        if not await _window.hit(item, key):
+            _raise(item, _client_ip)
+
+    return dependency
+
+
+async def enforce_user_rate_limit(limit: str, scope: str, user_id: uuid.UUID) -> None:
+    """Non-dependency variant of `user_rate_limit`, for a caller that
+    cannot use `Depends(current_active_user)` (it would hold
+    `Depends(get_session)`'s pooled connection for the caller's entire
+    lifetime — fatal for `GET /chat/poll`'s long wait). Same budget shape,
+    same key format (`f"{scope}:{user_id}"`), just invoked directly against
+    an already-authenticated user id.
+    """
+    item = parse(limit)
+    key = f"{scope}:{user_id}"
+    if not await _window.hit(item, key):
+        _raise(item, _client_ip)
 
 
 async def _extract_login_username(request: Request) -> str | None:

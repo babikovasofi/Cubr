@@ -139,6 +139,26 @@ class Settings(BaseSettings):
     # rotating IP (or a second worker) resets it; this is keyed by user.id.
     FRIEND_REQUEST_RATE_LIMIT: str = "10/minute"
 
+    # --- Friend chat (Этап A: переписка, без единого письма) ---
+    # `notify_after = created_at + CHAT_NOTIFY_DELAY_SECONDS` — column ships now
+    # (Этап A), read/acted on only from Этап B's sweep job.
+    CHAT_NOTIFY_DELAY_SECONDS: int = 300
+    # How stale `user_presence.last_seen_at` may be before GET /chat/poll
+    # bothers writing it again — every poll/authed-request would otherwise
+    # hammer this row every few seconds for an active tab.
+    CHAT_PRESENCE_WRITE_INTERVAL_SECONDS: int = 30
+    # Long-poll park time — see plan §2: the poll endpoint opens/closes short
+    # `async_session_maker()` sessions around this wait, NEVER
+    # `Depends(get_session)` (that would hold a pool connection for the
+    # whole wait and starve the pool).
+    CHAT_POLL_TIMEOUT_SECONDS: int = 25
+    # Three independent throttles (see plan §6) — all via
+    # `app.services.ratelimit.user_rate_limit` (keyed by `user.id`, never IP).
+    CHAT_SEND_RATE_LIMIT: str = "20/minute"
+    CHAT_SEND_PER_CONVERSATION_LIMIT: str = "10/minute"
+    CHAT_SEND_DAILY_LIMIT: str = "300/day"
+    CHAT_POLL_RATE_LIMIT: str = "30/minute"
+
     # --- Process topology ---
     # Duel rooms live in one process's memory (app.services.duel_manager) — no
     # Redis/shared-state backing this MVP brick. main.py's startup lifespan

@@ -27,6 +27,7 @@ import {
 import { useChallengeFriend } from "./useChallengeFriend";
 import { stripHandlePrefix } from "../lib/handle";
 import { useT } from "../i18n/t";
+import ChatSection from "./chat/ChatSection";
 
 interface Lists {
   friends: FriendRead[];
@@ -41,6 +42,7 @@ export default function FriendsSection() {
   const [lists, setLists] = useState<Lists>({ friends: [], incoming: [], outgoing: [] });
   const [state, setState] = useState<LoadState>({ kind: "loading" });
   const [reloadKey, setReloadKey] = useState(0);
+  const [openChatFriendshipId, setOpenChatFriendshipId] = useState<string | null>(null);
 
   // External sync: friend/request lists live on the server only, no local
   // source of truth to derive from — a plain fetch-on-mount(+reloadKey), same
@@ -110,7 +112,18 @@ export default function FriendsSection() {
             />
           ) : null}
 
-          <FriendList friends={lists.friends} onRemoved={reload} />
+          <FriendList
+            friends={lists.friends}
+            onRemoved={reload}
+            onOpenChat={setOpenChatFriendshipId}
+          />
+
+          {lists.friends.length > 0 ? (
+            <div className="flex flex-col gap-3">
+              <h3 className="font-sans text-small font-bold text-ink">{t("Личные сообщения")}</h3>
+              <ChatSection openFriendshipId={openChatFriendshipId} />
+            </div>
+          ) : null}
         </>
       ) : null}
     </section>
@@ -241,7 +254,15 @@ function RequestList({
   );
 }
 
-function FriendList({ friends, onRemoved }: { friends: FriendRead[]; onRemoved: () => void }) {
+function FriendList({
+  friends,
+  onRemoved,
+  onOpenChat,
+}: {
+  friends: FriendRead[];
+  onRemoved: () => void;
+  onOpenChat: (friendshipId: string) => void;
+}) {
   const t = useT();
   const challenge = useChallengeFriend();
   const [busyId, setBusyId] = useState<string | null>(null);
@@ -296,6 +317,9 @@ function FriendList({ friends, onRemoved }: { friends: FriendRead[]; onRemoved: 
             >
               <span className="font-sans text-small text-ink">{f.display_name}</span>
               <div className="flex items-center gap-2">
+                <Button variant="secondary" onClick={() => onOpenChat(f.friendship_id)}>
+                  {t("Написать")}
+                </Button>
                 <Button disabled={challenge.busy} onClick={() => void challenge.challenge()}>
                   {t("Вызвать")}
                 </Button>
