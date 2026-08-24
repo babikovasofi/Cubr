@@ -9,6 +9,7 @@ import Spinner from "../components/Spinner";
 import BadgeGrid from "../components/BadgeGrid";
 import SolveProgressChart from "../components/SolveProgressChart";
 import EmptyState from "../components/EmptyState";
+import TrophyIcon from "../components/TrophyIcon";
 import GoalCard from "../profile/GoalCard";
 import CoachCard from "../profile/CoachCard";
 import { currentAo5, AVERAGE_SIZE } from "../profile/average";
@@ -49,10 +50,13 @@ export default function ProfilePage() {
     <div className="flex flex-col gap-7">
       <header className="flex items-center gap-4">
         <Avatar url={user.avatar_url} name={user.handle ?? user.email} />
-        <div className="flex flex-col">
-          <h1 className="font-sans text-h2 text-ink">
-            {user.handle ? formatHandle(user.handle) : t("Без ника")}
-          </h1>
+        <div className="flex flex-col gap-1">
+          <div className="flex flex-wrap items-center gap-2.5">
+            <h1 className="font-sans text-h2 text-ink">
+              {user.handle ? formatHandle(user.handle) : t("Без ника")}
+            </h1>
+            <CupsBadge cups={user.cups} />
+          </div>
           <span className="font-sans text-small text-muted">{user.email}</span>
           {!user.handle ? (
             <a
@@ -70,13 +74,13 @@ export default function ProfilePage() {
 
       <Records best={user.best_single_ms} ao5={user.best_ao5_ms} cups={user.cups} />
 
-      <SettingsSection />
+      <BadgeGrid />
 
-      <EditForm
-        initialAvatar={user.avatar_url ?? ""}
-        initialHandle={user.handle ?? ""}
-        onSave={(avatar_url, handle) => updateMe({ avatar_url, handle })}
-      />
+      <History />
+
+      <CubeList />
+
+      <FriendsSection />
 
       <ShowcaseForm
         initialMethod={user.method}
@@ -84,14 +88,29 @@ export default function ProfilePage() {
         onSave={(patch) => updateMe(patch)}
       />
 
-      <CubeList />
+      <EditForm
+        initialAvatar={user.avatar_url ?? ""}
+        initialHandle={user.handle ?? ""}
+        onSave={(avatar_url, handle) => updateMe({ avatar_url, handle })}
+      />
 
-      <FriendsSection />
-
-      <BadgeGrid />
-
-      <History />
+      <SettingsSection />
     </div>
+  );
+}
+
+// §5.6 «Бейдж кубков» — обычный вариант: пилюля, фон warning, обводка 2px ink.
+// Иконка кубка-с-кубиком (TrophyIcon) вместо эмодзи — единый значок кубков по
+// всему приложению.
+function CupsBadge({ cups }: { cups: number }) {
+  const t = useT();
+  return (
+    <span
+      aria-label={t("{n} кубков", { n: cups })}
+      className="inline-flex items-center gap-1 rounded-full border-2 border-ink bg-warning px-3 py-1 font-sans text-small font-black text-ink [font-variant-numeric:tabular-nums]"
+    >
+      <TrophyIcon size={16} /> {cups}
+    </span>
   );
 }
 

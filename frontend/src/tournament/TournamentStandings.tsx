@@ -8,6 +8,7 @@
 // receives, and must never render, email.
 
 import Button from "../components/Button";
+import EmptyState from "../components/EmptyState";
 import Spinner from "../components/Spinner";
 import { useSettingsStore } from "../store/settingsStore";
 import { formatSolveMs } from "../lib/formatTime";
@@ -82,7 +83,10 @@ export default function TournamentStandings({
       {!loading && !error && data ? (
         <>
           {data.entries.length === 0 ? (
-            <p className="font-sans text-body text-muted">{t("Пока никто не закончил")}</p>
+            <EmptyState
+              title={t("Пока никто не закончил")}
+              description={t("Будь первым — попытка на неделю одна, но сейчас поле чистое.")}
+            />
           ) : (
             <div className="flex flex-col gap-2">
               {/* No stable id on the wire (locked contract, П10/de-ranked — see

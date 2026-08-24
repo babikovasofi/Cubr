@@ -276,11 +276,10 @@ async def send_chat_notification(
         button_label="Открыть переписку",
         link=open_link,
         expires_note=expires_note,
-        # `email_template.render` HTML-escapes `ignore_note` like every other
-        # text field (it has no markup slot for a second link) — so this is
-        # a plain, escaped URL, not a clickable anchor. Still copy-pasteable,
-        # same as the "if the button doesn't open" line above it.
-        ignore_note=f"Не хотите получать такие письма? Отписаться: {unsubscribe_link}",
+        # Текст без URL — сам адрес (с токеном) прячется в `href` ссылки
+        # «Отписаться», которую дорисовывает `unsubscribe_url` (см. шаблон).
+        ignore_note="Не хотите получать такие письма?",
+        unsubscribe_url=unsubscribe_link,
     )
     text = (
         email_template.to_plain_text(

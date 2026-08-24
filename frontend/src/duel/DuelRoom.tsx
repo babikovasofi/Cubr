@@ -53,9 +53,15 @@ function WaitingCard() {
     <Card>
       <span className="font-sans text-overline uppercase text-muted">{t("Дуэль по ссылке")}</span>
       <h3 className="font-sans text-h3 text-ink">{t("Жду соперника")}</h3>
-      <p className="max-w-prose font-sans text-body text-muted" aria-live="polite">
-        {t("Соперник ещё не подключился по приглашению.")}
-      </p>
+      <div className="flex items-center gap-3 rounded-md border border-line bg-surface-2 px-3.5 py-3">
+        <span
+          aria-hidden
+          className="inline-block h-2.5 w-2.5 animate-pulse rounded-full bg-warning"
+        />
+        <p className="font-sans text-small text-ink" aria-live="polite">
+          {t("Соперник ещё не подключился по приглашению.")}
+        </p>
+      </div>
     </Card>
   );
 }

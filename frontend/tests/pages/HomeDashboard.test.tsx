@@ -1,7 +1,9 @@
 // @vitest-environment jsdom
 //
-// Dashboard-филлеры (plan: design-fillers): прогресс/CupsRoad только у
-// авторизованных, и только внутри Dashboard() — гость их не видит.
+// Dashboard-филлеры (plan: design-fillers) + компактный тизер кубков (plan:
+// cups-system): прогресс/тизер только у авторизованных, и только внутри
+// Dashboard() — гость их не видит. Полная лестница рангов теперь на /cups
+// (см. tests/pages/CupsPage.test.tsx).
 
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
@@ -76,7 +78,7 @@ beforeEach(() => {
 });
 
 describe("Dashboard — прогресс и CupsRoad (authed)", () => {
-  it("непустые сборки → показывает прогресс (Цель / Прогресс времени) и лестницу рангов", async () => {
+  it("непустые сборки → показывает прогресс (Цель / Прогресс времени) и тизер кубков", async () => {
     listSolvesMock.mockResolvedValue([solve(33_000), solve(31_000)]);
     useAuthStore.setState({ user: authedUser(), status: "authed" });
 
@@ -84,7 +86,10 @@ describe("Dashboard — прогресс и CupsRoad (authed)", () => {
 
     await waitFor(() => expect(screen.getByText("Прогресс времени")).toBeTruthy());
     expect(screen.getByText(/Цель/)).toBeTruthy();
-    expect(screen.getByText("Лестница рангов")).toBeTruthy();
+    // Тизер: счёт кубков + ссылка на полную дорогу, без встроенной лестницы.
+    expect(screen.getByText("450")).toBeTruthy();
+    expect(screen.getByText("Зелёный")).toBeTruthy();
+    expect(screen.getByRole("link", { name: /Вся дорога/ }).getAttribute("href")).toBe("/cups");
     expect(screen.queryByText("Пока нет сборок")).toBeNull();
   });
 
@@ -103,12 +108,12 @@ describe("Dashboard — прогресс и CupsRoad (authed)", () => {
 });
 
 describe("Dashboard — гость", () => {
-  it("аноним не видит ни CupsRoad, ни прогресс, ни Dashboard-заглушку", () => {
+  it("аноним не видит ни тизер кубков, ни прогресс, ни Dashboard-заглушку", () => {
     useAuthStore.setState({ user: null, status: "anon" });
 
     renderHome();
 
-    expect(screen.queryByText("Лестница рангов")).toBeNull();
+    expect(screen.queryByText(/Вся дорога/)).toBeNull();
     expect(screen.queryByText("Пока нет сборок")).toBeNull();
     expect(listSolvesMock).not.toHaveBeenCalled();
   });

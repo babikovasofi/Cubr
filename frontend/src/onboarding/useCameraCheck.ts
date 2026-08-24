@@ -19,10 +19,12 @@ import { useT } from "../i18n/t";
 const ZONES = defaultZones();
 // Ключи перевода: подписи рисуются на canvas в цикле кадров, поэтому язык
 // подставляется в момент отрисовки (см. labelsRef ниже), а не при импорте.
+// Зеркальный CSS-флип (см. пояснение в useSoloSession): над сырой левой зоной
+// (правая половина экрана) подпись «Правая рука», и наоборот.
 const OVERLAY_LABEL_KEYS: OverlayLabels = {
   guide: "Держи кубик здесь",
-  left: "Левая рука",
-  right: "Правая рука",
+  left: "Правая рука",
+  right: "Левая рука",
 };
 
 function cameraErrorRu(kind: CameraErrorKind): string {
