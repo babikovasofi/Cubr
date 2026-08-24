@@ -17,13 +17,23 @@ export class ApiError extends Error {
   // active duel") carry extra fields like `existing_room_id` that don't fit
   // the {code, reason} shape below — callers dig those out of `body`.
   readonly body: unknown;
+  // Seconds from the `Retry-After` response header on 429s (chat send/poll
+  // rate limits — plan §7 Stage A). `null` when absent or unparsable.
+  readonly retryAfterSeconds: number | null;
 
-  constructor(status: number, code: string | null, message: string, body: unknown = null) {
+  constructor(
+    status: number,
+    code: string | null,
+    message: string,
+    body: unknown = null,
+    retryAfterSeconds: number | null = null,
+  ) {
     super(message);
     this.name = "ApiError";
     this.status = status;
     this.code = code;
     this.body = body;
+    this.retryAfterSeconds = retryAfterSeconds;
   }
 }
 
@@ -52,6 +62,9 @@ const RU_BY_CODE: Record<string, string> = {
   FRIEND_ALREADY_PENDING: "Заявка уже отправлена — жди ответа.",
   FRIEND_ALREADY_FRIENDS: "Вы уже друзья.",
   HANDLE_REQUIRED: "Сначала укажи свой ник в профиле — без него нельзя добавлять друзей.",
+  // Этап A чата (swarm-report/friend-chat-plan.md §7): фильтр сообщений и
+  // блокировка/не-друг дают 403 без code, но 422 модерации приходит с ним.
+  MESSAGE_NOT_ALLOWED: "Сообщение не разрешено.",
 };
 
 const RU_BY_STATUS: Record<number, string> = {
@@ -139,7 +152,15 @@ export async function request<T>(path: string, opts: RequestOptions = {}): Promi
       // no/invalid JSON body (e.g. 429 from the rate limiter) — status wins
     }
     const { code, message } = parseErrorBody(res.status, parsed);
-    throw new ApiError(res.status, code, message, parsed);
+    // `res.headers` is optional here purely because existing tests stub
+    // `Response` without it (see tests/api/client.test.ts) — real fetch
+    // Responses always have it.
+    const retryAfterHeader = res.headers?.get?.("Retry-After") ?? null;
+    const retryAfterSeconds =
+      retryAfterHeader !== null && Number.isFinite(Number(retryAfterHeader))
+        ? Number(retryAfterHeader)
+        : null;
+    throw new ApiError(res.status, code, message, parsed, retryAfterSeconds);
   }
 
   if (res.status === 204) return undefined as T;

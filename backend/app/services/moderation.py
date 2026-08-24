@@ -32,6 +32,7 @@ CODE_TOO_SHORT = "NAME_TOO_SHORT"
 CODE_INVALID_CHARS = "NAME_INVALID_CHARS"
 CODE_RESERVED = "NAME_RESERVED"
 CODE_NOT_ALLOWED = "NAME_NOT_ALLOWED"
+CODE_MESSAGE_NOT_ALLOWED = "MESSAGE_NOT_ALLOWED"
 
 MIN_LENGTH = 2
 
@@ -347,6 +348,47 @@ def check_display_name(value: str | None) -> NameRejection | None:
     en_tokens = _tokens(name, "en")
     if any(t in _WORD_ROOTS_RU for t in ru_tokens) or any(t in _WORD_ROOTS_EN for t in en_tokens):
         return NameRejection(CODE_NOT_ALLOWED, "Такое имя не подходит. Выбери другое.")
+
+    return None
+
+
+def check_message_text(value: str) -> NameRejection | None:
+    """Return why `value` is unacceptable as a chat message body. `None`
+    means "fine". Deliberately NOT `check_display_name` reused wholesale —
+    see the plan (`swarm-report/friend-chat-plan.md` §6) and module
+    docstring for the two reasons:
+
+    1. `check_display_name`'s `_ALLOWED_RE` bans `?`/`!`/`,`/quotes/newlines
+       — fine for a one-word handle, absurd for a sentence.
+    2. `check_display_name` matches a substring root against the SKELETON of
+       the ENTIRE input glued together. For a name (2-20 chars) that's fine;
+       for a 2000-char message the glued skeleton is hundreds of letters
+       with no spaces, and the odds of accidentally containing some
+       three-letter root approach 1. So this checks each TOKEN (word)
+       on its own instead: substring roots (`_ROOTS_RU`) are matched as a
+       substring of that one token (same as a name would be), and
+       word-only roots (`_WORD_ROOTS_RU`/`_WORD_ROOTS_EN` — "жид", "dick",
+       "rape"…) require the token to equal the root exactly, so
+       "хачапури"/"Dickens"/"grape" keep passing.
+
+    Deliberately weaker and quieter than the name filter: a false positive
+    here (blocking an innocent message between two friends) costs more than
+    a missed slur — see plan §6.
+    """
+    ru_tokens = _tokens(value, "ru")
+    for token in ru_tokens:
+        cleaned = _strip_benign(token)
+        if any(root in cleaned for root in _ROOTS_RU) or cleaned in _WORD_ROOTS_RU:
+            return NameRejection(CODE_MESSAGE_NOT_ALLOWED, "Сообщение содержит недопустимые слова.")
+
+    en_tokens = _tokens(value, "en")
+    for token in en_tokens:
+        if (
+            any(root in token for root in _ROOTS_EN)
+            or any(root in token for root in _ROOTS_RU_TRANSLIT)
+            or token in _WORD_ROOTS_EN
+        ):
+            return NameRejection(CODE_MESSAGE_NOT_ALLOWED, "Сообщение содержит недопустимые слова.")
 
     return None
 

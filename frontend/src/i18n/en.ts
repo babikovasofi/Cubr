@@ -784,4 +784,33 @@ export const EN: Record<string, string> = {
   "Вы уже друзья.": "You are already friends.",
   "Сначала укажи свой ник в профиле — без него нельзя добавлять друзей.":
     "Set your own handle in your profile first — you need one to add friends.",
+
+  // --- чат (swarm-report/friend-chat-plan.md, этап A) ---
+  Написать: "Message",
+  "Личные сообщения": "Direct messages",
+  "Переписок пока нет — напиши другу из списка выше.":
+    "No conversations yet — message a friend from the list above.",
+  "Сообщение удалено": "Message deleted",
+  "Непрочитанных: {n}": "Unread: {n}",
+  "Загружаю переписки…": "Loading conversations…",
+  "Не удалось загрузить переписки.": "Could not load conversations.",
+  "Выбери переписку слева или напиши другу из списка выше.":
+    "Pick a conversation on the left, or message a friend from the list above.",
+  "Новая переписка": "New conversation",
+  Заблокировать: "Block",
+  Разблокировать: "Unblock",
+  Сообщения: "Messages",
+  "Сообщений пока нет.": "No messages yet.",
+  Сообщение: "Message",
+  "Напиши сообщение…": "Write a message…",
+  Отправить: "Send",
+  "Слишком часто. Подожди {n} с.": "Too fast. Wait {n}s.",
+  "Слишком много сообщений. Подожди немного.": "Too many messages. Wait a bit.",
+  "Нельзя написать: вы не друзья или переписка заблокирована.":
+    "Can't message: you're not friends, or the conversation is blocked.",
+  "Не удалось отправить сообщение.": "Could not send the message.",
+  "Не удалось удалить сообщение.": "Could not delete the message.",
+  "Не удалось изменить блокировку.": "Could not change the block.",
+  // MESSAGE_NOT_ALLOWED (client.ts RU_BY_CODE) — та же строка, что и здесь.
+  "Сообщение не разрешено.": "This message isn't allowed.",
 };

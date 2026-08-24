@@ -1,3 +1,4 @@
+from app.models.chat import ChatBlock, ChatMessage, ChatRead, Conversation, UserPresence
 from app.models.cube import Cube
 from app.models.cups_event import CupsEvent
 from app.models.daily import DailyAttempt, DailyChallenge
@@ -12,6 +13,10 @@ from app.models.user import User
 from app.models.user_badge import UserBadge
 
 __all__ = [
+    "ChatBlock",
+    "ChatMessage",
+    "ChatRead",
+    "Conversation",
     "Cube",
     "CupsEvent",
     "DailyAttempt",
@@ -26,4 +31,5 @@ __all__ = [
     "TournamentAttempt",
     "User",
     "UserBadge",
+    "UserPresence",
 ]
