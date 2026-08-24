@@ -98,9 +98,7 @@ describe("UnsubscribePage — no API call on mount", () => {
     });
 
     await waitFor(() => {
-      expect(
-        screen.getByText(/Ссылка отписки недействительна или устарела\./),
-      ).toBeTruthy();
+      expect(screen.getByText(/Ссылка отписки недействительна или устарела\./)).toBeTruthy();
     });
   });
 

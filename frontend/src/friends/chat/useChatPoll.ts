@@ -157,9 +157,7 @@ export function useChatPoll() {
   ): void {
     setState((s) => ({
       ...s,
-      conversations: s.conversations.map((c) =>
-        c.id === conversationId ? { ...c, ...patch } : c,
-      ),
+      conversations: s.conversations.map((c) => (c.id === conversationId ? { ...c, ...patch } : c)),
     }));
   }
 

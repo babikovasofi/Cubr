@@ -157,7 +157,11 @@ export default function ConversationView({
               <div
                 className={[
                   "max-w-[80%] rounded-md border-2 border-ink px-3 py-2 font-sans text-small",
-                  deleted ? "bg-surface text-faint" : mine ? "bg-primary text-white" : "bg-surface text-ink",
+                  deleted
+                    ? "bg-surface text-faint"
+                    : mine
+                      ? "bg-primary text-white"
+                      : "bg-surface text-ink",
                 ].join(" ")}
               >
                 {deleted ? <em>{t("Сообщение удалено")}</em> : m.body}

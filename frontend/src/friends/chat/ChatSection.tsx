@@ -48,7 +48,9 @@ export default function ChatSection({
     : [];
   const friendUserId =
     selectedMessages.find((m) => meUserId !== null && m.sender_id !== meUserId)?.sender_id ?? null;
-  const blocked = selectedConversation ? blockedConversationIds.has(selectedConversation.id) : false;
+  const blocked = selectedConversation
+    ? blockedConversationIds.has(selectedConversation.id)
+    : false;
 
   // External sync: opening a conversation loads its history once — a plain
   // effect keyed on the resolved conversation id, not derivable during render.

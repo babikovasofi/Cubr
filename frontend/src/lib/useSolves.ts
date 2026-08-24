@@ -13,9 +13,7 @@ import { ApiError } from "../api/client";
 import { useT } from "../i18n/t";
 
 export type SolvesState =
-  | { kind: "loading" }
-  | { kind: "error"; message: string }
-  | { kind: "ok"; solves: SolveRead[] };
+  { kind: "loading" } | { kind: "error"; message: string } | { kind: "ok"; solves: SolveRead[] };
 
 export interface UseSolvesResult {
   state: SolvesState;
