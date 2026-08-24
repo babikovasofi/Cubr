@@ -521,7 +521,7 @@ describe("ProfilePage — ChatEmailToggle (email preferences)", () => {
 
     // Toggle should show "on" as selected
     await waitFor(() => {
-      const toggles = screen.getAllByRole("radio");
+      const toggles = screen.getAllByRole("radio") as HTMLInputElement[];
       const onToggle = toggles.find((r) => r.value === "on");
       expect(onToggle).toBeTruthy();
       expect(onToggle?.checked).toBe(true);
@@ -650,7 +650,9 @@ describe("ProfilePage — ChatEmailToggle (email preferences)", () => {
     });
 
     // Initially "on"
-    const onToggle = await screen.findByRole("radio", { name: "Включены" });
+    const onToggle = (await screen.findByRole("radio", {
+      name: "Включены",
+    })) as HTMLInputElement;
     expect(onToggle.checked).toBe(true);
 
     // Try to toggle to "off"
