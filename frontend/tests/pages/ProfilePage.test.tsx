@@ -456,8 +456,10 @@ describe("ProfilePage — английский", () => {
   it("переводит карточки рекордов и заголовки", async () => {
     // en — ленивый чанк (см. src/i18n/t.ts); догружаем явно перед рендером.
     await loadEnDict();
+    // best_single_ms must be set here: null now renders the "no records yet"
+    // EmptyState instead of the record cards this test is localizing.
     useAuthStoreMock.mockImplementation((selector) =>
-      selector({ user: MOCK_USER, updateMe: updateMeMock }),
+      selector({ user: { ...MOCK_USER, best_single_ms: 65000 }, updateMe: updateMeMock }),
     );
     act(() => useLangStore.setState({ lang: "en" }));
     try {

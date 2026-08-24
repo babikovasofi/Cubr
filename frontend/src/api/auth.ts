@@ -12,6 +12,13 @@ export interface UserRead {
   is_verified: boolean;
   avatar_url: string | null;
   cups: number;
+  // Ступень текущего `cups`, computed_field на бэкенде из ЕДИНОЙ таблицы
+  // порогов `app.services.cups.CUPS_TIERS` (backend/app/schemas/user.py:50-68)
+  // — фронт НИКОГДА не дублирует эту лесенку у себя (см. CupsRoad.tsx).
+  // `cups_to_next === null` только на последней (red) ступени — открытый верх.
+  cups_rank: string;
+  cups_floor: number;
+  cups_to_next: number | null;
   best_single_ms: number | null;
   best_ao5_ms: number | null;
   // ЕДИНОЕ имя аккаунта: свой заголовок профиля И то, что видят другие (список

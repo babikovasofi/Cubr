@@ -2,13 +2,13 @@
 // single is the only meaningful one in 2.3; ao5 renders as "—"), an editable
 // handle + avatar-URL (PATCH /api/users/me), and solve history (GET /api/solves).
 
-import { useEffect, useState, type FormEvent } from "react";
-import { Link } from "react-router-dom";
+import { useState, type FormEvent } from "react";
 import Button from "../components/Button";
 import Input from "../components/Input";
 import Spinner from "../components/Spinner";
 import BadgeGrid from "../components/BadgeGrid";
 import SolveProgressChart from "../components/SolveProgressChart";
+import EmptyState from "../components/EmptyState";
 import GoalCard from "../profile/GoalCard";
 import CoachCard from "../profile/CoachCard";
 import { currentAo5, AVERAGE_SIZE } from "../profile/average";
@@ -21,7 +21,8 @@ import { useSettingsStore } from "../store/settingsStore";
 import { formatSolveMs, type TimeFormat } from "../lib/formatTime";
 import CubeList from "../cubes/CubeList";
 import FriendsSection from "../friends/FriendsSection";
-import { listSolves, type SolveRead } from "../api/solves";
+import { useSolves } from "../lib/useSolves";
+import type { SolveRead } from "../api/solves";
 import { ApiError } from "../api/client";
 import { useT } from "../i18n/t";
 
@@ -135,6 +136,30 @@ function CurrentAverage({ solves }: { solves: SolveRead[] }) {
 function Records({ best, ao5, cups }: { best: number | null; ao5: number | null; cups: number }) {
   const t = useT();
   const timeFormat = useSettingsStore((s) => s.timeFormat);
+
+  // Секционная пустота: без единой засчитанной сборки «Лучшая сборка» и
+  // «Лучший Ao5» — оба гарантированно «—». Кубки всё равно свои (дуэли их
+  // начисляют без соло-сборок), поэтому та карточка остаётся.
+  if (best === null) {
+    return (
+      <section className="grid gap-4 sm:grid-cols-3" aria-label={t("Рекорды")}>
+        <EmptyState
+          className="sm:col-span-2"
+          title={t("Рекордов пока нет")}
+          description={t("Появятся после первой засчитанной сборки в соло-режиме.")}
+          ctaLabel={t("К соло-тренировке →")}
+          ctaTo="/solo"
+        />
+        <div className="flex flex-col gap-1 rounded-lg border-2 border-ink bg-surface p-4">
+          <span className="font-sans text-overline uppercase text-muted">{t("Кубки")}</span>
+          <span className="font-sans text-h2 text-ink [font-variant-numeric:tabular-nums]">
+            {String(cups)}
+          </span>
+        </div>
+      </section>
+    );
+  }
+
   const cards: { label: string; value: string }[] = [
     { label: t("Лучшая сборка"), value: fmtMs(best, timeFormat) },
     { label: t("Лучший Ao5"), value: ao5 == null ? "—" : fmtMs(ao5, timeFormat) },
@@ -241,31 +266,10 @@ function EditForm({
   );
 }
 
-type HistoryState =
-  { kind: "loading" } | { kind: "error"; message: string } | { kind: "ok"; solves: SolveRead[] };
-
 function History() {
   const t = useT();
   const timeFormat = useSettingsStore((s) => s.timeFormat);
-  const [state, setState] = useState<HistoryState>({ kind: "loading" });
-  const [reloadKey, setReloadKey] = useState(0);
-
-  useEffect(() => {
-    let alive = true;
-    setState({ kind: "loading" });
-    listSolves(50, 0)
-      .then((solves) => alive && setState({ kind: "ok", solves }))
-      .catch((e) => {
-        if (!alive) return;
-        setState({
-          kind: "error",
-          message: e instanceof ApiError ? e.message : t("Не удалось загрузить историю."),
-        });
-      });
-    return () => {
-      alive = false;
-    };
-  }, [reloadKey]);
+  const { state, reload } = useSolves();
 
   return (
     <section className="flex flex-col gap-4">
@@ -276,7 +280,7 @@ function History() {
       {state.kind === "error" ? (
         <div role="alert" className="flex flex-col items-start gap-3">
           <p className="font-sans text-small text-danger">{state.message}</p>
-          <Button onClick={() => setReloadKey((k) => k + 1)}>{t("Повторить")}</Button>
+          <Button onClick={reload}>{t("Повторить")}</Button>
         </div>
       ) : null}
 
@@ -300,16 +304,13 @@ function History() {
       ) : null}
 
       {state.kind === "ok" && state.solves.length === 0 ? (
-        <div className="flex flex-col items-start gap-3 rounded-lg border border-line bg-surface p-6">
-          <p className="font-sans text-body text-muted">
-            {t(
-              "Пока нет сохранённых сборок. Собери кубик в соло-режиме — результат появится здесь.",
-            )}
-          </p>
-          <Link to="/solo" className="font-sans text-small font-bold text-primary">
-            {t("К соло-тренировке →")}
-          </Link>
-        </div>
+        <EmptyState
+          title={t(
+            "Пока нет сохранённых сборок. Собери кубик в соло-режиме — результат появится здесь.",
+          )}
+          ctaLabel={t("К соло-тренировке →")}
+          ctaTo="/solo"
+        />
       ) : null}
 
       {state.kind === "ok" && state.solves.length > 0 ? (
