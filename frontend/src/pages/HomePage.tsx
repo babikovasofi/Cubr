@@ -358,6 +358,11 @@ function Dashboard() {
             <Button variant="secondary">{t("Замер точности (dev)")}</Button>
           </Link>
         ) : null}
+        {import.meta.env.DEV ? (
+          <Link to="/lab" className="no-underline">
+            <Button variant="secondary">{t("Настройка таймера (dev)")}</Button>
+          </Link>
+        ) : null}
       </section>
 
       <CupsTeaser />

@@ -13,7 +13,7 @@
 //  * Debounce on EVERY transition, including leave-events: a condition must hold
 //    for its whole window before the transition fires (kills 1-frame flicker).
 
-import { config } from "./config";
+import { config, type Config } from "./config";
 
 export type FsmState = "NO_HANDS" | "HANDS_IN_ZONE" | "READY" | "SOLVING" | "STOPPED";
 
@@ -51,7 +51,14 @@ export class HandsFsm {
   private backInZone: Pending = { since: null, cond: false };
   private detectionLost: Pending = { since: null, cond: false };
 
-  private cfg = config;
+  private cfg: Config;
+
+  // Optional override so a caller (e.g. the dev timing lab) can drive the FSM
+  // with a LIVE-TUNABLE config object instead of the module-level singleton.
+  // Default keeps every existing `new HandsFsm()` call unchanged.
+  constructor(cfg: Config = config) {
+    this.cfg = cfg;
+  }
 
   reset(): void {
     this.state = "NO_HANDS";

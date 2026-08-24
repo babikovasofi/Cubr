@@ -75,6 +75,9 @@ export class Hands {
   // Previous-frame landmarks keyed by RAW handedness label, so motion is measured
   // hand-vs-same-hand across frames (MediaPipe does not guarantee slot stability).
   private prevByHand: Map<string, Landmark[]> = new Map();
+  // Live-tunable stillness threshold (dev timing lab). Defaults to the config
+  // value so every existing caller is unaffected.
+  private stillMotionFrac = config.STILL_MOTION_FRAC;
 
   async init(): Promise<void> {
     try {
@@ -93,6 +96,11 @@ export class Hands {
 
   setZones(zones: { left: Rect; right: Rect }): void {
     this.zones = zones;
+  }
+
+  /** Live override for the stillness-motion threshold (dev timing lab). */
+  setStillMotionFrac(frac: number): void {
+    this.stillMotionFrac = frac;
   }
 
   close(): void {
@@ -166,7 +174,7 @@ export class Hands {
       let sum = 0;
       for (let k = 0; k < cur.length; k++) sum += dist2d(cur[k], prv[k]);
       const frac = sum / cur.length / handSize;
-      if (frac > config.STILL_MOTION_FRAC) allStill = false;
+      if (frac > this.stillMotionFrac) allStill = false;
     }
 
     this.prevByHand = nextPrev;
@@ -182,6 +190,7 @@ export function useHands() {
     init: (): Promise<void> => get().init(),
     detect: (v: HTMLVideoElement, t: number): HandObservation => get().detect(v, t),
     setZones: (z: { left: Rect; right: Rect }): void => get().setZones(z),
+    setStillMotionFrac: (frac: number): void => get().setStillMotionFrac(frac),
     close: (): void => {
       ref.current?.close();
     },

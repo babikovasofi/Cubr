@@ -22,6 +22,8 @@ import { useT } from "./i18n/t";
 // DEV-only Stage-0.3 accuracy gate. React.lazy + import.meta.env.DEV so the whole
 // module (camera harness + accuracy panel) tree-shakes out of the prod bundle.
 const AccuracyPage = import.meta.env.DEV ? lazy(() => import("./accuracy/AccuracyPage")) : null;
+// DEV-only solo-timer start/stop tuning lab — same tree-shake pattern.
+const TimingLabPage = import.meta.env.DEV ? lazy(() => import("./dev/TimingLabPage")) : null;
 
 // Экраны с камерой тянут за собой MediaPipe (распознавание рук) и cubejs
 // (солвер) — вместе это больше половины бандла, и до онбординга они не нужны
@@ -299,6 +301,7 @@ export default function App() {
               <Route path="/trainer" element={<TrainerPage />} />
 
               {AccuracyPage ? <Route path="/accuracy" element={<AccuracyPage />} /> : null}
+              {TimingLabPage ? <Route path="/lab" element={<TimingLabPage />} /> : null}
 
               <Route
                 path="/login"
