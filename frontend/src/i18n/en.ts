@@ -859,4 +859,6 @@ export const EN: Record<string, string> = {
   // --- дорога кубков (swarm-report/cups-system-plan.md) ---
   "Дорога кубков": "Trophy road",
   "Вся дорога →": "See the whole road →",
+  "Дорога рангов": "Rank road",
+  "ты здесь · от {n}": "you are here · from {n}",
 };

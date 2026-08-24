@@ -1,21 +1,18 @@
-// Лестница рангов кубков (plan: cups-system). Presentational — reads `user`
-// straight from `useAuthStore`, no extra request: `cups`, `cups_rank`,
-// `cups_floor`, `cups_to_next` already ride on GET /users/me.
+// Дорога кубков (plan: cups-system) — непрерывный петляющий путь, как в Brawl
+// Stars, а не список строк-ступеней (owner: «сделай путь как в brawl stars, не
+// ступенчатым путём»). Presentational — читает `user` из `useAuthStore`, без
+// доп. запроса: `cups`, `cups_rank`, `cups_floor` уже едут на GET /users/me.
 //
-// The six rank floors below are a LABEL map only (name → RU label + one
-// accent colour for its tiny marker), in the exact order of
-// `backend/app/services/cups.py::CUPS_TIERS`. The thresholds themselves —
-// which floor a rank starts at, how many cups are left to the next one —
-// come from the backend (`cups_floor`/`cups_to_next`) and are never
-// recomputed here. If the backend ever reorders or renames a tier, this map
-// drifts in label only, never in the numbers a player sees. Because only the
-// CURRENT tier's threshold is known client-side, only the current row shows
-// a floor value — the others show just their name and marker.
+// RANKS — только карта меток (name → RU-подпись + акцент маркера) в порядке
+// `backend/app/services/cups.py::CUPS_TIERS`. Пороги (пол/остаток) приходят с
+// бэкенда и здесь не пересчитываются: только у ТЕКУЩЕГО ранга показываем пол,
+// потому что только его порог известен клиенту.
 //
-// Just the ladder: the big cups count, rank name and progress bar live one
-// level up, in CupsPage's hero — this component used to own all of that too,
-// but a dedicated /cups screen (owner: "как в brawl stars, число кубков
-// сверху") needed the count separate from the road beneath it.
+// Отрисовка — один SVG: витая дорога (base-линия + залитый до текущего ранга
+// участок через pathLength), узлы-кружки по рангам, текущий — крупнее, с
+// обводкой ink и жёсткой тенью (момент «ты здесь»). Поворотов нет: раньше
+// текущая ступень была строкой во всю ширину с rotate(-2deg) и «уезжала» за
+// край — здесь маркер круглый, перекашиваться нечему.
 import { useAuthStore } from "../store/authStore";
 import { useT } from "../i18n/t";
 
@@ -28,14 +25,30 @@ export const RANKS: { name: string; label: string; accent: string; whiteTile?: b
   { name: "red", label: "Красный", accent: "var(--danger)" },
 ];
 
-function RankDot({ accent, whiteTile }: { accent: string; whiteTile?: boolean }) {
-  return (
-    <span
-      aria-hidden
-      className="h-2.5 w-2.5 shrink-0 rounded-sm"
-      style={{ background: accent, border: whiteTile ? "1.5px solid var(--ink)" : undefined }}
-    />
-  );
+const W = 340;
+const TOP = 60;
+const STEP = 132;
+const LEFT_X = 84;
+const RIGHT_X = W - 84;
+
+function nodeX(i: number): number {
+  return i % 2 === 0 ? LEFT_X : RIGHT_X;
+}
+function nodeY(i: number): number {
+  return TOP + i * STEP;
+}
+
+// Путь через центры всех узлов: между соседями — плавная S-кривая (control-
+// точки на середине по вертикали), отсюда «змейка».
+function roadPath(): string {
+  let d = `M ${nodeX(0)} ${nodeY(0)}`;
+  for (let i = 1; i < RANKS.length; i++) {
+    const x0 = nodeX(i - 1);
+    const x1 = nodeX(i);
+    const my = (nodeY(i - 1) + nodeY(i)) / 2;
+    d += ` C ${x0} ${my} ${x1} ${my} ${x1} ${nodeY(i)}`;
+  }
+  return d;
 }
 
 export default function CupsRoad() {
@@ -45,42 +58,116 @@ export default function CupsRoad() {
   if (!user) return null;
 
   const { cups_rank, cups_floor } = user;
-  const currentIndex = RANKS.findIndex((r) => r.name === cups_rank);
+  const currentIndex = Math.max(
+    0,
+    RANKS.findIndex((r) => r.name === cups_rank),
+  );
+  const passedPct = (currentIndex / (RANKS.length - 1)) * 100;
+  const height = nodeY(RANKS.length - 1) + 56;
+  const path = roadPath();
 
   return (
-    <ol className="m-0 flex list-none flex-col gap-1.5 p-0">
+    <svg
+      viewBox={`0 0 ${W} ${height}`}
+      width="100%"
+      className="h-auto max-w-md"
+      role="img"
+      aria-label={t("Дорога рангов")}
+    >
+      <defs>
+        <filter id="cups-sticker" x="-30%" y="-30%" width="160%" height="160%">
+          <feDropShadow dx="3" dy="3" stdDeviation="0" floodColor="var(--ink)" floodOpacity="1" />
+        </filter>
+      </defs>
+
+      {/* База дороги. */}
+      <path
+        d={path}
+        fill="none"
+        stroke="var(--surface-2)"
+        strokeWidth={18}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      {/* Пройденный участок — заливка primary до текущего ранга. */}
+      <path
+        d={path}
+        fill="none"
+        stroke="var(--primary)"
+        strokeWidth={18}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        pathLength={100}
+        strokeDasharray={`${passedPct} 100`}
+      />
+
       {RANKS.map((rank, i) => {
         const isCurrent = i === currentIndex;
-        const isPast = currentIndex >= 0 && i < currentIndex;
+        const isPast = i < currentIndex;
+        const cx = nodeX(i);
+        const cy = nodeY(i);
+        const r = isCurrent ? 34 : 26;
+        const fill = isPast || isCurrent ? rank.accent : "var(--surface)";
         return (
-          <li
-            key={rank.name}
-            // §5.7: стикер-событие — обводка 2px ink, тень shadow-sticker,
-            // фиксированный поворот из набора {−5°,−4°,−2°,3°,4°}. Только
-            // текущая ступень — не рабочий элемент, а момент «ты здесь».
-            style={isCurrent ? { transform: "rotate(-2deg)" } : undefined}
-            className={
-              isCurrent
-                ? "flex items-center gap-3 rounded-md border-2 border-ink bg-primary px-3 py-2 shadow-sticker"
-                : `flex items-center gap-3 rounded-md border border-line px-3 py-2 ${
-                    isPast ? "bg-surface-2" : "bg-surface"
-                  }`
-            }
-          >
-            <RankDot accent={rank.accent} whiteTile={rank.whiteTile} />
-            <span
-              className={`font-sans text-small font-bold ${isCurrent ? "text-white" : "text-ink"}`}
+          <g key={rank.name}>
+            <circle
+              cx={cx}
+              cy={cy}
+              r={r}
+              fill={fill}
+              stroke="var(--ink)"
+              strokeWidth={isCurrent ? 3 : 2}
+              filter={isCurrent ? "url(#cups-sticker)" : undefined}
+            />
+            {/* Белый ранг на кремовом фоне — внутренний контур, чтобы кружок читался. */}
+            {rank.whiteTile ? (
+              <circle
+                cx={cx}
+                cy={cy}
+                r={r - 6}
+                fill="none"
+                stroke="var(--line)"
+                strokeWidth={1.5}
+              />
+            ) : null}
+            {isCurrent ? (
+              <circle
+                cx={cx}
+                cy={cy}
+                r={7}
+                fill="var(--surface)"
+                stroke="var(--ink)"
+                strokeWidth={2}
+              />
+            ) : null}
+            {/* Подпись ранга под узлом. */}
+            <text
+              x={cx}
+              y={cy + r + 20}
+              textAnchor="middle"
+              fontFamily="system-ui, sans-serif"
+              fontSize={16}
+              fontWeight={isCurrent ? 800 : 700}
+              fill="var(--ink)"
             >
               {t(rank.label)}
-            </span>
+            </text>
             {isCurrent ? (
-              <span className="ml-auto font-sans text-caption [font-variant-numeric:tabular-nums] text-white">
-                {t("от {n}", { n: cups_floor })}
-              </span>
+              <text
+                x={cx}
+                y={cy + r + 40}
+                textAnchor="middle"
+                fontFamily="system-ui, sans-serif"
+                fontSize={13}
+                fill="var(--muted)"
+                style={{ fontVariantNumeric: "tabular-nums" }}
+              >
+                {t("ты здесь · от {n}", { n: cups_floor })}
+              </text>
             ) : null}
-          </li>
+          </g>
         );
       })}
-    </ol>
+    </svg>
   );
 }

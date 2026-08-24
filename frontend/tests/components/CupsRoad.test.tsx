@@ -57,9 +57,9 @@ describe("CupsRoad", () => {
     });
     render(<CupsRoad />);
 
-    expect(screen.getByText("от 300")).toBeTruthy();
+    expect(screen.getByText("ты здесь · от 300")).toBeTruthy();
     // Соседние ступени не выдумывают свой порог.
-    expect(screen.queryAllByText(/^от /)).toHaveLength(1);
+    expect(screen.queryAllByText(/от /)).toHaveLength(1);
   });
 
   it("cups=0 → первая ступень текущая, без порога у остальных", () => {
@@ -69,7 +69,7 @@ describe("CupsRoad", () => {
     });
     render(<CupsRoad />);
 
-    expect(screen.getByText("от 0")).toBeTruthy();
+    expect(screen.getByText("ты здесь · от 0")).toBeTruthy();
   });
 
   it("cups_to_next === null (red, atMax) → последняя ступень текущая", () => {
@@ -80,6 +80,6 @@ describe("CupsRoad", () => {
     render(<CupsRoad />);
 
     expect(screen.getByText("Красный")).toBeTruthy();
-    expect(screen.getByText("от 1500")).toBeTruthy();
+    expect(screen.getByText("ты здесь · от 1500")).toBeTruthy();
   });
 });
