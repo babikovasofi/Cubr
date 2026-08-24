@@ -1,6 +1,6 @@
 // /profile (protected). Shows the current user (from authStore), records (best
 // single is the only meaningful one in 2.3; ao5 renders as "—"), an editable
-// nickname + avatar-URL (PATCH /api/users/me), and solve history (GET /api/solves).
+// handle + avatar-URL (PATCH /api/users/me), and solve history (GET /api/solves).
 
 import { useEffect, useState, type FormEvent } from "react";
 import { Link } from "react-router-dom";
@@ -13,7 +13,8 @@ import GoalCard from "../profile/GoalCard";
 import CoachCard from "../profile/CoachCard";
 import { currentAo5, AVERAGE_SIZE } from "../profile/average";
 import ShowcaseForm from "../profile/ShowcaseForm";
-import PublicHandleField from "../profile/PublicHandleField";
+import HandleField from "../profile/HandleField";
+import { formatHandle } from "../lib/handle";
 import SegmentedToggle from "../components/SegmentedToggle";
 import { useAuthStore } from "../store/authStore";
 import { useSettingsStore } from "../store/settingsStore";
@@ -45,10 +46,20 @@ export default function ProfilePage() {
   return (
     <div className="flex flex-col gap-7">
       <header className="flex items-center gap-4">
-        <Avatar url={user.avatar_url} name={user.nickname ?? user.email} />
+        <Avatar url={user.avatar_url} name={user.handle ?? user.email} />
         <div className="flex flex-col">
-          <h1 className="font-sans text-h2 text-ink">{user.nickname ?? t("Без ника")}</h1>
+          <h1 className="font-sans text-h2 text-ink">
+            {user.handle ? formatHandle(user.handle) : t("Без ника")}
+          </h1>
           <span className="font-sans text-small text-muted">{user.email}</span>
+          {!user.handle ? (
+            <a
+              href="#profile-handle"
+              className="font-sans text-small font-bold text-primary no-underline"
+            >
+              {t("Задать имя в профиле")}
+            </a>
+          ) : null}
           {!user.is_verified ? (
             <span className="font-sans text-small text-warning">{t("Почта не подтверждена")}</span>
           ) : null}
@@ -60,12 +71,9 @@ export default function ProfilePage() {
       <SettingsSection />
 
       <EditForm
-        initialNickname={user.nickname ?? ""}
         initialAvatar={user.avatar_url ?? ""}
-        initialPublicHandle={user.public_handle ?? ""}
-        onSave={(nickname, avatar_url, public_handle) =>
-          updateMe({ nickname, avatar_url, public_handle })
-        }
+        initialHandle={user.handle ?? ""}
+        onSave={(avatar_url, handle) => updateMe({ avatar_url, handle })}
       />
 
       <ShowcaseForm
@@ -177,24 +185,17 @@ function SettingsSection() {
 }
 
 function EditForm({
-  initialNickname,
   initialAvatar,
-  initialPublicHandle,
+  initialHandle,
   onSave,
 }: {
-  initialNickname: string;
   initialAvatar: string;
-  initialPublicHandle: string;
-  onSave: (
-    nickname: string,
-    avatarUrl: string | null,
-    publicHandle: string | null,
-  ) => Promise<unknown>;
+  initialHandle: string;
+  onSave: (avatarUrl: string | null, handle: string | null) => Promise<unknown>;
 }) {
   const t = useT();
-  const [nickname, setNickname] = useState(initialNickname);
   const [avatar, setAvatar] = useState(initialAvatar);
-  const [publicHandle, setPublicHandle] = useState(initialPublicHandle);
+  const [handle, setHandle] = useState(initialHandle);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
@@ -205,7 +206,7 @@ function EditForm({
     setError(null);
     setSaved(false);
     try {
-      await onSave(nickname.trim(), avatar.trim() || null, publicHandle.trim() || null);
+      await onSave(avatar.trim() || null, handle.trim() || null);
       setSaved(true);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : t("Не удалось сохранить изменения."));
@@ -219,12 +220,6 @@ function EditForm({
       <h2 className="font-sans text-h3 text-ink">{t("Профиль")}</h2>
       <form className="flex flex-col gap-4" onSubmit={onSubmit} noValidate>
         <Input
-          label={t("Никнейм")}
-          maxLength={64}
-          value={nickname}
-          onChange={(e) => setNickname(e.target.value)}
-        />
-        <Input
           label={t("Ссылка на аватар")}
           type="url"
           placeholder="https://…"
@@ -232,7 +227,7 @@ function EditForm({
           value={avatar}
           onChange={(e) => setAvatar(e.target.value)}
         />
-        <PublicHandleField value={publicHandle} onChange={setPublicHandle} error={error} />
+        <HandleField id="profile-handle" value={handle} onChange={setHandle} error={error} />
         <div className="flex items-center gap-3">
           <Button type="submit" disabled={busy}>
             {busy ? t("Сохраняю…") : t("Сохранить")}

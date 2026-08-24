@@ -10,17 +10,17 @@ export interface UserRead {
   is_active: boolean;
   is_superuser: boolean;
   is_verified: boolean;
-  nickname: string | null;
   avatar_url: string | null;
   cups: number;
   best_single_ms: number | null;
   best_ao5_ms: number | null;
-  // Deliberately-set opt-in name shown to other players on the tournament
-  // standings board. NEVER derived from email/nickname; null = shown as
-  // "Аноним" there. See tournament/TournamentStandings.tsx.
-  public_handle: string | null;
-  // Витрина профиля (V3): видна только владельцу — публичных профилей нет,
-  // на бордах живёт лишь `public_handle`.
+  // ЕДИНОЕ имя аккаунта: свой заголовок профиля И то, что видят другие (список
+  // друзей, таблицы турнира и скрамбла дня — display_name там уже готов
+  // сервером). Deliberately-set, opt-in, NEVER derived from email; null =
+  // "Аноним" на бордах / честная заглушка на своей странице. Отображается с
+  // ведущим "@" (см. lib/handle.ts) — само значение "@" не содержит.
+  handle: string | null;
+  // Витрина профиля (V3): видна только владельцу — публичных профилей нет.
   method: SolvingMethod | null;
   cubing_since_year: number | null;
   // Когда человек прошёл онбординг; null — ещё не проходил. Признак СЕРВЕРНЫЙ:
@@ -37,9 +37,8 @@ export interface UserRead {
 export type SolvingMethod = "cfop" | "roux" | "zz" | "petrus" | "beginner" | "other";
 
 export interface UserUpdate {
-  nickname?: string | null;
+  handle?: string | null;
   avatar_url?: string | null;
-  public_handle?: string | null;
   method?: SolvingMethod | null;
   cubing_since_year?: number | null;
 }
@@ -49,9 +48,9 @@ export function markOnboardedOnServer(): Promise<UserRead> {
   return request<UserRead>("/users/me/onboarded", { method: "POST" });
 }
 
-export function register(email: string, password: string, nickname?: string): Promise<UserRead> {
+export function register(email: string, password: string, handle?: string): Promise<UserRead> {
   return request<UserRead>("/auth/register", {
-    json: { email, password, ...(nickname ? { nickname } : {}) },
+    json: { email, password, ...(handle ? { handle } : {}) },
   });
 }
 

@@ -18,7 +18,7 @@ const USER = {
   is_active: true,
   is_superuser: false,
   is_verified: true,
-  nickname: "neo",
+  handle: "neo",
   avatar_url: null,
   cups: 3,
   best_single_ms: 12340,
@@ -74,6 +74,6 @@ describe("authStore.login()", () => {
     await useAuthStore.getState().login("a@b.com", "secret");
 
     expect(useAuthStore.getState().status).toBe("authed");
-    expect(useAuthStore.getState().user?.nickname).toBe("neo");
+    expect(useAuthStore.getState().user?.handle).toBe("neo");
   });
 });

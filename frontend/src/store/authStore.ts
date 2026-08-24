@@ -19,7 +19,7 @@ interface AuthState {
   status: AuthStatus;
   bootstrap: () => Promise<void>;
   login: (email: string, password: string) => Promise<void>;
-  register: (email: string, password: string, nickname?: string) => Promise<void>;
+  register: (email: string, password: string, handle?: string) => Promise<void>;
   logout: () => Promise<void>;
   refreshMe: () => Promise<void>;
   updateMe: (patch: UserUpdate) => Promise<UserRead>;
@@ -77,8 +77,8 @@ export const useAuthStore = create<AuthState>((set) => ({
     await loadMe(set);
   },
 
-  register: async (email, password, nickname) => {
-    await authApi.register(email, password, nickname);
+  register: async (email, password, handle) => {
+    await authApi.register(email, password, handle);
   },
 
   logout: async () => {
