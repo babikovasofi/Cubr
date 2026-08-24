@@ -41,8 +41,8 @@ SEED_PASSWORD = "cubr-test-pw-123"
 # NB: use a normal domain, not a reserved TLD like `.local` — email-validator
 # (EmailStr on UserRead) rejects special-use names, which would 500 /users/me.
 SEED_USERS: list[dict[str, str]] = [
-    {"email": "test@example.com", "nickname": "tester"},
-    {"email": "alice@example.com", "nickname": "alice"},
+    {"email": "test@example.com", "handle": "tester"},
+    {"email": "alice@example.com", "handle": "alice"},
 ]
 
 # A little solve history for the first account so /profile isn't empty.
@@ -64,7 +64,7 @@ async def _seed_user(session: AsyncSession, data: dict[str, str]) -> bool:
         is_active=True,
         is_superuser=False,
         is_verified=True,
-        nickname=data["nickname"],
+        handle=data["handle"],
     )
     session.add(user)
     await session.flush()  # assign user.id

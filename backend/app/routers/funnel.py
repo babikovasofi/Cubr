@@ -1,7 +1,7 @@
 """`GET /admin/funnel`: aggregate funnel counters for the operator (Stage 6).
 
 Superuser-only: anonymous -> 401, ordinary authed user -> 403. The response is
-integers only — never an email, nickname, id or IP (П10). See
+integers only — never an email, handle, id or IP (П10). See
 `app.services.funnel` for why the numbers are derived rather than tracked.
 """
 

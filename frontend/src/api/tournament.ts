@@ -49,8 +49,8 @@ export interface TournamentAttemptSubmit {
 
 // GET /tournament/current/standings — de-ranked participation board (no rank/
 // position field on the wire, by design — see TournamentStandings.tsx). Never
-// carries email or the account nickname, only the opt-in `public_handle`
-// (surfaced here as `display_name`, already "Аноним"-substituted server-side).
+// carries email, only the opt-in `handle` (surfaced here as `display_name`,
+// already "Аноним"-substituted server-side).
 export interface StandingEntry {
   display_name: string;
   time_ms: number;

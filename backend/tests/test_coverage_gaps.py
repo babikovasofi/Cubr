@@ -205,21 +205,21 @@ async def test_daily_get_current_attempt_status_matches_reality(
 async def test_moderation_single_character_name_too_short_400(
     client: AsyncClient, email_spy: EmailSpy
 ) -> None:
-    """Single-character nickname -> 400 NAME_TOO_SHORT."""
+    """Single-character handle -> 400 NAME_TOO_SHORT."""
     resp = await client.post(
         "/auth/register",
-        json={"email": "short@example.com", "password": PASSWORD, "nickname": "x"},
+        json={"email": "short@example.com", "password": PASSWORD, "handle": "x"},
     )
     assert resp.status_code == 400, resp.text
     assert resp.json()["detail"]["code"] == "NAME_TOO_SHORT"
 
 
 async def test_moderation_max_length_name_allowed(client: AsyncClient, email_spy: EmailSpy) -> None:
-    """Very long but clean nickname within limits should be accepted."""
+    """Very long but clean handle within limits should be accepted."""
     long_name = "A" * 64  # Likely within the max length.
     resp = await client.post(
         "/auth/register",
-        json={"email": "longname@example.com", "password": PASSWORD, "nickname": long_name},
+        json={"email": "longname@example.com", "password": PASSWORD, "handle": long_name},
     )
     # Should succeed or fail with a specific length error, not a generic one.
     if resp.status_code == 400:
@@ -235,15 +235,15 @@ async def test_moderation_max_length_name_allowed(client: AsyncClient, email_spy
 async def test_moderation_whitespace_only_name_rejected(
     client: AsyncClient, email_spy: EmailSpy
 ) -> None:
-    """Whitespace-only nickname should be rejected as too short or invalid.
+    """Whitespace-only handle should be rejected as too short or invalid.
 
-    BUG FOUND: Currently accepts "   " as valid nickname. The moderation filter
+    BUG FOUND: Currently accepts "   " as a valid handle. The moderation filter
     normalizes whitespace to empty string but doesn't reject empty result.
     Should fail with NAME_TOO_SHORT or NAME_INVALID_CHARS.
     """
     resp = await client.post(
         "/auth/register",
-        json={"email": "space@example.com", "password": PASSWORD, "nickname": "   "},
+        json={"email": "space@example.com", "password": PASSWORD, "handle": "   "},
     )
     assert resp.status_code == 400, resp.text
     code = resp.json()["detail"]["code"]

@@ -76,7 +76,7 @@ describe("friends api", () => {
     expect(url).toBe("/api/friends/requests/outgoing");
   });
 
-  it("sendRequest POST /friends/requests with { public_handle }", async () => {
+  it("sendRequest POST /friends/requests with { handle }", async () => {
     fetchMock.mockResolvedValueOnce(res({ status: 200, json: REQUEST }));
 
     const out = await sendRequest("SpeedCuber");
@@ -85,7 +85,7 @@ describe("friends api", () => {
     const [url, init] = fetchMock.mock.calls[0];
     expect(url).toBe("/api/friends/requests");
     expect(init.method).toBe("POST");
-    expect(JSON.parse(init.body)).toEqual({ public_handle: "SpeedCuber" });
+    expect(JSON.parse(init.body)).toEqual({ handle: "SpeedCuber" });
   });
 
   it("acceptRequest POST /friends/requests/{id}/accept, id encoded", async () => {

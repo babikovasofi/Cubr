@@ -1,8 +1,8 @@
 // @vitest-environment jsdom
 //
-// Onboarding step 4 — public_handle (П10). Covers: the step renders and is
-// honest about where the name becomes visible; it is skippable (empty submit
-// advances without touching the API); a filled name is sent via PATCH
+// Onboarding step 4 — the account handle (П10). Covers: the step renders and
+// is honest about where the name becomes visible; it is skippable (empty
+// submit advances without touching the API); a filled name is sent via PATCH
 // /users/me; the name filter's and the handle-collision's real error text
 // reach the person verbatim; skipping never breaks finishing onboarding.
 
@@ -36,7 +36,7 @@ vi.mock("../../src/auth/onboarding", async () => {
 });
 
 // The cube-registration wizard owns its own camera pipeline — irrelevant to the
-// public-handle step. Stub it down to a single button that stands in for
+// handle step. Stub it down to a single button that stands in for
 // "cancel/skip the cube step", the same way its own onCancel prop is wired.
 vi.mock("../../src/cubes/CubeRegisterWizard", () => ({
   default: ({ onCancel }: { onCancel: () => void }) => (
@@ -85,12 +85,14 @@ beforeEach(() => {
 
 afterEach(cleanup);
 
-describe("OnboardingPage PublicHandleStep", () => {
+describe("OnboardingPage HandleStep", () => {
   it("renders the step with an honest caption about where the name is shown", async () => {
     await renderAtHandleStep();
 
-    expect(screen.getByLabelText("Публичное имя")).toBeTruthy();
-    expect(screen.getByText(/в списке друзей и в таблицах турнира и скрамбла дня/)).toBeTruthy();
+    expect(screen.getByLabelText("Ник")).toBeTruthy();
+    expect(
+      screen.getByText(/в шапке профиля, списке друзей и таблицах турнира и скрамбла дня/),
+    ).toBeTruthy();
     // Explicitly says it can be set/changed later — the pitch that makes
     // skipping not feel like a loss.
     expect(screen.getByText(/Можно задать или изменить его позже в профиле/)).toBeTruthy();
@@ -111,15 +113,30 @@ describe("OnboardingPage PublicHandleStep", () => {
     updateMeMock.mockResolvedValue({});
     await renderAtHandleStep();
 
-    const input = screen.getByLabelText("Публичное имя") as HTMLInputElement;
+    const input = screen.getByLabelText("Ник") as HTMLInputElement;
     fireEvent.change(input, { target: { value: "SpeedCuber" } });
     fireEvent.click(screen.getByRole("button", { name: "Далее" }));
 
     await waitFor(() => {
-      expect(updateMeMock).toHaveBeenCalledWith({ public_handle: "SpeedCuber" });
+      expect(updateMeMock).toHaveBeenCalledWith({ handle: "SpeedCuber" });
     });
     await waitFor(() => {
       expect(markOnboardedMock).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  it("если набрать «@ник» вручную, ведущая собака молча срезается", async () => {
+    updateMeMock.mockResolvedValue({});
+    await renderAtHandleStep();
+
+    const input = screen.getByLabelText("Ник") as HTMLInputElement;
+    fireEvent.change(input, { target: { value: "@SpeedCuber" } });
+    expect(input.value).toBe("SpeedCuber");
+
+    fireEvent.click(screen.getByRole("button", { name: "Далее" }));
+
+    await waitFor(() => {
+      expect(updateMeMock).toHaveBeenCalledWith({ handle: "SpeedCuber" });
     });
   });
 
@@ -129,7 +146,7 @@ describe("OnboardingPage PublicHandleStep", () => {
     );
     await renderAtHandleStep();
 
-    const input = screen.getByLabelText("Публичное имя") as HTMLInputElement;
+    const input = screen.getByLabelText("Ник") as HTMLInputElement;
     fireEvent.change(input, { target: { value: "мудак" } });
     fireEvent.click(screen.getByRole("button", { name: "Далее" }));
 
@@ -137,21 +154,21 @@ describe("OnboardingPage PublicHandleStep", () => {
       expect(screen.getByText("Такое имя не подходит. Выбери другое.")).toBeTruthy();
     });
     expect(markOnboardedMock).not.toHaveBeenCalled();
-    expect(screen.getByLabelText("Публичное имя")).toBeTruthy(); // still on this step
+    expect(screen.getByLabelText("Ник")).toBeTruthy(); // still on this step
   });
 
   it("shows a clear 'handle taken' message on collision and stays on the step", async () => {
     updateMeMock.mockRejectedValue(
-      new ApiError(400, "HANDLE_TAKEN", "Этот хэндл уже занят другим пользователем."),
+      new ApiError(400, "HANDLE_TAKEN", "Это имя уже занято другим пользователем."),
     );
     await renderAtHandleStep();
 
-    const input = screen.getByLabelText("Публичное имя") as HTMLInputElement;
+    const input = screen.getByLabelText("Ник") as HTMLInputElement;
     fireEvent.change(input, { target: { value: "SpeedCuber" } });
     fireEvent.click(screen.getByRole("button", { name: "Далее" }));
 
     await waitFor(() => {
-      expect(screen.getByText("Этот хэндл уже занят другим пользователем.")).toBeTruthy();
+      expect(screen.getByText("Это имя уже занято другим пользователем.")).toBeTruthy();
     });
     expect(markOnboardedMock).not.toHaveBeenCalled();
   });

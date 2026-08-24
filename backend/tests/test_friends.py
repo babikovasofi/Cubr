@@ -51,7 +51,7 @@ async def _relogin(client: AsyncClient, email: str) -> None:
 
 
 async def _set_handle(client: AsyncClient, handle: str) -> None:
-    resp = await client.patch("/users/me", json={"public_handle": handle})
+    resp = await client.patch("/users/me", json={"handle": handle})
     assert resp.status_code == 200, resp.text
 
 
@@ -77,7 +77,7 @@ async def test_request_accept_then_both_see_friend(
     await _set_handle(client, "bobhandle")
 
     # Bob requests Alice.
-    resp = await client.post("/friends/requests", json={"public_handle": "alicehandle"})
+    resp = await client.post("/friends/requests", json={"handle": "alicehandle"})
     assert resp.status_code == 201, resp.text
     friendship_id = resp.json()["friendship_id"]
     assert resp.json()["display_name"] == "alicehandle"
@@ -115,7 +115,7 @@ async def test_request_to_self_rejected(
     await _register_and_login(client, "self@example.com")
     await _set_handle(client, "selfhandle")
 
-    resp = await client.post("/friends/requests", json={"public_handle": "selfhandle"})
+    resp = await client.post("/friends/requests", json={"handle": "selfhandle"})
     assert resp.status_code == 422, resp.text
 
     async with session_maker() as session:
@@ -128,16 +128,16 @@ async def test_request_without_own_handle_403(client: AsyncClient, email_spy: Em
     await _set_handle(client, "targethandle")
 
     await _switch_user(client, "handleless@example.com")
-    resp = await client.post("/friends/requests", json={"public_handle": "targethandle"})
+    resp = await client.post("/friends/requests", json={"handle": "targethandle"})
     assert resp.status_code == 403, resp.text
     assert resp.json()["detail"]["code"] == "HANDLE_REQUIRED"
 
 
-async def test_unknown_public_handle_404(client: AsyncClient, email_spy: EmailSpy) -> None:
+async def test_unknown_handle_404(client: AsyncClient, email_spy: EmailSpy) -> None:
     await _register_and_login(client, "seeker@example.com")
     await _set_handle(client, "seekerhandle")
 
-    resp = await client.post("/friends/requests", json={"public_handle": "SPEEDCUBER"})
+    resp = await client.post("/friends/requests", json={"handle": "SPEEDCUBER"})
     assert resp.status_code == 404, resp.text
 
     # Register the target with different casing — a case-insensitive lookup
@@ -145,7 +145,7 @@ async def test_unknown_public_handle_404(client: AsyncClient, email_spy: EmailSp
     await _switch_user(client, "speedcuber@example.com")
     await _set_handle(client, "speedcuber")
     await _relogin(client, "seeker@example.com")
-    resp = await client.post("/friends/requests", json={"public_handle": "SPEEDCUBER"})
+    resp = await client.post("/friends/requests", json={"handle": "SPEEDCUBER"})
     assert resp.status_code == 201, resp.text
 
 
@@ -158,10 +158,10 @@ async def test_duplicate_request_conflicts(
     await _switch_user(client, "dup-b@example.com")
     await _set_handle(client, "dupbhandle")
 
-    first = await client.post("/friends/requests", json={"public_handle": "dupahandle"})
+    first = await client.post("/friends/requests", json={"handle": "dupahandle"})
     assert first.status_code == 201, first.text
 
-    again = await client.post("/friends/requests", json={"public_handle": "dupahandle"})
+    again = await client.post("/friends/requests", json={"handle": "dupahandle"})
     assert again.status_code == 409, again.text
     assert again.json()["detail"]["code"] == "FRIEND_ALREADY_PENDING"
 
@@ -171,7 +171,7 @@ async def test_duplicate_request_conflicts(
     assert accept_resp.status_code == 200, accept_resp.text
 
     await _relogin(client, "dup-b@example.com")
-    after_accept = await client.post("/friends/requests", json={"public_handle": "dupahandle"})
+    after_accept = await client.post("/friends/requests", json={"handle": "dupahandle"})
     assert after_accept.status_code == 409, after_accept.text
     assert after_accept.json()["detail"]["code"] == "FRIEND_ALREADY_FRIENDS"
 
@@ -190,12 +190,12 @@ async def test_reverse_request_auto_accepts(
     await _set_handle(client, "revbhandle")
 
     # B -> A
-    b_to_a = await client.post("/friends/requests", json={"public_handle": "revahandle"})
+    b_to_a = await client.post("/friends/requests", json={"handle": "revahandle"})
     assert b_to_a.status_code == 201, b_to_a.text
 
     # A -> B: mutual consent already expressed, so this auto-accepts.
     await _relogin(client, "rev-a@example.com")
-    a_to_b = await client.post("/friends/requests", json={"public_handle": "revbhandle"})
+    a_to_b = await client.post("/friends/requests", json={"handle": "revbhandle"})
     assert a_to_b.status_code == 201, a_to_b.text
     assert a_to_b.json()["friendship_id"] == b_to_a.json()["friendship_id"]
 
@@ -219,7 +219,7 @@ async def test_accept_someone_elses_request_404(client: AsyncClient, email_spy: 
 
     await _switch_user(client, "own-b@example.com")
     await _set_handle(client, "ownbhandle")
-    resp = await client.post("/friends/requests", json={"public_handle": "ownahandle"})
+    resp = await client.post("/friends/requests", json={"handle": "ownahandle"})
     friendship_id = resp.json()["friendship_id"]
 
     # B (the sender) tries to accept their own outgoing request.
@@ -251,7 +251,7 @@ async def test_double_accept_is_idempotent_404(client: AsyncClient, email_spy: E
 
     await _switch_user(client, "dbl-b@example.com")
     await _set_handle(client, "dblbhandle")
-    resp = await client.post("/friends/requests", json={"public_handle": "dblahandle"})
+    resp = await client.post("/friends/requests", json={"handle": "dblahandle"})
     friendship_id = resp.json()["friendship_id"]
 
     await _relogin(client, "dbl-a@example.com")
@@ -274,7 +274,7 @@ async def test_decline_and_cancel_request(client: AsyncClient, email_spy: EmailS
 
     await _switch_user(client, "dec-b@example.com")
     await _set_handle(client, "decbhandle")
-    resp = await client.post("/friends/requests", json={"public_handle": "decahandle"})
+    resp = await client.post("/friends/requests", json={"handle": "decahandle"})
     friendship_id = resp.json()["friendship_id"]
 
     # A declines the incoming request.
@@ -287,7 +287,7 @@ async def test_decline_and_cancel_request(client: AsyncClient, email_spy: EmailS
     assert (await client.get("/friends/requests/outgoing")).json() == []
 
     # A fresh request is possible again.
-    resp2 = await client.post("/friends/requests", json={"public_handle": "decahandle"})
+    resp2 = await client.post("/friends/requests", json={"handle": "decahandle"})
     assert resp2.status_code == 201, resp2.text
     friendship_id2 = resp2.json()["friendship_id"]
 
@@ -300,7 +300,7 @@ async def test_decline_and_cancel_request(client: AsyncClient, email_spy: EmailS
     assert (await client.get("/friends/requests/incoming")).json() == []
 
     # Requestable again after the cancel too.
-    resp3 = await client.post("/friends/requests", json={"public_handle": "decbhandle"})
+    resp3 = await client.post("/friends/requests", json={"handle": "decbhandle"})
     assert resp3.status_code == 201, resp3.text
 
 
@@ -310,7 +310,7 @@ async def test_remove_friend(client: AsyncClient, email_spy: EmailSpy) -> None:
 
     await _switch_user(client, "rm-b@example.com")
     await _set_handle(client, "rmbhandle")
-    resp = await client.post("/friends/requests", json={"public_handle": "rmahandle"})
+    resp = await client.post("/friends/requests", json={"handle": "rmahandle"})
     friendship_id = resp.json()["friendship_id"]
 
     await _relogin(client, "rm-a@example.com")
@@ -324,7 +324,7 @@ async def test_remove_friend(client: AsyncClient, email_spy: EmailSpy) -> None:
     assert (await client.get("/friends")).json() == []
 
     # A fresh request is possible again.
-    again = await client.post("/friends/requests", json={"public_handle": "rmahandle"})
+    again = await client.post("/friends/requests", json={"handle": "rmahandle"})
     assert again.status_code == 201, again.text
 
 
@@ -343,7 +343,7 @@ async def test_friend_list_has_no_pii(client: AsyncClient, email_spy: EmailSpy) 
 
     await _switch_user(client, "pii-b@example.com")
     await _set_handle(client, "piibhandle")
-    resp = await client.post("/friends/requests", json={"public_handle": "piiahandle"})
+    resp = await client.post("/friends/requests", json={"handle": "piiahandle"})
     assert resp.status_code == 201, resp.text
     friendship_id = resp.json()["friendship_id"]
     assert resp.json()["display_name"] == "piiahandle"
@@ -386,7 +386,7 @@ async def test_incoming_and_outgoing_are_disjoint(client: AsyncClient, email_spy
 
     await _switch_user(client, "disj-b@example.com")
     await _set_handle(client, "disjbhandle")
-    resp = await client.post("/friends/requests", json={"public_handle": "disjahandle"})
+    resp = await client.post("/friends/requests", json={"handle": "disjahandle"})
     friendship_id = resp.json()["friendship_id"]
 
     b_incoming = (await client.get("/friends/requests/incoming")).json()
@@ -467,7 +467,7 @@ async def test_anon_gets_401_on_every_endpoint(
     client: AsyncClient, method: str, path_template: str
 ) -> None:
     path = path_template.format(id=uuid.uuid4())
-    kwargs = {"json": {"public_handle": "whoever"}} if path == "/friends/requests" else {}
+    kwargs = {"json": {"handle": "whoever"}} if path == "/friends/requests" else {}
     resp = await client.request(method, path, **kwargs)
     assert resp.status_code == 401, resp.text
 
@@ -489,7 +489,7 @@ async def test_friend_request_rate_limited_per_user(
     for i in range(15):
         r = await client.post(
             "/friends/requests",
-            json={"public_handle": f"no-such-handle-{i}"},
+            json={"handle": f"no-such-handle-{i}"},
             headers={"X-Forwarded-For": f"10.0.{i}.{i}"},
         )
         statuses.append(r.status_code)

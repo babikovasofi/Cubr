@@ -82,7 +82,7 @@ class Friendship(Base):
     responded_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     # Eager-loaded explicitly by every service query that needs the "other
-    # side"'s `public_handle` (async SQLAlchemy forbids lazy loading) —
+    # side"'s `handle` (async SQLAlchemy forbids lazy loading) —
     # see app.services.friends.list_friends/list_incoming/list_outgoing.
     user_low: Mapped["User"] = relationship("User", foreign_keys=[user_low_id])
     user_high: Mapped["User"] = relationship("User", foreign_keys=[user_high_id])

@@ -1,11 +1,11 @@
-// "Друзья" — секция на /profile (plan: friends). Взаимные друзья по
-// public_handle, никакого поиска по email/нику — см.
-// swarm-report/friends-plan.md. `friendship_id` — единственный идентификатор,
-// который тут вообще показывается или передаётся дальше; user id никогда не
-// попадает в разметку (§ Acceptance criteria — no PII in rendered markup).
-// `display_name` приходит с сервера уже готовым ("Аноним" для пустого
-// хэндла) и рендерится как есть, без t() — тот же приём, что в
-// tournament/TournamentStandings.tsx и daily/DailyBoard.tsx.
+// "Друзья" — секция на /profile (plan: friends). Взаимные друзья по нику
+// (`handle`), никакого поиска по email — см. swarm-report/friends-plan.md.
+// `friendship_id` — единственный идентификатор, который тут вообще
+// показывается или передаётся дальше; user id никогда не попадает в разметку
+// (§ Acceptance criteria — no PII in rendered markup). `display_name`
+// приходит с сервера уже готовым ("Аноним" для пустого ника) и рендерится как
+// есть, без t() — тот же приём, что в tournament/TournamentStandings.tsx и
+// daily/DailyBoard.tsx.
 
 import { useEffect, useState, type FormEvent } from "react";
 import { Link } from "react-router-dom";
@@ -25,6 +25,7 @@ import {
   type FriendRequestRead,
 } from "../api/friends";
 import { useChallengeFriend } from "./useChallengeFriend";
+import { stripHandlePrefix } from "../lib/handle";
 import { useT } from "../i18n/t";
 
 interface Lists {
@@ -137,7 +138,7 @@ function AddFriendForm({ onSent }: { onSent: () => void }) {
       // FriendConflictError/HandleRequired, just a bare 404 (plan §7) — so it
       // needs its own status check rather than a RU_BY_CODE lookup.
       if (err instanceof ApiError && err.status === 404) {
-        setError(t("Такого хэндла нет."));
+        setError(t("Такого ника нет."));
       } else if (err instanceof ApiError) {
         setError(t(err.message));
       } else {
@@ -150,13 +151,18 @@ function AddFriendForm({ onSent }: { onSent: () => void }) {
 
   return (
     <form className="flex flex-wrap items-end gap-3" onSubmit={onSubmit} noValidate>
-      <Input
-        label={t("Хэндл друга")}
-        maxLength={64}
-        value={handle}
-        onChange={(e) => setHandle(e.target.value)}
-        error={error}
-      />
+      <div className="flex flex-col gap-1.5">
+        <Input
+          label={t("Ник друга")}
+          maxLength={64}
+          value={handle}
+          onChange={(e) => setHandle(stripHandlePrefix(e.target.value))}
+          error={error}
+        />
+        <p className="font-sans text-small text-muted">
+          {t("Буквы, цифры, пробел, дефис, точка и подчёркивание.")}
+        </p>
+      </div>
       <Button type="submit" disabled={busy || !handle.trim()}>
         {busy ? t("Отправляю…") : t("Отправить заявку")}
       </Button>
@@ -260,7 +266,7 @@ function FriendList({ friends, onRemoved }: { friends: FriendRead[]; onRemoved: 
 
       {friends.length === 0 ? (
         <p className="font-sans text-small text-muted">
-          {t("Пока нет друзей — добавь кого-нибудь по хэндлу выше.")}
+          {t("Пока нет друзей — добавь кого-нибудь по нику выше.")}
         </p>
       ) : null}
 

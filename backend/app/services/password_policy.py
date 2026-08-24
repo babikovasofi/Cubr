@@ -16,7 +16,7 @@ for free — see `tests/test_password_policy.py`.
    `Password1!`, and NIST SP 800-63B dropped them for exactly that reason.
 2. Reject common passwords (`app.services.common_passwords`, data only).
 3. Reject a password equal to the account's email, the email's local part,
-   or its nickname (case-insensitive) — trivial to guess from a leak.
+   or its handle (case-insensitive) — trivial to guess from a leak.
 4. Maximum length 128 — a server-cost control. Argon2 is configured
    m=64MB/t=3/p=4; a multi-megabyte password is a cheap way to burn
    memory+CPU on a 1-core/2GB box.
@@ -51,7 +51,7 @@ class PasswordRejection:
     reason: str
 
 
-def _identity_values(email: str | None, nickname: str | None) -> list[str]:
+def _identity_values(email: str | None, handle: str | None) -> list[str]:
     values: list[str] = []
     if email:
         email_lower = email.strip().casefold()
@@ -60,10 +60,10 @@ def _identity_values(email: str | None, nickname: str | None) -> list[str]:
             local_part = email_lower.split("@", 1)[0]
             if local_part:
                 values.append(local_part)
-    if nickname:
-        nickname_lower = nickname.strip().casefold()
-        if nickname_lower:
-            values.append(nickname_lower)
+    if handle:
+        handle_lower = handle.strip().casefold()
+        if handle_lower:
+            values.append(handle_lower)
     return values
 
 
@@ -71,7 +71,7 @@ def check_password_policy(
     password: str,
     *,
     email: str | None = None,
-    nickname: str | None = None,
+    handle: str | None = None,
 ) -> PasswordRejection | None:
     """Return why ``password`` is unacceptable, or ``None`` if it is fine."""
     if len(password) < MIN_LENGTH:
@@ -90,9 +90,9 @@ def check_password_policy(
             CODE_TOO_COMMON, "Этот пароль слишком распространён. Придумай другой."
         )
 
-    if lowered in _identity_values(email, nickname):
+    if lowered in _identity_values(email, handle):
         return PasswordRejection(
-            CODE_MATCHES_IDENTITY, "Пароль не должен совпадать с почтой или ником."
+            CODE_MATCHES_IDENTITY, "Пароль не должен совпадать с почтой или именем."
         )
 
     return None

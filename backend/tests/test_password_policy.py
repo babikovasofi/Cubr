@@ -75,11 +75,11 @@ def test_uncommon_password_accepted() -> None:
     assert check_password_policy(_OK_PASSWORD) is None
 
 
-# --- rule 3: reject password == email / local-part / nickname --------------
+# --- rule 3: reject password == email / local-part / handle --------------
 
 
 def test_password_equal_to_email_rejected() -> None:
-    rejection = check_password_policy("cuber@example.com", email="cuber@example.com", nickname=None)
+    rejection = check_password_policy("cuber@example.com", email="cuber@example.com", handle=None)
     assert rejection is not None
     assert rejection.code == CODE_MATCHES_IDENTITY
 
@@ -90,9 +90,9 @@ def test_password_equal_to_email_local_part_rejected() -> None:
     assert rejection.code == CODE_MATCHES_IDENTITY
 
 
-def test_password_equal_to_nickname_rejected() -> None:
+def test_password_equal_to_handle_rejected() -> None:
     rejection = check_password_policy(
-        "SpeedCuber", email="unrelated@example.com", nickname="speedcuber"
+        "SpeedCuber", email="unrelated@example.com", handle="speedcuber"
     )
     assert rejection is not None
     assert rejection.code == CODE_MATCHES_IDENTITY
@@ -106,8 +106,7 @@ def test_password_matching_identity_check_is_case_insensitive() -> None:
 
 def test_password_different_from_identity_accepted() -> None:
     assert (
-        check_password_policy(_OK_PASSWORD, email="cuber@example.com", nickname="speedcuber")
-        is None
+        check_password_policy(_OK_PASSWORD, email="cuber@example.com", handle="speedcuber") is None
     )
 
 

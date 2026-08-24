@@ -46,8 +46,8 @@ export default function PrivacyEn() {
         <DocList
           items={[
             <>
-              Email, a password hash (the password itself is never stored), nickname, and whether
-              the email is confirmed.
+              Email, a password hash (the password itself is never stored), a handle (optional — you
+              can leave it unset), and whether the email is confirmed.
             </>,
             <>For Google sign-in — the Google account identifier and the email from it.</>,
             <>Solves: time, status, scramble, date, and which cube was used.</>,
@@ -58,7 +58,6 @@ export default function PrivacyEn() {
             <>
               Weekly-challenge and daily-scramble attempts, duel rooms and their results, badges.
             </>,
-            <>A public handle — only if you set one yourself in the profile.</>,
           ]}
         />
       </DocSection>
@@ -67,14 +66,11 @@ export default function PrivacyEn() {
         <DocList
           items={[
             <>
-              On the weekly-challenge and daily-scramble boards — your public handle or «Anonymous»,
-              plus your time. Email and nickname are{" "}
+              On the weekly-challenge and daily-scramble boards, and in your friends list — your
+              handle or «Anonymous», plus your time. Email is{" "}
               <span className="font-bold text-ink">never</span> shown.
             </>,
-            <>
-              The public handle is set by hand and empty by default — by default you are
-              «Anonymous».
-            </>,
+            <>The handle is set by hand and empty by default — by default you are «Anonymous».</>,
             <>In a duel the opponent sees status, time and outcome — and nothing else.</>,
           ]}
         />
@@ -120,9 +116,7 @@ export default function PrivacyEn() {
       <DocSection title="Change or delete">
         <DocList
           items={[
-            <>
-              Nickname, public handle, time format and cube profiles are changed in your profile.
-            </>,
+            <>Handle, time format and cube profiles are changed in your profile.</>,
             <>
               Deleting the account and everything tied to it — by request at{" "}
               <a href={`mailto:${CONTACT_EMAIL}`} className="font-bold text-primary">

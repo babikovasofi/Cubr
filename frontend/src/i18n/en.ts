@@ -118,7 +118,7 @@ export const EN: Record<string, string> = {
     "Logged in, but the profile could not be loaded. Try refreshing.",
   "Забыли пароль?": "Forgot your password?",
   "Создай аккаунт, чтобы сохранять сборки.": "Create an account to keep your solves.",
-  Никнейм: "Nickname",
+  Ник: "Handle",
   "Создаю…": "Creating…",
   Зарегистрироваться: "Sign up",
   "Не удалось зарегистрироваться.": "Could not sign up.",
@@ -223,10 +223,10 @@ export const EN: Record<string, string> = {
   Секунды: "Seconds",
 
   "Ссылка на аватар": "Avatar URL",
-  "Публичное имя": "Public name",
   "Не задано — покажем как «Аноним»": "Not set — shown as «Anonymous»",
-  "Это имя увидят другие: в списке друзей и в таблицах турнира и скрамбла дня. Остальной профиль виден только тебе.":
-    "Others will see this name: in your friends list and on the tournament and daily-scramble boards. The rest of your profile stays yours alone.",
+  "Это имя видно тебе и другим: в шапке профиля, списке друзей и таблицах турнира и скрамбла дня.":
+    "This name is visible to you and others: in your profile header, your friends list, and on the tournament and daily-scramble boards.",
+  "Задать имя в профиле": "Set a name in your profile",
   Сохранить: "Save",
   Сохранено: "Saved",
   "Не удалось сохранить изменения.": "Could not save the changes.",
@@ -548,8 +548,9 @@ export const EN: Record<string, string> = {
     "Capture your cube's colour profile — this is your first and primary cube. You can skip it and add one later from the profile.",
   "Пропустить (камера не проверена)": "Skip (camera unchecked)",
   "Пропустить регистрацию": "Skip the registration",
-  "Заведи публичное имя — по нему тебя смогут найти и добавить в друзья, и оно появится в таблицах турнира и скрамбла дня вместо «Аноним». Можно задать или изменить его позже в профиле.":
-    "Set up a public name — it's how people can find and add you as a friend, and it will show up on the tournament and daily-scramble boards instead of «Anonymous». You can set or change it later in your profile.",
+  "Твой ник": "Your handle",
+  "Заведи ник — по нему тебя смогут найти и добавить в друзья, и оно появится в таблицах турнира и скрамбла дня вместо «Аноним». Можно задать или изменить его позже в профиле.":
+    "Set up a handle — it's how people can find and add you as a friend, and it will show up on the tournament and daily-scramble boards instead of «Anonymous». You can set or change it later in your profile.",
   "Не удалось сохранить имя. Попробуй ещё раз.": "Could not save the name. Try again.",
   "Пропустить онбординг": "Skip onboarding",
 
@@ -763,21 +764,24 @@ export const EN: Record<string, string> = {
   Отклонить: "Decline",
   Отменить: "Cancel",
   "Список друзей": "Friend list",
-  "Пока нет друзей — добавь кого-нибудь по хэндлу выше.":
-    "No friends yet — add someone by handle above.",
+  "Пока нет друзей — добавь кого-нибудь по нику выше.":
+    "No friends yet — add someone by their handle above.",
   Вызвать: "Challenge",
-  "Хэндл друга": "Friend's handle",
+  "Ник друга": "Friend's handle",
+  "Буквы, цифры, пробел, дефис, точка и подчёркивание.":
+    "Letters, digits, space, hyphen, period, and underscore.",
   "Отправить заявку": "Send request",
-  "Такого хэндла нет.": "No such handle.",
+  "Такого ника нет.": "No such handle.",
   "Не удалось отправить заявку.": "Could not send the request.",
   "Не удалось выполнить действие.": "Could not complete the action.",
   "Уведомление не придёт — отправь ссылку сам.":
     "No notification is sent — send the link yourself.",
-  // Коды ошибок /friends/* и UserManager.update() (client.ts RU_BY_CODE) —
-  // переводятся здесь же, т.к. рендерятся через t(e.message) (см. GoogleButton).
-  "Этот хэндл уже занят другим пользователем.": "That handle is already taken.",
+  // Коды ошибок /friends/*, /auth/register и UserManager.update() (client.ts
+  // RU_BY_CODE) — переводятся здесь же, т.к. рендерятся через t(e.message)
+  // (см. GoogleButton).
+  "Это имя уже занято другим пользователем.": "That name is already taken.",
   "Заявка уже отправлена — жди ответа.": "A request is already pending — wait for a reply.",
   "Вы уже друзья.": "You are already friends.",
-  "Сначала укажи свой хэндл в профиле — без него нельзя добавлять друзей.":
+  "Сначала укажи свой ник в профиле — без него нельзя добавлять друзей.":
     "Set your own handle in your profile first — you need one to add friends.",
 };

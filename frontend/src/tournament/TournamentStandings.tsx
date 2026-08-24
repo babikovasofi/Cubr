@@ -4,8 +4,8 @@
 // rank/position number — that is the point of "participation, not ranking".
 //
 // Privacy (П10): every row is built from `display_name` alone (already "Аноним"
-// substituted server-side for an unset public_handle). This component never
-// receives, and must never render, email or the account nickname.
+// substituted server-side for an unset `handle`). This component never
+// receives, and must never render, email.
 
 import Button from "../components/Button";
 import Spinner from "../components/Spinner";

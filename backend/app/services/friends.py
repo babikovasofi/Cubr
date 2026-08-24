@@ -5,8 +5,8 @@ that could collide with an existing row runs inside `session.begin_nested()`
 and, on `IntegrityError`, re-SELECTs the row that actually exists instead of
 a TOCTOU pre-check (see `send_request`).
 
-Enumeration note (Decision #1 in the plan): `public_handle` is a field the
-user themself makes public and it already appears on the tournament/daily
+Enumeration note (Decision #1 in the plan): `handle` is a field the user
+themself makes public and it already appears on the tournament/daily
 boards — "this handle exists" is not new information, so the 404/409/409
 outcomes below stay observably different. The ONLY mitigation kept against
 mass probing is a per-CALLING-USER rate limit
@@ -45,7 +45,7 @@ class FriendSelfError(Exception):
 
 
 class FriendHandleRequiredError(Exception):
-    """The caller has no `public_handle` of their own set yet."""
+    """The caller has no `handle` of their own set yet."""
 
 
 class FriendConflictError(Exception):
@@ -116,13 +116,11 @@ async def send_request(
     against the existing pending row and finding `requested_by_id` is the
     OTHER party, not re-checked via a separate pre-query (TOCTOU).
     """
-    if not requester.public_handle:
+    if not requester.handle:
         raise FriendHandleRequiredError()
 
     normalized = handle.strip().lower()
-    target_result = await session.execute(
-        select(User).where(func.lower(User.public_handle) == normalized)
-    )
+    target_result = await session.execute(select(User).where(func.lower(User.handle) == normalized))
     # `.unique()`: `User.oauth_accounts` is `lazy="joined"` — any direct
     # `select(User)` needs this before consuming rows, same as
     # `tests/test_profile_names.py`'s pattern.
@@ -257,7 +255,7 @@ async def list_friends(session: AsyncSession, user_id: uuid.UUID) -> list[Friend
     return [
         FriendEntry(
             friendship_id=row.id,
-            display_name=display_name_for(_other(row, user_id).public_handle),
+            display_name=display_name_for(_other(row, user_id).handle),
             since=row.responded_at if row.responded_at is not None else row.created_at,
         )
         for row in rows
@@ -280,7 +278,7 @@ async def list_incoming(session: AsyncSession, user_id: uuid.UUID) -> list[Frien
     return [
         FriendRequestEntry(
             friendship_id=row.id,
-            display_name=display_name_for(_other(row, user_id).public_handle),
+            display_name=display_name_for(_other(row, user_id).handle),
             created_at=row.created_at,
         )
         for row in rows
@@ -299,7 +297,7 @@ async def list_outgoing(session: AsyncSession, user_id: uuid.UUID) -> list[Frien
     return [
         FriendRequestEntry(
             friendship_id=row.id,
-            display_name=display_name_for(_other(row, user_id).public_handle),
+            display_name=display_name_for(_other(row, user_id).handle),
             created_at=row.created_at,
         )
         for row in rows

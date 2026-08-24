@@ -67,7 +67,7 @@ function AuthMenu() {
   }, [open]);
 
   if (!user) return null;
-  const label = user.nickname ?? user.email;
+  const label = user.handle ?? user.email;
   const letter = label.trim().charAt(0).toUpperCase() || "?";
 
   async function onLogout() {

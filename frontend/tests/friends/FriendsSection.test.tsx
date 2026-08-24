@@ -122,12 +122,44 @@ describe("FriendsSection — список друзей", () => {
     renderSection();
 
     await waitFor(() =>
-      expect(screen.getByText(/Пока нет друзей — добавь кого-нибудь по хэндлу выше/)).toBeTruthy(),
+      expect(screen.getByText(/Пока нет друзей — добавь кого-нибудь по нику выше/)).toBeTruthy(),
     );
   });
 });
 
-describe("FriendsSection — добавление по хэндлу", () => {
+describe("FriendsSection — добавление по нику", () => {
+  it("рядом с полем есть подсказка формата, а не слово «хэндл»", async () => {
+    renderSection();
+    await waitFor(() => expect(listFriendsMock).toHaveBeenCalledTimes(1));
+
+    expect(screen.getByLabelText("Ник друга")).toBeTruthy();
+    expect(screen.getByText("Буквы, цифры, пробел, дефис, точка и подчёркивание.")).toBeTruthy();
+    expect(screen.queryByText(/хэндл/i)).toBeNull();
+  });
+
+  it("срезает ведущую собаку при вводе — в sendRequest уезжает голый ник", async () => {
+    sendRequestMock.mockResolvedValue({
+      friendship_id: "friendship-new",
+      display_name: "NewFriend",
+      created_at: "2026-08-05T00:00:00Z",
+    });
+
+    renderSection();
+    await waitFor(() => expect(listFriendsMock).toHaveBeenCalledTimes(1));
+
+    const input = screen.getByLabelText("Ник друга") as HTMLInputElement;
+    await act(async () => {
+      fireEvent.change(input, { target: { value: "@NewFriend" } });
+    });
+    expect(input.value).toBe("NewFriend");
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Отправить заявку" }));
+    });
+
+    await waitFor(() => expect(sendRequestMock).toHaveBeenCalledWith("NewFriend"));
+  });
+
   it("успешная заявка очищает поле и перезагружает списки", async () => {
     sendRequestMock.mockResolvedValue({
       friendship_id: "friendship-new",
@@ -138,7 +170,7 @@ describe("FriendsSection — добавление по хэндлу", () => {
     renderSection();
     await waitFor(() => expect(listFriendsMock).toHaveBeenCalledTimes(1));
 
-    const input = screen.getByLabelText("Хэндл друга") as HTMLInputElement;
+    const input = screen.getByLabelText("Ник друга") as HTMLInputElement;
     await act(async () => {
       fireEvent.change(input, { target: { value: "NewFriend" } });
     });
@@ -152,13 +184,13 @@ describe("FriendsSection — добавление по хэндлу", () => {
     await waitFor(() => expect(listFriendsMock).toHaveBeenCalledTimes(2));
   });
 
-  it("404 — «Такого хэндла нет», форма не очищается", async () => {
+  it("404 — «Такого ника нет», форма не очищается", async () => {
     sendRequestMock.mockRejectedValue(new ApiError(404, null, "Not found"));
 
     renderSection();
     await waitFor(() => expect(listFriendsMock).toHaveBeenCalledTimes(1));
 
-    const input = screen.getByLabelText("Хэндл друга") as HTMLInputElement;
+    const input = screen.getByLabelText("Ник друга") as HTMLInputElement;
     await act(async () => {
       fireEvent.change(input, { target: { value: "Ghost" } });
     });
@@ -166,23 +198,23 @@ describe("FriendsSection — добавление по хэндлу", () => {
       fireEvent.click(screen.getByRole("button", { name: "Отправить заявку" }));
     });
 
-    await waitFor(() => expect(screen.getByText("Такого хэндла нет.")).toBeTruthy());
+    await waitFor(() => expect(screen.getByText("Такого ника нет.")).toBeTruthy());
     expect(input.value).toBe("Ghost");
   });
 
-  it("403 HANDLE_REQUIRED — подсказка задать свой хэндл", async () => {
+  it("403 HANDLE_REQUIRED — подсказка задать свой ник", async () => {
     sendRequestMock.mockRejectedValue(
       new ApiError(
         403,
         "HANDLE_REQUIRED",
-        "Сначала укажи свой хэндл в профиле — без него нельзя добавлять друзей.",
+        "Сначала укажи свой ник в профиле — без него нельзя добавлять друзей.",
       ),
     );
 
     renderSection();
     await waitFor(() => expect(listFriendsMock).toHaveBeenCalledTimes(1));
 
-    const input = screen.getByLabelText("Хэндл друга") as HTMLInputElement;
+    const input = screen.getByLabelText("Ник друга") as HTMLInputElement;
     await act(async () => {
       fireEvent.change(input, { target: { value: "SpeedCuber" } });
     });
@@ -192,7 +224,7 @@ describe("FriendsSection — добавление по хэндлу", () => {
 
     await waitFor(() =>
       expect(
-        screen.getByText("Сначала укажи свой хэндл в профиле — без него нельзя добавлять друзей."),
+        screen.getByText("Сначала укажи свой ник в профиле — без него нельзя добавлять друзей."),
       ).toBeTruthy(),
     );
     expect(input.value).toBe("SpeedCuber");
@@ -206,7 +238,7 @@ describe("FriendsSection — добавление по хэндлу", () => {
     renderSection();
     await waitFor(() => expect(listFriendsMock).toHaveBeenCalledTimes(1));
 
-    const input = screen.getByLabelText("Хэндл друга") as HTMLInputElement;
+    const input = screen.getByLabelText("Ник друга") as HTMLInputElement;
     await act(async () => {
       fireEvent.change(input, { target: { value: "SpeedCuber" } });
     });
@@ -228,7 +260,7 @@ describe("FriendsSection — добавление по хэндлу", () => {
     renderSection();
     await waitFor(() => expect(listFriendsMock).toHaveBeenCalledTimes(1));
 
-    const input = screen.getByLabelText("Хэндл друга") as HTMLInputElement;
+    const input = screen.getByLabelText("Ник друга") as HTMLInputElement;
     await act(async () => {
       fireEvent.change(input, { target: { value: "SpeedCuber" } });
     });

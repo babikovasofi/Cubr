@@ -2,9 +2,9 @@
 //
 // `friendship_id` is the id of the FRIENDSHIP ROW, not a user id — it is the
 // ONLY identifier this module (or anything downstream of it) ever exposes for
-// a friend/request. No email, nickname, or user UUID exists on any response
-// type here by contract (see plan Acceptance criteria) — `display_name` is
-// already "Аноним" for a user with no `public_handle` set, computed server-side.
+// a friend/request. No email or user UUID exists on any response type here
+// by contract (see plan Acceptance criteria) — `display_name` is already
+// "Аноним" for a user with no `handle` set, computed server-side.
 
 import { request } from "./client";
 
@@ -32,13 +32,10 @@ export function listOutgoing(signal?: AbortSignal): Promise<FriendRequestRead[]>
   return request<FriendRequestRead[]>("/friends/requests/outgoing", { signal });
 }
 
-export function sendRequest(
-  publicHandle: string,
-  signal?: AbortSignal,
-): Promise<FriendRequestRead> {
+export function sendRequest(handle: string, signal?: AbortSignal): Promise<FriendRequestRead> {
   return request<FriendRequestRead>("/friends/requests", {
     method: "POST",
-    json: { public_handle: publicHandle },
+    json: { handle },
     signal,
   });
 }

@@ -1,6 +1,6 @@
-// Registration (plan §B): email + password + nickname → "подтвердите почту" screen
-// with a resend action. Handles REGISTER_USER_ALREADY_EXISTS, invalid-password and
-// rate-limit (429) via the client's RU mapping. Google alongside.
+// Registration (plan §B): email + password + handle → "подтвердите почту" screen
+// with a resend action. Handles REGISTER_USER_ALREADY_EXISTS, HANDLE_TAKEN,
+// invalid-password and rate-limit (429) via the client's RU mapping. Google alongside.
 
 import { useState, type FormEvent } from "react";
 import { Link } from "react-router-dom";
@@ -11,6 +11,7 @@ import Input from "../components/Input";
 import { useAuthStore } from "../store/authStore";
 import { ApiError } from "../api/client";
 import { requestVerify } from "../api/auth";
+import { stripHandlePrefix } from "../lib/handle";
 import { useT } from "../i18n/t";
 
 export default function RegisterPage() {
@@ -18,7 +19,7 @@ export default function RegisterPage() {
   const register = useAuthStore((s) => s.register);
 
   const [email, setEmail] = useState("");
-  const [nickname, setNickname] = useState("");
+  const [handle, setHandle] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -30,10 +31,10 @@ export default function RegisterPage() {
     setBusy(true);
     setError(null);
     try {
-      await register(email, password, nickname.trim() || undefined);
+      await register(email, password, handle.trim() || undefined);
       setDone(true);
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Не удалось зарегистрироваться.");
+      setError(err instanceof ApiError ? err.message : t("Не удалось зарегистрироваться."));
       setBusy(false);
     }
   }
@@ -99,12 +100,12 @@ export default function RegisterPage() {
           onChange={(e) => setEmail(e.target.value)}
         />
         <Input
-          label={t("Никнейм")}
+          label={t("Ник")}
           type="text"
           autoComplete="nickname"
           maxLength={64}
-          value={nickname}
-          onChange={(e) => setNickname(e.target.value)}
+          value={handle}
+          onChange={(e) => setHandle(stripHandlePrefix(e.target.value))}
         />
         <Input
           label={t("Пароль")}

@@ -6,7 +6,7 @@ from pydantic import BaseModel
 class FunnelRead(BaseModel):
     """Aggregate funnel counters (Stage 6, "минимальная аналитика воронки").
 
-    Counts ONLY — no email, nickname, id or IP ever appears here (П10). Every
+    Counts ONLY — no email, handle, id or IP ever appears here (П10). Every
     number is derived from rows the product already writes; nothing is tracked
     for analytics' own sake, and there is no third-party tracker (the public
     landing page promises exactly that).

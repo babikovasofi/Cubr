@@ -45,9 +45,9 @@ export interface DailyAttemptSubmit {
 }
 
 // GET /daily/current/board — de-ranked participation board (no rank/position
-// field on the wire, by design — see DailyBoard.tsx). Never carries email or
-// the account nickname, only the opt-in `public_handle` (surfaced here as
-// `display_name`, already "Аноним"-substituted server-side).
+// field on the wire, by design — see DailyBoard.tsx). Never carries email,
+// only the opt-in `handle` (surfaced here as `display_name`, already
+// "Аноним"-substituted server-side).
 export interface DailyBoardEntry {
   display_name: string;
   time_ms: number;

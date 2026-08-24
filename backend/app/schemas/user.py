@@ -25,7 +25,7 @@ def _validate_year(value: int | None) -> int | None:
     return value
 
 
-def _normalize_public_handle(value: str | None) -> str | None:
+def _normalize_handle(value: str | None) -> str | None:
     """Trim; empty string -> None. Length is enforced by the field's max_length."""
     if value is None:
         return None
@@ -36,14 +36,14 @@ def _normalize_public_handle(value: str | None) -> str | None:
 class UserRead(schemas.BaseUser[UUID]):
     """Public user representation returned by the API."""
 
-    nickname: str | None = None
     avatar_url: str | None = None
     cups: int = 0
     best_single_ms: int | None = None
     best_ao5_ms: int | None = None
-    # Deliberately-set, opt-in display name for public surfaces (e.g. the
-    # weekly tournament standings board). NEVER email/nickname.
-    public_handle: str | None = None
+    # The ONE display name (own header, friends, tournament/daily boards).
+    # Deliberately-set, opt-in — NEVER derived from email. Shown with a
+    # leading "@" on the frontend; the stored value itself carries no "@".
+    handle: str | None = None
     # Витрина: видна только владельцу (публичных профилей нет).
     method: SolvingMethod | None = None
     cubing_since_year: int | None = None
@@ -57,17 +57,25 @@ class UserRead(schemas.BaseUser[UUID]):
 
 
 class UserCreate(schemas.BaseUserCreate):
-    """Registration payload (email + password auth)."""
+    """Registration payload (email + password auth).
 
-    nickname: str | None = Field(default=None, max_length=64)
+    Deliberately NOT trimmed/empty-normalised like `UserUpdate.handle` below
+    — that normalisation exists to support PATCH's "clear the field" use
+    case (send `""`/whitespace to unset an already-set value), which has no
+    equivalent at registration (there's nothing to clear yet; omit the
+    field instead). A whitespace-only `handle` here is user-typed content,
+    not a clear request, and falls straight into the name filter as such
+    (see `app.services.auth._reject_bad_names`).
+    """
+
+    handle: str | None = Field(default=None, max_length=64)
 
 
 class UserUpdate(schemas.BaseUserUpdate):
     """Self-service user update payload."""
 
-    nickname: str | None = Field(default=None, max_length=64)
+    handle: str | None = Field(default=None, max_length=64)
     avatar_url: str | None = Field(default=None, max_length=512)
-    public_handle: str | None = Field(default=None, max_length=64)
     method: SolvingMethod | None = None
     cubing_since_year: int | None = None
 
@@ -76,7 +84,7 @@ class UserUpdate(schemas.BaseUserUpdate):
     def _check_year(cls, value: int | None) -> int | None:
         return _validate_year(value)
 
-    @field_validator("public_handle", mode="before")
+    @field_validator("handle", mode="before")
     @classmethod
-    def _clean_public_handle(cls, value: str | None) -> str | None:
-        return _normalize_public_handle(value)
+    def _clean_handle_update(cls, value: str | None) -> str | None:
+        return _normalize_handle(value)

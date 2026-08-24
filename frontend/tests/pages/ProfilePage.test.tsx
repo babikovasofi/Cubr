@@ -20,7 +20,7 @@ vi.mock("../../src/store/authStore", () => ({
   useAuthStore: useAuthStoreMock,
 }));
 
-// Mock the CubeList and History components to focus on the public_handle field
+// Mock the CubeList and History components to focus on the handle field
 vi.mock("../../src/cubes/CubeList", () => ({
   default: () => <div data-testid="cube-list">Cube List</div>,
 }));
@@ -36,12 +36,11 @@ const MOCK_USER = {
   is_active: true,
   is_verified: true,
   is_superuser: false,
-  nickname: "TestNick",
   avatar_url: null,
   cups: 0,
   best_single_ms: null,
   best_ao5_ms: null,
-  public_handle: "SpeedCuber",
+  handle: "SpeedCuber",
 };
 
 beforeEach(() => {
@@ -51,8 +50,8 @@ beforeEach(() => {
   listSolvesMock.mockResolvedValue([]);
 });
 
-describe("ProfilePage — public_handle field", () => {
-  it("renders 'Публичное имя' input with public notice", () => {
+describe("ProfilePage — поле handle", () => {
+  it("renders 'Ник' input with notice, and header shows «@ник»", () => {
     updateMeMock.mockResolvedValue(undefined);
     useAuthStoreMock.mockImplementation((selector) => {
       const state = {
@@ -68,14 +67,54 @@ describe("ProfilePage — public_handle field", () => {
       </BrowserRouter>,
     );
 
-    expect(screen.getByLabelText("Публичное имя")).toBeTruthy();
+    expect(screen.getByLabelText("Ник")).toBeTruthy();
 
-    // Public notice text — honest about every surface this name reaches.
-    expect(screen.getByText(/в списке друзей и в таблицах турнира и скрамбла дня/)).toBeTruthy();
+    // Header shows the handle WITH a leading "@" — the stored value itself has none.
+    expect(screen.getByRole("heading", { name: "@SpeedCuber" })).toBeTruthy();
+
+    // Notice text — honest about every surface this name reaches (now including own header).
+    expect(
+      screen.getByText(/в шапке профиля, списке друзей и таблицах турнира и скрамбла дня/),
+    ).toBeTruthy();
     expect(screen.getByPlaceholderText("Не задано — покажем как «Аноним»")).toBeTruthy();
   });
 
-  it("saves public_handle via PATCH /users/me when form submitted", async () => {
+  it("input value is the bare handle, without the leading @", () => {
+    updateMeMock.mockResolvedValue(undefined);
+    useAuthStoreMock.mockImplementation((selector) =>
+      selector({ user: MOCK_USER, updateMe: updateMeMock }),
+    );
+
+    render(
+      <BrowserRouter>
+        <ProfilePage />
+      </BrowserRouter>,
+    );
+
+    const input = screen.getByLabelText("Ник") as HTMLInputElement;
+    expect(input.value).toBe("SpeedCuber");
+  });
+
+  it("если набрать «@ник» вручную, ведущая собака молча срезается", async () => {
+    updateMeMock.mockResolvedValue(undefined);
+    useAuthStoreMock.mockImplementation((selector) =>
+      selector({ user: MOCK_USER, updateMe: updateMeMock }),
+    );
+
+    render(
+      <BrowserRouter>
+        <ProfilePage />
+      </BrowserRouter>,
+    );
+
+    const input = screen.getByLabelText("Ник") as HTMLInputElement;
+    await act(async () => {
+      fireEvent.change(input, { target: { value: "@NewHandle" } });
+    });
+    expect(input.value).toBe("NewHandle");
+  });
+
+  it("saves handle via PATCH /users/me when form submitted", async () => {
     updateMeMock.mockResolvedValue(undefined);
     useAuthStoreMock.mockImplementation((selector) => {
       const state = {
@@ -91,7 +130,7 @@ describe("ProfilePage — public_handle field", () => {
       </BrowserRouter>,
     );
 
-    const input = screen.getByLabelText("Публичное имя") as HTMLInputElement;
+    const input = screen.getByLabelText("Ник") as HTMLInputElement;
     expect(input.value).toBe("SpeedCuber");
 
     // Change the value
@@ -105,17 +144,17 @@ describe("ProfilePage — public_handle field", () => {
       fireEvent.click(submitButton);
     });
 
-    // Verify updateMe was called with the public_handle
+    // Verify updateMe was called with the handle
     await waitFor(() => {
       expect(updateMeMock).toHaveBeenCalledWith(
         expect.objectContaining({
-          public_handle: "NewHandle",
+          handle: "NewHandle",
         }),
       );
     });
   });
 
-  it("sends null when public_handle field is empty (cleared)", async () => {
+  it("sends null when handle field is empty (cleared)", async () => {
     updateMeMock.mockResolvedValue(undefined);
     useAuthStoreMock.mockImplementation((selector) => {
       const state = {
@@ -131,7 +170,7 @@ describe("ProfilePage — public_handle field", () => {
       </BrowserRouter>,
     );
 
-    const input = screen.getByLabelText("Публичное имя") as HTMLInputElement;
+    const input = screen.getByLabelText("Ник") as HTMLInputElement;
 
     // Clear the value
     await act(async () => {
@@ -144,11 +183,11 @@ describe("ProfilePage — public_handle field", () => {
       fireEvent.click(submitButton);
     });
 
-    // Verify updateMe was called with public_handle: null
+    // Verify updateMe was called with handle: null
     await waitFor(() => {
       expect(updateMeMock).toHaveBeenCalledWith(
         expect.objectContaining({
-          public_handle: null,
+          handle: null,
         }),
       );
     });
@@ -170,7 +209,7 @@ describe("ProfilePage — public_handle field", () => {
       </BrowserRouter>,
     );
 
-    const input = screen.getByLabelText("Публичное имя") as HTMLInputElement;
+    const input = screen.getByLabelText("Ник") as HTMLInputElement;
     await act(async () => {
       fireEvent.change(input, { target: { value: "Updated" } });
     });
@@ -187,7 +226,7 @@ describe("ProfilePage — public_handle field", () => {
 
   // Этап 6: серверный фильтр имён отвечает 400 {code, reason} — пользователь должен
   // увидеть внятную причину, а не молча несохранённую форму.
-  it("показывает причину, когда фильтр имён отклонил публичное имя", async () => {
+  it("показывает причину, когда фильтр имён отклонил ник", async () => {
     updateMeMock.mockRejectedValue(
       new ApiError(400, "NAME_NOT_ALLOWED", "Такое имя не подходит. Выбери другое."),
     );
@@ -202,7 +241,7 @@ describe("ProfilePage — public_handle field", () => {
       </BrowserRouter>,
     );
 
-    const input = screen.getByLabelText("Публичное имя") as HTMLInputElement;
+    const input = screen.getByLabelText("Ник") as HTMLInputElement;
     await act(async () => {
       fireEvent.change(input, { target: { value: "мудак" } });
     });
@@ -216,9 +255,40 @@ describe("ProfilePage — public_handle field", () => {
     expect(screen.queryByText("Сохранено")).toBeNull();
   });
 
-  it("handles unset public_handle (null) by showing empty input", () => {
+  // Новая ошибка контракта (single-handle-work): занятый ник при сохранении
+  // профиля должен читаться понятно, а не как обобщённое «не удалось».
+  it("показывает «занято», когда сохранение ловит HANDLE_TAKEN", async () => {
+    updateMeMock.mockRejectedValue(
+      new ApiError(400, "HANDLE_TAKEN", "Это имя уже занято другим пользователем."),
+    );
+    useAuthStoreMock.mockImplementation((selector) => {
+      const state = { user: MOCK_USER, updateMe: updateMeMock };
+      return selector(state);
+    });
+
+    render(
+      <BrowserRouter>
+        <ProfilePage />
+      </BrowserRouter>,
+    );
+
+    const input = screen.getByLabelText("Ник") as HTMLInputElement;
+    await act(async () => {
+      fireEvent.change(input, { target: { value: "TakenHandle" } });
+    });
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Сохранить" }));
+    });
+
+    await waitFor(() => {
+      expect(screen.getByText("Это имя уже занято другим пользователем.")).toBeTruthy();
+    });
+    expect(screen.queryByText("Сохранено")).toBeNull();
+  });
+
+  it("handles unset handle (null) by showing empty input, honest header fallback and a CTA", () => {
     updateMeMock.mockResolvedValue(undefined);
-    const userWithoutHandle = { ...MOCK_USER, public_handle: null };
+    const userWithoutHandle = { ...MOCK_USER, handle: null };
     useAuthStoreMock.mockImplementation((selector) => {
       const state = {
         user: userWithoutHandle,
@@ -233,8 +303,14 @@ describe("ProfilePage — public_handle field", () => {
       </BrowserRouter>,
     );
 
-    const input = screen.getByLabelText("Публичное имя") as HTMLInputElement;
+    const input = screen.getByLabelText("Ник") as HTMLInputElement;
     expect(input.value).toBe("");
+
+    // Honest empty state: no "@null", no blank heading — same fallback text as
+    // before, plus a link to go set it right below.
+    expect(screen.getByRole("heading", { name: "Без ника" })).toBeTruthy();
+    expect(screen.queryByText(/^@null$/)).toBeNull();
+    expect(screen.getByRole("link", { name: "Задать имя в профиле" })).toBeTruthy();
   });
 });
 

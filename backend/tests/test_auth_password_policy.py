@@ -52,7 +52,7 @@ async def test_register_rejects_password_matching_email(
     assert "почт" in resp.json()["detail"]["reason"].lower()
 
 
-async def test_register_rejects_password_matching_nickname(
+async def test_register_rejects_password_matching_handle(
     client: AsyncClient, email_spy: EmailSpy
 ) -> None:
     resp = await client.post(
@@ -60,7 +60,7 @@ async def test_register_rejects_password_matching_nickname(
         json={
             "email": "nicky@example.com",
             "password": "SpeedCuber99",
-            "nickname": "speedcuber99",
+            "handle": "speedcuber99",
         },
     )
     assert resp.status_code == 400, resp.text
