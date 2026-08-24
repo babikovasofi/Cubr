@@ -3,7 +3,9 @@ from typing import Literal
 from uuid import UUID
 
 from fastapi_users import schemas
-from pydantic import Field, field_validator
+from pydantic import Field, computed_field, field_validator
+
+from app.services.cups import tier_bounds
 
 
 # Витрина профиля (V3). Список закрытый: свободный текст тут ничего не добавляет,
@@ -38,6 +40,33 @@ class UserRead(schemas.BaseUser[UUID]):
 
     avatar_url: str | None = None
     cups: int = 0
+
+    # Границы текущей ступени, ОДНИМ местом рассчитанные из `cups` через
+    # `app.services.cups.tier_bounds` (та же таблица порогов, что и у
+    # начисления) — фронт получает готовые пол/остаток и никогда не
+    # дублирует у себя таблицу ступеней, которая иначе неизбежно разъедется
+    # с бэкендом. `computed_field`, а не колонка на `User`: производное
+    # значение от `cups`, никогда не хранится отдельно.
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def cups_rank(self) -> str:
+        rank, _floor, _to_next = tier_bounds(self.cups)
+        return rank
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def cups_floor(self) -> int:
+        _rank, floor, _to_next = tier_bounds(self.cups)
+        return floor
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def cups_to_next(self) -> int | None:
+        """Cups still needed to reach the next rank's floor. `None` at the
+        top (red) rank — open-ended, nothing to count down to."""
+        _rank, _floor, to_next = tier_bounds(self.cups)
+        return to_next
+
     best_single_ms: int | None = None
     best_ao5_ms: int | None = None
     # The ONE display name (own header, friends, tournament/daily boards).
