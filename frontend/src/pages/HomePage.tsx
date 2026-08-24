@@ -9,7 +9,13 @@ import { Link, useNavigate } from "react-router-dom";
 import Button from "../components/Button";
 import HeroStickers from "../components/HeroStickers";
 import MiniGrid from "../components/MiniGrid";
+import EmptyState from "../components/EmptyState";
+import CupsRoad from "../components/CupsRoad";
+import BadgeGrid from "../components/BadgeGrid";
+import GoalCard from "../profile/GoalCard";
+import SolveProgressChart from "../components/SolveProgressChart";
 import { useIsHandheld } from "../lib/useIsHandheld";
+import { useSolves } from "../lib/useSolves";
 import { useT } from "../i18n/t";
 import { useAuthStore } from "../store/authStore";
 import { createRoom, saveDuelSessionToken } from "../api/duel";
@@ -324,7 +330,44 @@ function Dashboard() {
           </Link>
         ) : null}
       </section>
+
+      <DashboardProgress />
+
+      <CupsRoad />
+
+      <BadgeGrid />
     </div>
+  );
+}
+
+// Прогресс: цель + график по уже собранным сборкам. Пока сборок нет (или
+// история ещё грузится/упала) — ОДНА компактная заглушка-нудж на /solo, а не
+// три пустые карточки подряд (§AC2 плана design-fillers).
+function DashboardProgress() {
+  const t = useT();
+  const { state } = useSolves();
+  const hasSolves = state.kind === "ok" && state.solves.length > 0;
+
+  if (!hasSolves) {
+    return (
+      <EmptyState
+        title={t("Пока нет сборок")}
+        description={t("Собери первый кубик — здесь появятся цель и прогресс.")}
+        ctaLabel={t("Собери первый кубик →")}
+        ctaTo="/solo"
+      />
+    );
+  }
+
+  return (
+    <section className="flex flex-col gap-4">
+      <GoalCard solves={state.solves} />
+      <div className="flex flex-col gap-1">
+        <h2 className="font-sans text-h3 text-ink">{t("Прогресс времени")}</h2>
+        <span className="font-sans text-small text-muted">{t("за последние сборки")}</span>
+      </div>
+      <SolveProgressChart solves={state.solves} />
+    </section>
   );
 }
 

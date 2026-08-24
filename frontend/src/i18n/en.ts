@@ -813,4 +813,23 @@ export const EN: Record<string, string> = {
   "Не удалось изменить блокировку.": "Could not change the block.",
   // MESSAGE_NOT_ALLOWED (client.ts RU_BY_CODE) — та же строка, что и здесь.
   "Сообщение не разрешено.": "This message isn't allowed.",
+
+  // --- фillеры пустых экранов (swarm-report/design-fillers-plan.md) ---
+  "Пока нет сборок": "No solves yet",
+  "Собери первый кубик — здесь появятся цель и прогресс.":
+    "Solve your first cube — your goal and progress will show up here.",
+  "Собери первый кубик →": "Solve your first cube →",
+  "Рекордов пока нет": "No records yet",
+  "Появятся после первой засчитанной сборки в соло-режиме.":
+    "They'll show up after your first counted solo solve.",
+  "Лестница рангов": "Rank ladder",
+  Белый: "White",
+  Жёлтый: "Yellow",
+  Зелёный: "Green",
+  Синий: "Blue",
+  Оранжевый: "Orange",
+  Красный: "Red",
+  "от {n}": "from {n}",
+  "Все рубежи взяты.": "Every rank is unlocked.",
+  "До ранга «{rank}» осталось {n} кубков.": "{n} cups to «{rank}» rank.",
 };

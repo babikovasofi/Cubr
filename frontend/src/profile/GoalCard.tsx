@@ -10,6 +10,7 @@ import type { SolveRead } from "../api/solves";
 import { formatSolveMs } from "../lib/formatTime";
 import { useSettingsStore } from "../store/settingsStore";
 import { goalProgress, milestoneLabel, STREAK_TARGET } from "./goals";
+import EmptyState from "../components/EmptyState";
 import { useT } from "../i18n/t";
 
 function Shell({ children }: { children: React.ReactNode }) {
@@ -31,12 +32,12 @@ export default function GoalCard({ solves }: { solves: SolveRead[] }) {
 
   if (bestMs === null) {
     return (
-      <Shell>
-        <h3 className="font-sans text-h3 text-ink">{t("Цель")}</h3>
-        <p className="font-sans text-body text-muted">
-          {t("Появится после первой засчитанной сборки — рубеж подбирается по твоему рекорду.")}
-        </p>
-      </Shell>
+      <EmptyState
+        title={t("Цель")}
+        description={t(
+          "Появится после первой засчитанной сборки — рубеж подбирается по твоему рекорду.",
+        )}
+      />
     );
   }
 

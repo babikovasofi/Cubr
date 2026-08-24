@@ -13,10 +13,10 @@
 // to the domain's slow edge (the bottom of the plot, since faster is up) and
 // drawn with a distinct marker + a <title> carrying its real time.
 
-import { Link } from "react-router-dom";
 import type { SolveRead } from "../api/solves";
 import { useSettingsStore } from "../store/settingsStore";
 import { formatSolveMs, type TimeFormat } from "../lib/formatTime";
+import EmptyState from "./EmptyState";
 import { useT } from "../i18n/t";
 
 export interface ChartValidPoint {
@@ -203,16 +203,13 @@ export function buildChartModel(solves: SolveRead[], format: TimeFormat = "clock
 function EmptyCard() {
   const t = useT();
   return (
-    <div className="flex flex-col items-start gap-3 rounded-lg border border-line bg-surface p-6">
-      <p className="font-sans text-body text-muted">
-        {t(
-          "Пока недостаточно засчитанных сборок для графика. Собери кубик в соло-режиме — прогресс появится здесь.",
-        )}
-      </p>
-      <Link to="/solo" className="font-sans text-small font-bold text-primary">
-        {t("К соло-тренировке →")}
-      </Link>
-    </div>
+    <EmptyState
+      title={t(
+        "Пока недостаточно засчитанных сборок для графика. Собери кубик в соло-режиме — прогресс появится здесь.",
+      )}
+      ctaLabel={t("К соло-тренировке →")}
+      ctaTo="/solo"
+    />
   );
 }
 
