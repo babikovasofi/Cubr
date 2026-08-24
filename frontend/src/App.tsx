@@ -37,6 +37,7 @@ const DuelPage = lazy(() => import("./pages/DuelPage"));
 const DuelJoinPage = lazy(() => import("./pages/DuelJoinPage"));
 const OnboardingPage = lazy(() => import("./pages/OnboardingPage"));
 const ProfilePage = lazy(() => import("./pages/ProfilePage"));
+const CupsPage = lazy(() => import("./pages/CupsPage"));
 
 // Правила и приватность — длинная проза, и обе версии, русская и английская,
 // лежат в бандле целиком (перевод здесь пофайловый, а не по словарю). Читают их
@@ -84,19 +85,20 @@ function AuthMenu() {
     <div className="flex items-center gap-3" ref={ref}>
       {/* Бейдж кубков. Отступление от §5.6: заливка нейтральная, а не `warning` —
           жёлтая пилюля в шапке перетягивала на себя весь экран. Кубок — контуром
-          `ink`, не эмодзи.
+          `ink`, не эмодзи. Кликабелен — ведёт на отдельный экран дороги кубков.
 
           Показывается ТОЛЬКО когда кубки есть. Начислять их пока некому (рейтинг
           ждёт честностный кирпич), а «🏆 0» в шапке у каждого — обещание системы,
           которой нет. Появятся кубки — появится и бейдж, без правок здесь. */}
       {user.cups > 0 ? (
-        <span
-          className="inline-flex items-center gap-1.5 rounded-full border-2 border-ink bg-surface-2 px-3.5 py-1 font-sans text-small font-black text-ink"
+        <Link
+          to="/cups"
+          className="inline-flex items-center gap-1.5 rounded-full border-2 border-ink bg-surface-2 px-3.5 py-1 font-sans text-small font-black text-ink no-underline"
           aria-label={t("Кубки: {n}", { n: user.cups })}
         >
-          <TrophyIcon className="h-4 w-4" />
+          <TrophyIcon size={16} />
           {user.cups}
-        </span>
+        </Link>
       ) : null}
       <div className="relative">
         <button
@@ -340,6 +342,14 @@ export default function App() {
                 element={
                   <ProtectedRoute>
                     <ProfilePage />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/cups"
+                element={
+                  <ProtectedRoute>
+                    <CupsPage />
                   </ProtectedRoute>
                 }
               />

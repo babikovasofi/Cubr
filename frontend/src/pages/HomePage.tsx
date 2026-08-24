@@ -10,7 +10,8 @@ import Button from "../components/Button";
 import HeroStickers from "../components/HeroStickers";
 import MiniGrid from "../components/MiniGrid";
 import EmptyState from "../components/EmptyState";
-import CupsRoad from "../components/CupsRoad";
+import TrophyIcon from "../components/TrophyIcon";
+import { RANKS } from "../components/CupsRoad";
 import BadgeGrid from "../components/BadgeGrid";
 import GoalCard from "../profile/GoalCard";
 import SolveProgressChart from "../components/SolveProgressChart";
@@ -245,6 +246,34 @@ function Landing() {
   );
 }
 
+// Compact teaser (plan: cups-system) — the full ladder now lives on its own
+// screen at /cups (owner: "отдельный красивый экран как в brawl stars").
+// Reads `user` straight from the store, same as CupsRoad — no extra request.
+function CupsTeaser() {
+  const t = useT();
+  const user = useAuthStore((s) => s.user);
+  if (!user) return null;
+
+  const rank = RANKS.find((r) => r.name === user.cups_rank);
+
+  return (
+    <Link to="/cups" className={CARD_LINK}>
+      <div className="flex items-center gap-4">
+        <TrophyIcon size={24} className="text-ink" />
+        <div className="flex flex-col gap-1">
+          <span className="font-sans text-body font-bold text-ink [font-variant-numeric:tabular-nums]">
+            {user.cups.toLocaleString("ru-RU")}
+          </span>
+          {rank ? <span className="font-sans text-small text-muted">{t(rank.label)}</span> : null}
+        </div>
+      </div>
+      <span className="whitespace-nowrap font-sans text-small font-bold text-primary">
+        {t("Вся дорога →")}
+      </span>
+    </Link>
+  );
+}
+
 function Dashboard() {
   const t = useT();
   const navigate = useNavigate();
@@ -331,9 +360,9 @@ function Dashboard() {
         ) : null}
       </section>
 
-      <DashboardProgress />
+      <CupsTeaser />
 
-      <CupsRoad />
+      <DashboardProgress />
 
       <BadgeGrid />
     </div>

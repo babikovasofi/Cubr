@@ -1,7 +1,9 @@
 // @vitest-environment jsdom
 //
 // CupsRoad не хранит собственную таблицу порогов — все числа (floor,
-// to_next) идут прямо из user (см. src/components/CupsRoad.tsx).
+// to_next) идут прямо из user (см. src/components/CupsRoad.tsx). Компонент
+// теперь рисует ТОЛЬКО лестницу — большой счётчик кубков и подпись до
+// следующего ранга переехали на отдельный экран (см. CupsPage.test.tsx).
 
 import { describe, it, expect, afterEach } from "vitest";
 import { render, screen, cleanup } from "@testing-library/react";
@@ -35,32 +37,42 @@ function user(overrides: Partial<UserRead>): UserRead {
 afterEach(cleanup);
 
 describe("CupsRoad", () => {
-  it("cups в середине лесенки: виден текущий ранг, следующий и остаток, ровно один 🏆", () => {
+  it("рисует все шесть ступеней и не содержит эмодзи-кубок", () => {
     useAuthStore.setState({
       user: user({ cups: 450, cups_rank: "green", cups_floor: 300, cups_to_next: 300 }),
       status: "authed",
     });
     render(<CupsRoad />);
 
-    expect(screen.getByText("Зелёный")).toBeTruthy();
-    expect(screen.getByText(/До ранга «Синий» осталось 300 кубков\./)).toBeTruthy();
-    const trophies = screen.getAllByText(/🏆/);
-    expect(trophies).toHaveLength(1);
+    for (const label of ["Белый", "Жёлтый", "Зелёный", "Синий", "Оранжевый", "Красный"]) {
+      expect(screen.getByText(label)).toBeTruthy();
+    }
+    expect(screen.queryByText(/🏆/)).toBeNull();
   });
 
-  it("cups=0 → первый ранг, ещё не atMax", () => {
+  it("порог показан только у текущей ступени", () => {
+    useAuthStore.setState({
+      user: user({ cups: 450, cups_rank: "green", cups_floor: 300, cups_to_next: 300 }),
+      status: "authed",
+    });
+    render(<CupsRoad />);
+
+    expect(screen.getByText("от 300")).toBeTruthy();
+    // Соседние ступени не выдумывают свой порог.
+    expect(screen.queryAllByText(/^от /)).toHaveLength(1);
+  });
+
+  it("cups=0 → первая ступень текущая, без порога у остальных", () => {
     useAuthStore.setState({
       user: user({ cups: 0, cups_rank: "white", cups_floor: 0, cups_to_next: 100 }),
       status: "authed",
     });
     render(<CupsRoad />);
 
-    expect(screen.getByText("Белый")).toBeTruthy();
-    expect(screen.getByText(/До ранга «Жёлтый» осталось 100 кубков\./)).toBeTruthy();
-    expect(screen.queryByText(/Все рубежи взяты/)).toBeNull();
+    expect(screen.getByText("от 0")).toBeTruthy();
   });
 
-  it("cups_to_next === null (red, атMax) → все рубежи взяты, без строки следующего", () => {
+  it("cups_to_next === null (red, atMax) → последняя ступень текущая", () => {
     useAuthStore.setState({
       user: user({ cups: 1800, cups_rank: "red", cups_floor: 1500, cups_to_next: null }),
       status: "authed",
@@ -68,7 +80,6 @@ describe("CupsRoad", () => {
     render(<CupsRoad />);
 
     expect(screen.getByText("Красный")).toBeTruthy();
-    expect(screen.getByText(/Все рубежи взяты\./)).toBeTruthy();
-    expect(screen.queryByText(/До ранга/)).toBeNull();
+    expect(screen.getByText("от 1500")).toBeTruthy();
   });
 });

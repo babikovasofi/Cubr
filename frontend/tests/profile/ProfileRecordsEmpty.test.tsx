@@ -56,7 +56,8 @@ describe("ProfilePage — Records пустые", () => {
     expect(screen.getByText("Рекордов пока нет")).toBeTruthy();
     const link = screen.getByRole("link", { name: "К соло-тренировке →" });
     expect(link.getAttribute("href")).toBe("/solo");
-    expect(screen.getByText("42")).toBeTruthy();
+    // Кубки остаются числом (теперь и в бейдже шапки, и в карточке — оба «42»).
+    expect(screen.getAllByText("42").length).toBeGreaterThan(0);
     expect(screen.queryByText("Лучшая сборка")).toBeNull();
   });
 

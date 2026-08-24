@@ -850,4 +850,13 @@ export const EN: Record<string, string> = {
   "от {n}": "from {n}",
   "Все рубежи взяты.": "Every rank is unlocked.",
   "До ранга «{rank}» осталось {n} кубков.": "{n} cups to «{rank}» rank.",
+
+  // --- profile/duel/tournament polish (react-ts agent) ---
+  "{n} кубков": "{n} cups",
+  "Будь первым — попытка на неделю одна, но сейчас поле чистое.":
+    "Be first — you get one attempt this week, and the board is empty right now.",
+
+  // --- дорога кубков (swarm-report/cups-system-plan.md) ---
+  "Дорога кубков": "Trophy road",
+  "Вся дорога →": "See the whole road →",
 };

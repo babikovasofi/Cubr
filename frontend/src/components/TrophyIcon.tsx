@@ -1,11 +1,48 @@
 // Кубок контуром вместо эмодзи 🏆: эмодзи тянуло свой цвет и рендерилось
-// по-разному в системах. Тут — линия `currentColor` без заливки, значит иконка
-// берёт цвет текста и одинаково живёт в светлой и тёмной теме.
+// по-разному в системах. Тут — линия `currentColor` без заливки, значит
+// кубок-силуэт берёт цвет текста и одинаково живёт в светлой и тёмной теме.
+//
+// Owner's brief («Кубок-чаша + кубик»): внутри чаши — маленькая грань кубика
+// 3×3 (мотив §4 «мини-сетка-индикатор»). Дозировка по §1: не больше 2 ярких
+// цветов кубика на компонент — здесь ровно два акцентных квадратика
+// (`--warning`, `--primary`), остальные семь нейтральны (`currentColor` с
+// низкой прозрачностью), так что грань читается как деталь, а не заливка.
 
-export default function TrophyIcon({ className = "" }: { className?: string }) {
+// Координаты сетки 3×3 внутри чаши (viewBox 24×24, чаша ~ x 7–17, y 3.5–8).
+const CELL = 1.5;
+const GAP = 0.3;
+const START_X = 9.15;
+const START_Y = 4.1;
+
+const ACCENTS: Record<number, string> = {
+  0: "var(--warning)", // верхний левый — тёплый акцент
+  8: "var(--primary)", // нижний правый — фирменный синий
+};
+
+const GRID = Array.from({ length: 9 }, (_, i) => {
+  const col = i % 3;
+  const row = Math.floor(i / 3);
+  return {
+    x: START_X + col * (CELL + GAP),
+    y: START_Y + row * (CELL + GAP),
+    fill: ACCENTS[i] ?? "currentColor",
+    opacity: ACCENTS[i] ? 1 : 0.22,
+  };
+});
+
+export default function TrophyIcon({
+  className = "",
+  size = 24,
+}: {
+  className?: string;
+  /** Сторона иконки в px — кубок и грань масштабируются вместе (viewBox 24×24). */
+  size?: number;
+}) {
   return (
     <svg
       viewBox="0 0 24 24"
+      width={size}
+      height={size}
       fill="none"
       stroke="currentColor"
       strokeWidth={1.8}
@@ -21,6 +58,20 @@ export default function TrophyIcon({ className = "" }: { className?: string }) {
       <path d="M12 13v3" />
       <path d="M9.6 20.5c.8-1 1.2-2.2 1.2-4.5h2.4c0 2.3.4 3.5 1.2 4.5" />
       <path d="M8.2 20.5h7.6" />
+      <g strokeWidth={0}>
+        {GRID.map((cell, i) => (
+          <rect
+            key={i}
+            x={cell.x}
+            y={cell.y}
+            width={CELL}
+            height={CELL}
+            rx={0.3}
+            fill={cell.fill}
+            opacity={cell.opacity}
+          />
+        ))}
+      </g>
     </svg>
   );
 }
