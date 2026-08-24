@@ -1,4 +1,12 @@
-from app.models.chat import ChatBlock, ChatMessage, ChatRead, Conversation, UserPresence
+from app.models.chat import (
+    ChatBlock,
+    ChatEmailState,
+    ChatMessage,
+    ChatRead,
+    Conversation,
+    EmailPrefs,
+    UserPresence,
+)
 from app.models.cube import Cube
 from app.models.cups_event import CupsEvent
 from app.models.daily import DailyAttempt, DailyChallenge
@@ -14,6 +22,7 @@ from app.models.user_badge import UserBadge
 
 __all__ = [
     "ChatBlock",
+    "ChatEmailState",
     "ChatMessage",
     "ChatRead",
     "Conversation",
@@ -23,6 +32,7 @@ __all__ = [
     "DailyChallenge",
     "DuelParticipant",
     "DuelRoom",
+    "EmailPrefs",
     "Friendship",
     "OAuthAccount",
     "Scramble",

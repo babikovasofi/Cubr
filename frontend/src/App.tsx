@@ -44,6 +44,10 @@ const ProfilePage = lazy(() => import("./pages/ProfilePage"));
 const RulesPage = lazy(() => import("./pages/RulesPage"));
 const PrivacyPage = lazy(() => import("./pages/PrivacyPage"));
 
+// Reached from a chat-notification letter, never from in-app navigation — same
+// tier as /verify and /reset-password: public, no ProtectedRoute.
+const UnsubscribePage = lazy(() => import("./pages/UnsubscribePage"));
+
 // PLL trainer (plan: ll-trainer): text + a diagram + a button, no camera, no
 // timer, no socket — public like /rules and /privacy, no ProtectedRoute, no
 // DesktopOnlyGate (it's more usable on a phone than most ritual modes).
@@ -321,6 +325,7 @@ export default function App() {
               <Route path="/verify" element={<VerifyEmailPage />} />
               <Route path="/reset-password" element={<ResetPasswordPage />} />
               <Route path="/auth/callback" element={<OAuthCallbackPage />} />
+              <Route path="/unsubscribe" element={<UnsubscribePage />} />
 
               <Route
                 path="/onboarding"

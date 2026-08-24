@@ -109,7 +109,7 @@ export function parseErrorBody(
 }
 
 export interface RequestOptions {
-  method?: "GET" | "POST" | "PATCH" | "DELETE";
+  method?: "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
   /** JSON body — serialised and sent as application/json. */
   json?: unknown;
   /** Form body — sent as application/x-www-form-urlencoded (login only). */

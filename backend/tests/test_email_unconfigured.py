@@ -76,7 +76,14 @@ async def test_delivery_failure_does_not_log_the_recipient(
 async def test_a_configured_provider_still_sends(monkeypatch: pytest.MonkeyPatch) -> None:
     sent: list[tuple[str, str]] = []
 
-    async def _post(settings: object, to: str, subject: str, html: str, text: str = "") -> None:
+    async def _post(
+        settings: object,
+        to: str,
+        subject: str,
+        html: str,
+        text: str = "",
+        headers: dict[str, str] | None = None,
+    ) -> None:
         sent.append((to, subject))
 
     monkeypatch.setattr(email_service, "_post_resend", _post)

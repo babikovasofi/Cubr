@@ -7,6 +7,9 @@ os.environ.setdefault("SECRET", "kQ7m2Zt9v-unit-jwt-signing-key-0123456789abcdef
 os.environ.setdefault("RESET_VERIFY_SECRET", "wX4n8Rb1cY-unit-reset-verify-key-fedcba9876543210")
 os.environ.setdefault("SCRAMBLE_SIGN_SECRET", "p9Lm3Fq6Ts-unit-scramble-sign-key-abcdef0123456789")
 os.environ.setdefault("DUEL_SIGN_SECRET", "h5Yv1Kd8Wq-unit-duel-sign-key-0123456789abcdefzz")
+os.environ.setdefault(
+    "UNSUBSCRIBE_SIGN_SECRET", "r3Bq7Ht2Ux-unit-unsubscribe-sign-key-0123456789abcdef"
+)
 os.environ.setdefault("APP_ENV", "local")
 os.environ.setdefault("AUTH_RATE_LIMIT", "10/minute")
 os.environ.setdefault("LOGIN_ACCOUNT_RATE_LIMIT", "10/minute")
@@ -31,6 +34,7 @@ from app.db import Base, get_session  # noqa: E402
 from app.main import app  # noqa: E402
 from app.models import (  # noqa: E402
     ChatBlock,
+    ChatEmailState,
     ChatMessage,
     ChatRead,
     Conversation,
@@ -40,6 +44,7 @@ from app.models import (  # noqa: E402
     DailyChallenge,
     DuelParticipant,
     DuelRoom,
+    EmailPrefs,
     Friendship,
     OAuthAccount,
     Scramble,
@@ -128,6 +133,8 @@ async def test_engine() -> AsyncGenerator[AsyncEngine, None]:
                     ChatRead.__table__,
                     UserPresence.__table__,
                     ChatBlock.__table__,
+                    EmailPrefs.__table__,
+                    ChatEmailState.__table__,
                 ],
             )
         )

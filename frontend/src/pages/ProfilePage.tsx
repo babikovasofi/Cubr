@@ -2,7 +2,7 @@
 // single is the only meaningful one in 2.3; ao5 renders as "—"), an editable
 // handle + avatar-URL (PATCH /api/users/me), and solve history (GET /api/solves).
 
-import { useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import Button from "../components/Button";
 import Input from "../components/Input";
 import Spinner from "../components/Spinner";
@@ -16,6 +16,7 @@ import ShowcaseForm from "../profile/ShowcaseForm";
 import HandleField from "../profile/HandleField";
 import { formatHandle } from "../lib/handle";
 import SegmentedToggle from "../components/SegmentedToggle";
+import { getEmailPrefs, updateEmailPrefs } from "../api/email";
 import { useAuthStore } from "../store/authStore";
 import { useSettingsStore } from "../store/settingsStore";
 import { formatSolveMs, type TimeFormat } from "../lib/formatTime";
@@ -205,7 +206,83 @@ function SettingsSection() {
           className="self-start"
         />
       </div>
+      <ChatEmailToggle />
     </section>
+  );
+}
+
+type ChatEmailState =
+  { kind: "loading" } | { kind: "error" } | { kind: "ready"; enabled: boolean; saving: boolean };
+
+// GET/PUT /api/email/prefs (swarm-report/friend-chat-plan.md §7 "Этап B").
+// Same load/error/ready dance as useSolves — no store for this, it's a single
+// screen and a single value, so a local hook is enough.
+function ChatEmailToggle() {
+  const t = useT();
+  const [state, setState] = useState<ChatEmailState>({ kind: "loading" });
+
+  useEffect(() => {
+    let alive = true;
+    getEmailPrefs()
+      .then((prefs) => {
+        if (alive) setState({ kind: "ready", enabled: prefs.chat_email_enabled, saving: false });
+      })
+      .catch(() => {
+        if (alive) setState({ kind: "error" });
+      });
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  const options: { value: "on" | "off"; label: string }[] = [
+    { value: "on", label: t("Включены") },
+    { value: "off", label: t("Выключены") },
+  ];
+
+  async function onChange(next: "on" | "off") {
+    if (state.kind !== "ready") return;
+    const enabled = next === "on";
+    const prev = state.enabled;
+    setState({ kind: "ready", enabled, saving: true });
+    try {
+      await updateEmailPrefs({ chat_email_enabled: enabled });
+      setState({ kind: "ready", enabled, saving: false });
+    } catch {
+      // Revert on failure — no toast here, the segmented control snapping
+      // back to the previous value already tells the story.
+      setState({ kind: "ready", enabled: prev, saving: false });
+    }
+  }
+
+  return (
+    <div className="flex flex-col gap-2">
+      <span className="font-sans text-small font-bold text-ink">
+        {t("Письма о новых сообщениях от друзей")}
+      </span>
+      <p className="font-sans text-small text-muted">
+        {t(
+          "Если ты давно не заходил на сайт, а друг тебе написал, пришлём письмо — не чаще раза в час и без текста сообщения.",
+        )}
+      </p>
+      {state.kind === "loading" ? (
+        <span className="font-sans text-small text-muted">{t("Загружаю настройку писем…")}</span>
+      ) : null}
+      {state.kind === "error" ? (
+        <span role="alert" className="font-sans text-small text-danger">
+          {t("Не удалось загрузить настройку писем.")}
+        </span>
+      ) : null}
+      {state.kind === "ready" ? (
+        <SegmentedToggle<"on" | "off">
+          value={state.enabled ? "on" : "off"}
+          onChange={(v) => void onChange(v)}
+          label={t("Письма о новых сообщениях от друзей")}
+          options={options}
+          className="self-start"
+        />
+      ) : null}
+    </div>
   );
 }
 

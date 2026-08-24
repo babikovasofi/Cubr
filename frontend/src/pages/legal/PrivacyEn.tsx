@@ -15,7 +15,7 @@ export default function PrivacyEn() {
   return (
     <DocPage
       title="Data and privacy"
-      updated="27 July 2026"
+      updated="24 August 2026"
       lead="What happens to the video, what the server stores, what other players see, and how to delete it."
     >
       <DocSection title="Camera video">
@@ -58,6 +58,10 @@ export default function PrivacyEn() {
             <>
               Weekly-challenge and daily-scramble attempts, duel rooms and their results, badges.
             </>,
+            <>
+              Direct messages to friends: the text, when it was sent, and a read marker. Kept for as
+              long as both accounts exist, and never longer than 12 months from when it was sent.
+            </>,
           ]}
         />
       </DocSection>
@@ -72,6 +76,7 @@ export default function PrivacyEn() {
             </>,
             <>The handle is set by hand and empty by default — by default you are «Anonymous».</>,
             <>In a duel the opponent sees status, time and outcome — and nothing else.</>,
+            <>A friend sees your public handle and whether you're on the site right now.</>,
           ]}
         />
       </DocSection>
@@ -101,8 +106,9 @@ export default function PrivacyEn() {
         <DocList
           items={[
             <>
-              The email provider that delivers confirmation and password-reset letters; it receives
-              the recipient address and the letter's text.
+              The email provider that delivers confirmation, password-reset, and new-message
+              notification letters; it receives the recipient address and the letter's text. The
+              content of the message itself never goes into the letter.
             </>,
             <>Google — only if you chose Google sign-in yourself.</>,
             <>
@@ -125,6 +131,10 @@ export default function PrivacyEn() {
               . There is no self-service delete button yet; requests are handled by hand.
             </>,
             <>The same address for questions about what is stored about you.</>,
+            <>
+              Unsubscribe from new-message emails with the button in the letter itself, or in your
+              profile.
+            </>,
           ]}
         />
       </DocSection>

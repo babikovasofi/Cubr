@@ -10,11 +10,14 @@ import { useSettingsStore } from "../../src/store/settingsStore";
 import { useLangStore } from "../../src/store/langStore";
 import { loadEnDict } from "../../src/i18n/t";
 
-const { useAuthStoreMock, updateMeMock, listSolvesMock } = vi.hoisted(() => ({
-  updateMeMock: vi.fn(),
-  useAuthStoreMock: vi.fn(),
-  listSolvesMock: vi.fn(),
-}));
+const { useAuthStoreMock, updateMeMock, listSolvesMock, getEmailPrefsMock, updateEmailPrefsMock } =
+  vi.hoisted(() => ({
+    updateMeMock: vi.fn(),
+    useAuthStoreMock: vi.fn(),
+    listSolvesMock: vi.fn(),
+    getEmailPrefsMock: vi.fn(),
+    updateEmailPrefsMock: vi.fn(),
+  }));
 
 vi.mock("../../src/store/authStore", () => ({
   useAuthStore: useAuthStoreMock,
@@ -28,6 +31,12 @@ vi.mock("../../src/cubes/CubeList", () => ({
 // Mock listSolves
 vi.mock("../../src/api/solves", () => ({
   listSolves: listSolvesMock,
+}));
+
+// Mock email API
+vi.mock("../../src/api/email", () => ({
+  getEmailPrefs: getEmailPrefsMock,
+  updateEmailPrefs: updateEmailPrefsMock,
 }));
 
 const MOCK_USER = {
@@ -48,6 +57,11 @@ beforeEach(() => {
   useAuthStoreMock.mockReset();
   listSolvesMock.mockReset();
   listSolvesMock.mockResolvedValue([]);
+  getEmailPrefsMock.mockReset();
+  updateEmailPrefsMock.mockReset();
+  // Default: email prefs enabled, so existing tests don't break
+  getEmailPrefsMock.mockResolvedValue({ chat_email_enabled: true });
+  updateEmailPrefsMock.mockResolvedValue({ chat_email_enabled: true });
 });
 
 describe("ProfilePage — поле handle", () => {
@@ -474,5 +488,181 @@ describe("ProfilePage — английский", () => {
     } finally {
       act(() => useLangStore.setState({ lang: "ru" }));
     }
+  });
+});
+
+describe("ProfilePage — ChatEmailToggle (email preferences)", () => {
+  beforeEach(() => {
+    getEmailPrefsMock.mockReset();
+    updateEmailPrefsMock.mockReset();
+    updateMeMock.mockReset();
+    useAuthStoreMock.mockReset();
+  });
+
+  it("reads GET /email/prefs on mount and shows current state", async () => {
+    getEmailPrefsMock.mockResolvedValue({ chat_email_enabled: true });
+    useAuthStoreMock.mockImplementation((selector) =>
+      selector({ user: MOCK_USER, updateMe: updateMeMock }),
+    );
+
+    render(
+      <BrowserRouter>
+        <ProfilePage />
+      </BrowserRouter>,
+    );
+
+    // Section title
+    expect(screen.getByText("Письма о новых сообщениях от друзей")).toBeTruthy();
+
+    // Wait for the toggle to load
+    await waitFor(() => {
+      expect(getEmailPrefsMock).toHaveBeenCalledTimes(1);
+    });
+
+    // Toggle should show "on" as selected
+    await waitFor(() => {
+      const toggles = screen.getAllByRole("radio");
+      const onToggle = toggles.find((r) => r.value === "on");
+      expect(onToggle).toBeTruthy();
+      expect(onToggle?.checked).toBe(true);
+    });
+  });
+
+  it("shows loading state initially then ready state", async () => {
+    getEmailPrefsMock.mockResolvedValue({ chat_email_enabled: true });
+    useAuthStoreMock.mockImplementation((selector) =>
+      selector({ user: MOCK_USER, updateMe: updateMeMock }),
+    );
+
+    render(
+      <BrowserRouter>
+        <ProfilePage />
+      </BrowserRouter>,
+    );
+
+    // Initially shows loading
+    expect(screen.getByText("Загружаю настройку писем…")).toBeTruthy();
+
+    // After fetch, loading disappears and toggle appears
+    await waitFor(() => {
+      expect(screen.queryByText("Загружаю настройку писем…")).toBeNull();
+      expect(screen.getByRole("radio", { name: "Включены" })).toBeTruthy();
+    });
+  });
+
+  it("shows error state when GET /email/prefs fails", async () => {
+    getEmailPrefsMock.mockRejectedValue(new Error("Network error"));
+    useAuthStoreMock.mockImplementation((selector) =>
+      selector({ user: MOCK_USER, updateMe: updateMeMock }),
+    );
+
+    render(
+      <BrowserRouter>
+        <ProfilePage />
+      </BrowserRouter>,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText("Не удалось загрузить настройку писем.")).toBeTruthy();
+    });
+  });
+
+  it("calls PUT /email/prefs when toggling from on to off", async () => {
+    getEmailPrefsMock.mockResolvedValue({ chat_email_enabled: true });
+    updateEmailPrefsMock.mockResolvedValue({ chat_email_enabled: false });
+    useAuthStoreMock.mockImplementation((selector) =>
+      selector({ user: MOCK_USER, updateMe: updateMeMock }),
+    );
+
+    render(
+      <BrowserRouter>
+        <ProfilePage />
+      </BrowserRouter>,
+    );
+
+    // Wait for load
+    await waitFor(() => {
+      expect(getEmailPrefsMock).toHaveBeenCalledTimes(1);
+    });
+
+    // Find and click the "off" toggle
+    const offToggle = await screen.findByRole("radio", { name: "Выключены" });
+    await act(async () => {
+      fireEvent.click(offToggle);
+    });
+
+    // Verify PUT was called with the right data
+    await waitFor(() => {
+      expect(updateEmailPrefsMock).toHaveBeenCalled();
+      const callArgs = updateEmailPrefsMock.mock.calls[0];
+      expect(callArgs[0]).toEqual({ chat_email_enabled: false });
+    });
+  });
+
+  it("calls PUT /email/prefs when toggling from off to on", async () => {
+    getEmailPrefsMock.mockResolvedValue({ chat_email_enabled: false });
+    updateEmailPrefsMock.mockResolvedValue({ chat_email_enabled: true });
+    useAuthStoreMock.mockImplementation((selector) =>
+      selector({ user: MOCK_USER, updateMe: updateMeMock }),
+    );
+
+    render(
+      <BrowserRouter>
+        <ProfilePage />
+      </BrowserRouter>,
+    );
+
+    // Wait for load
+    await waitFor(() => {
+      expect(getEmailPrefsMock).toHaveBeenCalledTimes(1);
+    });
+
+    // Find and click the "on" toggle
+    const onToggle = await screen.findByRole("radio", { name: "Включены" });
+    await act(async () => {
+      fireEvent.click(onToggle);
+    });
+
+    // Verify PUT was called with the right data
+    await waitFor(() => {
+      expect(updateEmailPrefsMock).toHaveBeenCalled();
+      const callArgs = updateEmailPrefsMock.mock.calls[0];
+      expect(callArgs[0]).toEqual({ chat_email_enabled: true });
+    });
+  });
+
+  it("reverts toggle on PUT failure", async () => {
+    getEmailPrefsMock.mockResolvedValue({ chat_email_enabled: true });
+    updateEmailPrefsMock.mockRejectedValue(new Error("Save failed"));
+    useAuthStoreMock.mockImplementation((selector) =>
+      selector({ user: MOCK_USER, updateMe: updateMeMock }),
+    );
+
+    render(
+      <BrowserRouter>
+        <ProfilePage />
+      </BrowserRouter>,
+    );
+
+    // Wait for load
+    await waitFor(() => {
+      expect(getEmailPrefsMock).toHaveBeenCalledTimes(1);
+    });
+
+    // Initially "on"
+    const onToggle = await screen.findByRole("radio", { name: "Включены" });
+    expect(onToggle.checked).toBe(true);
+
+    // Try to toggle to "off"
+    const offToggle = screen.getByRole("radio", { name: "Выключены" });
+    await act(async () => {
+      fireEvent.click(offToggle);
+    });
+
+    // PUT fails, toggle should revert back to "on"
+    await waitFor(() => {
+      expect(updateEmailPrefsMock).toHaveBeenCalledTimes(1);
+      expect(screen.getByRole("radio", { name: "Включены", checked: true })).toBeTruthy();
+    });
   });
 });

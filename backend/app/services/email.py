@@ -40,38 +40,61 @@ _BREVO_ENDPOINT = "https://api.brevo.com/v3/smtp/email"
 
 
 async def _post_resend(
-    settings: Settings, to: str, subject: str, html: str, text: str = ""
+    settings: Settings,
+    to: str,
+    subject: str,
+    html: str,
+    text: str = "",
+    headers: dict[str, str] | None = None,
 ) -> None:
+    payload: dict[str, object] = {
+        "from": settings.EMAIL_FROM,
+        "to": [to],
+        "subject": subject,
+        "html": html,
+        # Текстовая часть рядом с HTML — не украшение: письмо без неё
+        # получает штраф у спам-фильтров, а часть людей читает почту в
+        # клиентах, которые HTML не показывают вовсе.
+        "text": text,
+    }
+    # Resend's `headers` field — see https://resend.com/docs/api-reference/emails/send-email.
+    # Used by chat-notification mail for `List-Unsubscribe`/`List-Unsubscribe-Post`
+    # (RFC 8058) — see `send_chat_notification`. Omitted entirely (not sent as
+    # `{}`) when the caller has none, matching every other transactional
+    # email's payload shape.
+    if headers:
+        payload["headers"] = headers
     async with httpx.AsyncClient(timeout=10.0) as client:
         resp = await client.post(
             _RESEND_ENDPOINT,
             headers={"Authorization": f"Bearer {settings.RESEND_API_KEY}"},
-            json={
-                "from": settings.EMAIL_FROM,
-                "to": [to],
-                "subject": subject,
-                "html": html,
-                # Текстовая часть рядом с HTML — не украшение: письмо без неё
-                # получает штраф у спам-фильтров, а часть людей читает почту в
-                # клиентах, которые HTML не показывают вовсе.
-                "text": text,
-            },
+            json=payload,
         )
         resp.raise_for_status()
 
 
-async def _post_brevo(settings: Settings, to: str, subject: str, html: str, text: str = "") -> None:
+async def _post_brevo(
+    settings: Settings,
+    to: str,
+    subject: str,
+    html: str,
+    text: str = "",
+    headers: dict[str, str] | None = None,
+) -> None:
+    payload: dict[str, object] = {
+        "sender": {"email": settings.EMAIL_FROM},
+        "to": [{"email": to}],
+        "subject": subject,
+        "htmlContent": html,
+        "textContent": text,
+    }
+    if headers:
+        payload["headers"] = headers
     async with httpx.AsyncClient(timeout=10.0) as client:
         resp = await client.post(
             _BREVO_ENDPOINT,
             headers={"api-key": settings.BREVO_API_KEY},
-            json={
-                "sender": {"email": settings.EMAIL_FROM},
-                "to": [{"email": to}],
-                "subject": subject,
-                "htmlContent": html,
-                "textContent": text,
-            },
+            json=payload,
         )
         resp.raise_for_status()
 
@@ -96,7 +119,9 @@ def _provider_key(settings: Settings) -> str:
     return settings.BREVO_API_KEY if settings.EMAIL_PROVIDER == "brevo" else settings.RESEND_API_KEY
 
 
-async def _send(to: str, subject: str, html: str, text: str = "") -> None:
+async def _send(
+    to: str, subject: str, html: str, text: str = "", headers: dict[str, str] | None = None
+) -> None:
     settings = get_settings()
 
     # Провайдер не настроен — сказать об этом ГРОМКО и один раз за процесс.
@@ -113,9 +138,9 @@ async def _send(to: str, subject: str, html: str, text: str = "") -> None:
 
     try:
         if settings.EMAIL_PROVIDER == "brevo":
-            await _post_brevo(settings, to, subject, html, text)
+            await _post_brevo(settings, to, subject, html, text, headers)
         else:
-            await _post_resend(settings, to, subject, html, text)
+            await _post_resend(settings, to, subject, html, text, headers)
     except httpx.HTTPStatusError as e:
         # Провайдер ОТВЕТИЛ и отказал — причина лежит в теле ответа, и только там.
         #
@@ -196,3 +221,80 @@ async def send_reset_email(to: str, token: str) -> None:
         heading=_RESET_HEADING, intro=_RESET_INTRO, link=link, expires_note=expires
     )
     await _send(to, "Новый пароль — Cubr", html, text)
+
+
+def _chat_notification_intro(sender_handle: str, count: int) -> str:
+    """Fact only — NEVER the message text (friend-chat plan §5, "Что
+    показываем в письме"): who, and how many. `count` is always >= 1 (a
+    sweep pass never composes an email for zero pending messages).
+    """
+    if count == 1:
+        return f"{sender_handle} написал вам в Cubr. Загляните в переписку, чтобы прочитать."
+    return (
+        f"{sender_handle} написал вам {count} новых сообщений в Cubr. "
+        "Загляните в переписку, чтобы прочитать."
+    )
+
+
+async def send_chat_notification(
+    to: str,
+    sender_handle: str,
+    count: int,
+    open_link: str,
+    unsubscribe_link: str,
+    list_unsubscribe_post_url: str,
+) -> None:
+    """One chat-notification email, covering `count` pending messages from
+    `sender_handle` in one conversation (`app.jobs.chat_notify`'s sweep
+    sends at most one of these per conversation per pass — see that
+    module).
+
+    Body is fact-only (public handle + count) — see `_chat_notification_intro`
+    and plan §5: the message TEXT never appears here, not in the HTML, not
+    in the plain-text part, and therefore never in Resend's/Brevo's logs or
+    ours either.
+
+    Sets `List-Unsubscribe` (both a `mailto:` fallback is deliberately
+    OMITTED — we have no inbound-mail handler to receive it, and an
+    unhandled mailto is worse than a single well-formed HTTPS URI, which
+    RFC 8058 requires "at least one" of) and `List-Unsubscribe-Post:
+    List-Unsubscribe=One-Click` (RFC 8058) so a one-click-capable mail
+    client can unsubscribe a recipient without them ever opening the
+    email — the alternative most people reach for instead is the "Spam"
+    button, which costs the whole domain's reputation (plan §1.2/§9).
+
+    On mail-provider failure: logs and swallows, exactly like `_send` — the
+    sweep job that calls this must never crash because a provider hiccupped.
+    """
+    heading = "Новое сообщение"
+    intro = _chat_notification_intro(sender_handle, count)
+    expires_note = "Ссылка на переписку не имеет срока действия — заходите, когда удобно."
+    html = email_template.render(
+        preheader=f"{sender_handle} написал вам в Cubr.",
+        heading=heading,
+        intro=intro,
+        button_label="Открыть переписку",
+        link=open_link,
+        expires_note=expires_note,
+        # `email_template.render` HTML-escapes `ignore_note` like every other
+        # text field (it has no markup slot for a second link) — so this is
+        # a plain, escaped URL, not a clickable anchor. Still copy-pasteable,
+        # same as the "if the button doesn't open" line above it.
+        ignore_note=f"Не хотите получать такие письма? Отписаться: {unsubscribe_link}",
+    )
+    text = (
+        email_template.to_plain_text(
+            heading=heading, intro=intro, link=open_link, expires_note=expires_note
+        )
+        + f"\nОтписаться от писем о новых сообщениях: {unsubscribe_link}\n"
+    )
+    await _send(
+        to,
+        f"Новое сообщение от {sender_handle} — Cubr",
+        html,
+        text,
+        headers={
+            "List-Unsubscribe": f"<{list_unsubscribe_post_url}>",
+            "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
+        },
+    )
