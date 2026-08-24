@@ -35,6 +35,9 @@ class Settings(BaseSettings):
     SCRAMBLE_SIGN_SECRET: str = Field(min_length=32)
     # Separate secret signing duel WS session/reconnect tokens (split from all of the above).
     DUEL_SIGN_SECRET: str = Field(min_length=32)
+    # Separate secret signing the chat-email unsubscribe token (split from all of the
+    # above) — see `app.services.unsubscribe_token`.
+    UNSUBSCRIBE_SIGN_SECRET: str = Field(min_length=32)
 
     # --- Auth cookie ---
     JWT_LIFETIME_SECONDS: int = 3600
@@ -159,6 +162,15 @@ class Settings(BaseSettings):
     CHAT_SEND_DAILY_LIMIT: str = "300/day"
     CHAT_POLL_RATE_LIMIT: str = "30/minute"
 
+    # --- Friend chat (Этап B: письма) ---
+    # N5 hourly throttle: minimum gap between two chat-email sends for the
+    # same (conversation, recipient) — plan §4.
+    CHAT_EMAIL_INTERVAL_SECONDS: int = 3600
+    # Daily cap on chat-notification emails PER (conversation, recipient) —
+    # the 4th pending message of the day gets `throttled_expired` instead of
+    # a 4th email (plan §4, "Ограничитель сверху").
+    CHAT_EMAIL_MAX_PER_CONVERSATION_PER_DAY: int = 3
+
     # --- Process topology ---
     # Duel rooms live in one process's memory (app.services.duel_manager) — no
     # Redis/shared-state backing this MVP brick. main.py's startup lifespan
@@ -195,7 +207,13 @@ class Settings(BaseSettings):
         Fail-closed regardless of APP_ENV: a prod deploy that forgets to set
         APP_ENV must not silently boot with the `.env.example` placeholders.
         """
-        for name in ("SECRET", "RESET_VERIFY_SECRET", "SCRAMBLE_SIGN_SECRET", "DUEL_SIGN_SECRET"):
+        for name in (
+            "SECRET",
+            "RESET_VERIFY_SECRET",
+            "SCRAMBLE_SIGN_SECRET",
+            "DUEL_SIGN_SECRET",
+            "UNSUBSCRIBE_SIGN_SECRET",
+        ):
             value: str = getattr(self, name)
             lowered = value.lower()
             if any(fragment in lowered for fragment in _PLACEHOLDER_FRAGMENTS):

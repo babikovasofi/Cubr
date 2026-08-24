@@ -814,6 +814,24 @@ export const EN: Record<string, string> = {
   // MESSAGE_NOT_ALLOWED (client.ts RU_BY_CODE) — та же строка, что и здесь.
   "Сообщение не разрешено.": "This message isn't allowed.",
 
+  // --- письма о чате и отписка (swarm-report/friend-chat-plan.md, этап B) ---
+  "Письма о новых сообщениях": "Message notification emails",
+  "Больше не получать письмо, когда друг пишет тебе, а ты давно не заходил на сайт. Сами сообщения в чате никуда не денутся.":
+    "Stop getting an email when a friend messages you and you haven't visited in a while. The messages themselves stay in the chat either way.",
+  "Отписаться от писем о новых сообщениях": "Unsubscribe from new-message emails",
+  "Отписываю…": "Unsubscribing…",
+  "Готово — письма о новых сообщениях больше не приходят. Включить их снова можно в профиле.":
+    "Done — new-message emails are off. You can turn them back on in your profile.",
+  "Ссылка отписки недействительна или устарела. Отключить письма можно в профиле.":
+    "This unsubscribe link is invalid or expired. You can turn the emails off in your profile.",
+  "Письма о новых сообщениях от друзей": "New-message emails from friends",
+  "Если ты давно не заходил на сайт, а друг тебе написал, пришлём письмо — не чаще раза в час и без текста сообщения.":
+    "If you haven't visited in a while and a friend messages you, we'll send an email — at most once an hour, and never with the message text.",
+  Включены: "On",
+  Выключены: "Off",
+  "Загружаю настройку писем…": "Loading the email setting…",
+  "Не удалось загрузить настройку писем.": "Could not load the email setting.",
+
   // --- фillеры пустых экранов (swarm-report/design-fillers-plan.md) ---
   "Пока нет сборок": "No solves yet",
   "Собери первый кубик — здесь появятся цель и прогресс.":

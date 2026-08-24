@@ -114,7 +114,14 @@ async def test_both_letters_go_out_with_html_and_text(
     """Оба письма собираются шаблоном и уходят с текстовой частью."""
     captured: dict[str, str] = {}
 
-    async def _post(settings: object, to: str, subject: str, html: str, text: str = "") -> None:
+    async def _post(
+        settings: object,
+        to: str,
+        subject: str,
+        html: str,
+        text: str = "",
+        headers: dict[str, str] | None = None,
+    ) -> None:
         captured.update(subject=subject, html=html, text=text)
 
     monkeypatch.setattr(email_service, "_post_resend", _post)

@@ -194,3 +194,51 @@ class ChatBlock(Base):
         GUID, ForeignKey("user.id", ondelete="CASCADE"), primary_key=True
     )
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class EmailPrefs(Base):
+    """Chat-email opt-out — Этап B. Lazily created: NO row for a user means
+    "enabled" (see `app.services.chat_notify.NotifyContext.
+    recipient_chat_email_enabled`, N6). `token_version` invalidates every
+    unsubscribe link signed against an older version — see
+    `app.services.unsubscribe_token`: unsubscribing *or* re-subscribing
+    bumps it, so a stale link (e.g. from an already-actioned or archived
+    email) can never flip the opposite of what its holder currently sees in
+    their inbox.
+    """
+
+    __tablename__ = "email_prefs"
+
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        GUID, ForeignKey("user.id", ondelete="CASCADE"), primary_key=True
+    )
+    chat_email_enabled: Mapped[bool] = mapped_column(default=True, server_default=text("true"))
+    unsubscribed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    token_version: Mapped[int] = mapped_column(default=1, server_default="1")
+
+
+class ChatEmailState(Base):
+    """Hourly-throttle + daily-cap bookkeeping for ONE `(conversation,
+    recipient)` pair — Этап B (plan §3, "chat_email_state — часовой
+    троттл"). Deliberately keyed per conversation, not globally per
+    recipient: two different friends messaging the same evening are two
+    separate emails (plan §3).
+
+    `emails_sent` counts sends for the CURRENT calendar day only — the
+    sweep job (`app.jobs.chat_notify`) resets it to 0 the first time it
+    writes to this row on a new UTC day (tracked via `last_email_at`'s
+    date), rather than adding a separate `emails_sent_date` column: the
+    invariant "count belongs to the day of the last send" is exactly what
+    `last_email_at` already encodes.
+    """
+
+    __tablename__ = "chat_email_state"
+
+    conversation_id: Mapped[uuid.UUID] = mapped_column(
+        GUID, ForeignKey("conversations.id", ondelete="CASCADE"), primary_key=True
+    )
+    recipient_id: Mapped[uuid.UUID] = mapped_column(
+        GUID, ForeignKey("user.id", ondelete="CASCADE"), primary_key=True
+    )
+    last_email_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    emails_sent: Mapped[int] = mapped_column(default=0, server_default="0")
