@@ -83,9 +83,21 @@ def render(
     link: str,
     expires_note: str,
     ignore_note: str,
+    unsubscribe_url: str | None = None,
 ) -> str:
-    """Собрать письмо. Все тексты приходят снаружи — шаблон ничего не решает сам."""
+    """Собрать письмо. Все тексты приходят снаружи — шаблон ничего не решает сам.
+
+    `unsubscribe_url` (опц.): если задан, к строке `ignore_note` дописывается
+    кликабельная ссылка со словом «Отписаться» — сам URL (с токеном) в тексте не
+    показывается, только в `href`. Письма verify/reset его не передают и
+    рендерятся ровно как раньше.
+    """
     safe_link = escape(link, quote=True)
+    unsub_html = (
+        f' <a href="{escape(unsubscribe_url, quote=True)}" style="color:{_PRIMARY};">Отписаться</a>'
+        if unsubscribe_url
+        else ""
+    )
     return f"""\
 <!doctype html>
 <html lang="ru">
@@ -153,7 +165,7 @@ def render(
             <p style="margin:16px 0 0 0;font-family:{_FONT};font-size:13px;
                       line-height:1.6;color:{_MUTED};">{escape(expires_note)}</p>
             <p style="margin:8px 0 0 0;font-family:{_FONT};font-size:13px;
-                      line-height:1.6;color:{_MUTED};">{escape(ignore_note)}</p>
+                      line-height:1.6;color:{_MUTED};">{escape(ignore_note)}{unsub_html}</p>
           </td>
         </tr>
       </table>
