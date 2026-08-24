@@ -4,16 +4,21 @@
 // whether the result reached the server (plan §B #8).
 
 import { Link } from "react-router-dom";
-import Button from "../components/Button";
 import Timer from "../components/Timer";
 import type { CardData } from "../share/resultCard";
 import ShareCardButton from "../share/ShareCardButton";
 import type { SaveState } from "./solveSave";
+import NextCard from "./NextCard";
+import type { SoloHistory } from "./useSoloHistory";
 import { useT } from "../i18n/t";
 
 interface ResultScreenProps {
   seconds: string; // e.g. "12.34"
   dnf: boolean;
+  // Elapsed time of THIS solve, ms — raw, not the formatted `seconds` string.
+  // Meaningless when `dnf` (a DNF carries no real time). Feeds NextCard's
+  // "vs. average/record" comparison (plan: solo-next-card).
+  elapsedMs: number;
   // false = seeded profile + one-white-face quick-adjust (casual only). A full
   // 6-face registration is validated=true. Solo is casual now, so a non-validated
   // result is still saved, but flagged honestly (skeptic HIGH#4).
@@ -23,6 +28,9 @@ interface ResultScreenProps {
   cameraVerified: boolean;
   onAgain: () => void;
   saveState: SaveState;
+  // Baseline solve history (before this attempt) for the "what's next" card —
+  // see useSoloHistory. Reuses the existing GET /solves, no new endpoint.
+  history: SoloHistory;
   // Absent on older/replayed sessions that never threaded a scramble through —
   // the share card is skipped rather than drawn without it (plan: result-share-card).
   scramble?: string;
@@ -49,7 +57,7 @@ function SaveStatus({ saveState }: { saveState: SaveState }) {
     case "unauthorized":
       return (
         <p role="alert" className="font-sans text-small text-danger">
-          Сессия истекла. Результат не потерян —{" "}
+          {t("Сессия истекла. Результат не потерян —")}{" "}
           <Link to="/login?next=/solo" className="font-bold text-primary">
             {t("войди заново")}
           </Link>
@@ -70,10 +78,12 @@ function SaveStatus({ saveState }: { saveState: SaveState }) {
 export default function ResultScreen({
   seconds,
   dnf,
+  elapsedMs,
   validated,
   cameraVerified,
   onAgain,
   saveState,
+  history,
   scramble,
 }: ResultScreenProps) {
   const t = useT();
@@ -95,8 +105,8 @@ export default function ResultScreen({
       <Timer value={dnf ? "DNF" : seconds} phase={dnf ? "dnf" : "success"} />
       <p className="max-w-prose font-sans text-body text-muted">
         {dnf
-          ? "Руки или кубик пропали из кадра во время сборки. Попробуй ещё раз."
-          : "Готово! Хочешь ещё разброс — жми кнопку."}
+          ? t("Руки или кубик пропали из кадра во время сборки. Попробуй ещё раз.")
+          : t("Готово! Хочешь ещё разброс — жми кнопку.")}
       </p>
       <SaveStatus saveState={saveState} />
       {!dnf && !cameraVerified ? (
@@ -111,8 +121,8 @@ export default function ResultScreen({
           )}
         </p>
       ) : null}
-      <Button onClick={onAgain}>{t("Ещё раз")}</Button>
       {cardData ? <ShareCardButton data={cardData} /> : null}
+      <NextCard dnf={dnf} elapsedMs={elapsedMs} history={history} onAgain={onAgain} />
     </section>
   );
 }
