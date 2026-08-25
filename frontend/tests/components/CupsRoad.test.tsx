@@ -1,9 +1,9 @@
 // @vitest-environment jsdom
 //
-// CupsRoad не хранит собственную таблицу порогов — все числа (floor,
-// to_next) идут прямо из user (см. src/components/CupsRoad.tsx). Компонент
-// рисует горизонтальную брол-старсовскую дорогу: узлы-рубежи + запертые
-// слоты наград между ними, «ты здесь» — стикер над текущим узлом.
+// CupsRoad — горизонтальная brawl-дорога: 6 узлов-рубежей, соединённых
+// сегментами с перетеканием цвета, и стикер «ты здесь» над позицией игрока.
+// Пороги под узлами — из карты RANKS (зеркало backend CUPS_TIERS), только для
+// подписи; позиция/прогресс — из user.cups_floor/cups_to_next.
 
 import { describe, it, expect, afterEach } from "vitest";
 import { render, screen, cleanup } from "@testing-library/react";
@@ -39,7 +39,7 @@ afterEach(cleanup);
 describe("CupsRoad", () => {
   it("рисует все шесть рубежей и не содержит эмодзи-кубок", () => {
     useAuthStore.setState({
-      user: user({ cups: 450, cups_rank: "green", cups_floor: 300, cups_to_next: 300 }),
+      user: user({ cups: 450, cups_rank: "green", cups_floor: 300, cups_to_next: 150 }),
       status: "authed",
     });
     render(<CupsRoad />);
@@ -50,41 +50,40 @@ describe("CupsRoad", () => {
     expect(screen.queryByText(/🏆/)).toBeNull();
   });
 
-  it("текущий рубеж помечен стикером «ты здесь» и порогом", () => {
+  it("каждый узел подписан своим порогом «от N» (все шесть)", () => {
     useAuthStore.setState({
-      user: user({ cups: 450, cups_rank: "green", cups_floor: 300, cups_to_next: 300 }),
+      user: user({ cups: 450, cups_rank: "green", cups_floor: 300, cups_to_next: 150 }),
       status: "authed",
     });
     render(<CupsRoad />);
 
-    expect(screen.getByText("ты здесь")).toBeTruthy();
-    expect(screen.getByText("от 300")).toBeTruthy();
-    // Соседние рубежи не выдумывают свой порог.
-    expect(screen.queryAllByText(/от /)).toHaveLength(1);
+    for (const floor of ["от 0", "от 100", "от 300", "от 600", "от 1000", "от 1500"]) {
+      expect(screen.getByText(floor)).toBeTruthy();
+    }
   });
 
-  it("полный вариант рисует пять запертых слотов наград между рубежами", () => {
+  it("стикер «ты здесь» показывает текущее число кубков", () => {
     useAuthStore.setState({
-      user: user({ cups: 450, cups_rank: "green", cups_floor: 300, cups_to_next: 300 }),
+      user: user({ cups: 450, cups_rank: "green", cups_floor: 300, cups_to_next: 150 }),
       status: "authed",
     });
-    const { container } = render(<CupsRoad />);
+    render(<CupsRoad />);
 
-    // 5 слотов между 6 рубежами — по одному замку внутри каждого.
-    expect(container.querySelectorAll("rect[rx='1.5']")).toHaveLength(5);
+    expect(screen.getByText("ты здесь · 450")).toBeTruthy();
   });
 
-  it("cups=0 → первый рубеж текущий, без порога у остальных", () => {
+  it("cups=0 → первый рубеж (Белый) текущий, стикер с нулём", () => {
     useAuthStore.setState({
       user: user({ cups: 0, cups_rank: "white", cups_floor: 0, cups_to_next: 100 }),
       status: "authed",
     });
     render(<CupsRoad />);
 
-    expect(screen.getByText("от 0")).toBeTruthy();
+    expect(screen.getByText("ты здесь · 0")).toBeTruthy();
+    expect(screen.getByText("Белый")).toBeTruthy();
   });
 
-  it("cups_to_next === null (red, atMax) → «все рубежи взяты» вместо порога", () => {
+  it("cups_to_next === null (red, atMax) → без падения, стикер на максимуме", () => {
     useAuthStore.setState({
       user: user({ cups: 1800, cups_rank: "red", cups_floor: 1500, cups_to_next: null }),
       status: "authed",
@@ -92,16 +91,6 @@ describe("CupsRoad", () => {
     render(<CupsRoad />);
 
     expect(screen.getByText("Красный")).toBeTruthy();
-    expect(screen.getByText("Все рубежи взяты.")).toBeTruthy();
-  });
-
-  it("teaser-вариант не рисует слоты наград", () => {
-    useAuthStore.setState({
-      user: user({ cups: 450, cups_rank: "green", cups_floor: 300, cups_to_next: 300 }),
-      status: "authed",
-    });
-    const { container } = render(<CupsRoad variant="teaser" />);
-
-    expect(container.querySelectorAll("rect[rx='1.5']")).toHaveLength(0);
+    expect(screen.getByText("ты здесь · 1800")).toBeTruthy();
   });
 });

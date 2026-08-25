@@ -1,9 +1,8 @@
 // @vitest-environment jsdom
 //
-// Dedicated trophy-road screen (plan: cups-system). The hero (big count,
-// current rank) is CupsPage's own; the horizontal road below it is CupsRoad,
-// covered separately in tests/components/CupsRoad.test.tsx. A badge board of
-// locked placeholder slots sits under the road.
+// Экран /cups: шапка (число + текущий ранг), листаемая дорога (CupsRoad,
+// покрыта отдельно) и полоса прогресса внутри текущего ранга. Награды/бейджи
+// не рисуются (owner отложил).
 
 import { describe, it, expect, afterEach } from "vitest";
 import { render, screen, cleanup } from "@testing-library/react";
@@ -37,41 +36,29 @@ function user(overrides: Partial<UserRead>): UserRead {
 afterEach(cleanup);
 
 describe("CupsPage", () => {
-  it("cups в середине лесенки: счёт и текущий ранг", () => {
+  it("середина ранга: число, текущий ранг и остаток до следующего", () => {
     useAuthStore.setState({
-      user: user({ cups: 450, cups_rank: "green", cups_floor: 300, cups_to_next: 300 }),
+      user: user({ cups: 450, cups_rank: "green", cups_floor: 300, cups_to_next: 150 }),
       status: "authed",
     });
     render(<CupsPage />);
 
     expect(screen.getByText("450")).toBeTruthy();
-    // "Зелёный" встречается дважды: в шапке и в самой ступени лестницы.
-    expect(screen.getAllByText("Зелёный")).toHaveLength(2);
+    // Прогресс внутри ранга: до следующего рубежа и остаток.
+    expect(screen.getByText("До ранга Синий")).toBeTruthy();
+    expect(screen.getByText("осталось 150")).toBeTruthy();
     expect(screen.queryByText(/🏆/)).toBeNull();
   });
 
-  it("cups_to_next === null (red, atMax) → «все рубежи взяты» в шапке", () => {
+  it("cups_to_next === null (red, atMax) → «Все рубежи взяты.» вместо остатка", () => {
     useAuthStore.setState({
       user: user({ cups: 1800, cups_rank: "red", cups_floor: 1500, cups_to_next: null }),
       status: "authed",
     });
     render(<CupsPage />);
 
-    // "Красный" встречается дважды: в шапке и в самой ступени лестницы.
-    expect(screen.getAllByText("Красный")).toHaveLength(2);
-    // «Все рубежи взяты.» встречается дважды: в шапке и на самой дороге.
-    expect(screen.getAllByText("Все рубежи взяты.")).toHaveLength(2);
-  });
-
-  it("рисует запертую доску бейджей-плейсхолдеров", () => {
-    useAuthStore.setState({
-      user: user({ cups: 450, cups_rank: "green", cups_floor: 300, cups_to_next: 300 }),
-      status: "authed",
-    });
-    render(<CupsPage />);
-
-    expect(screen.getByText("Бейджи дороги")).toBeTruthy();
-    expect(screen.getAllByText("?")).toHaveLength(8);
+    expect(screen.getByText("Все рубежи взяты.")).toBeTruthy();
+    expect(screen.queryByText(/До ранга/)).toBeNull();
   });
 
   it("гость (user === null) → ничего не рендерит", () => {
