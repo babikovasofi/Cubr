@@ -21,10 +21,13 @@ const SOURCES = import.meta.glob("../../src/**/*.tsx", {
 //                для нас двоих; переводить его незачем.
 //   dev/       — та же логика: dev-only лаборатория тюнинга таймера
 //                (TimingLabPage), собирается только в DEV.
+//   proto/     — та же логика: изолированный DEV-only прототип демо
+//                (GreenFrameDemoPage, /proto/green-frame), собирается только
+//                в DEV и не доступен ни с одного боевого экрана.
 //   *Ru.tsx    — русские версии правил и приватности. У них есть пары *En.tsx,
 //                выбор страницы делает роутер по языку, так что русский текст
 //                внутри — это и есть содержимое, а не пропущенный перевод.
-const EXCLUDED = /\/(accuracy|dev)\/|\/legal\/\w+Ru\.tsx$/;
+const EXCLUDED = /\/(accuracy|dev|proto)\/|\/legal\/\w+Ru\.tsx$/;
 
 const CYRILLIC = /[А-Яа-яЁё]/;
 

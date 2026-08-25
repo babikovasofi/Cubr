@@ -25,6 +25,12 @@ import { useT } from "./i18n/t";
 const AccuracyPage = import.meta.env.DEV ? lazy(() => import("./accuracy/AccuracyPage")) : null;
 // DEV-only solo-timer start/stop tuning lab — same tree-shake pattern.
 const TimingLabPage = import.meta.env.DEV ? lazy(() => import("./dev/TimingLabPage")) : null;
+// DEV-only, isolated prototype demo (night/friends-hub-green-frame): "good frame"
+// green-frame indicator. Own folder (src/proto/), no menu entry, direct-link only,
+// same tree-shake pattern as the two labs above — never reaches production.
+const GreenFrameDemoPage = import.meta.env.DEV
+  ? lazy(() => import("./proto/GreenFrameDemoPage"))
+  : null;
 
 // Экраны с камерой тянут за собой MediaPipe (распознавание рук) и cubejs
 // (солвер) — вместе это больше половины бандла, и до онбординга они не нужны
@@ -307,6 +313,9 @@ export default function App() {
                 <Route path="/onboarding-preview" element={<OnboardingPage />} />
               ) : null}
               {TimingLabPage ? <Route path="/lab" element={<TimingLabPage />} /> : null}
+              {GreenFrameDemoPage ? (
+                <Route path="/proto/green-frame" element={<GreenFrameDemoPage />} />
+              ) : null}
 
               <Route
                 path="/login"
