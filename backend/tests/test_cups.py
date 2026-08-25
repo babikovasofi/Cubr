@@ -1,7 +1,7 @@
 """Cups award engine (app.services.cups) + `/users/me` tier fields.
 
 Covers: win/loss on every rank tier, the rank-floor clamp (302 -> 300 on
-loss), draw, both-DNF/no-result (no event written), walkover win (no-show
+loss), draw (incl. both-DNF), both-pending/abandoned (no event), walkover win (no-show
 opponent), idempotent re-finalize (no double award), the same-opponent
 24h anti-farm cap, cups never going negative, and `/users/me` exposing
 cups_rank/cups_floor/cups_to_next consistently with `tier_bounds`.
@@ -246,9 +246,12 @@ async def test_draw_gives_both_plus_two(session_maker: async_sessionmaker[AsyncS
 # --------------------------------------------------------------------------- #
 
 
-async def test_both_dnf_awards_nothing_and_writes_no_event(
+async def test_both_dnf_is_a_draw_plus_two(
     session_maker: async_sessionmaker[AsyncSession],
 ) -> None:
+    # Оба сыграли и оба получили dnf (никто не подтвердил сборку) — с точки
+    # зрения игрока это ничья, начисляем +2 обоим (owner-багрепорт: «две ничьи,
+    # кубки не начислили»). Отличается от both-pending ниже (никто не начал).
     async with session_maker() as session:
         a_id, b_id = await _create_users(session, 400, 400)
         room = await _room(session, a_id, b_id)
@@ -260,9 +263,11 @@ async def test_both_dnf_awards_nothing_and_writes_no_event(
         a = await session.get(User, a_id)
         b = await session.get(User, b_id)
         assert a is not None and b is not None
-        assert a.cups == 400
-        assert b.cups == 400
-        assert await _events_for(session, room.id) == []
+        assert a.cups == 402
+        assert b.cups == 402
+        events = {e.user_id: e for e in await _events_for(session, room.id)}
+        assert events[a_id].reason == "draw" and events[a_id].delta == 2
+        assert events[b_id].reason == "draw" and events[b_id].delta == 2
 
 
 async def test_both_pending_awards_nothing(

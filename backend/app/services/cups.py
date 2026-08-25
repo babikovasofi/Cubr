@@ -244,9 +244,15 @@ def _classify(
     rank mechanics from the other side.
     """
     if winner_id is None:
-        if a_status == "valid" and b_status == "valid":
+        # Ничья (обоим +2): либо оба валидны с равным временем, либо ОБА
+        # получили dnf (сыграли, но никто не подтвердил сборку — с точки зрения
+        # игрока это ничья, и owner ждёт за неё кубки). Оба `pending` — это
+        # «никто не явился/не начал», результата нет вовсе → без начисления.
+        if (a_status == "valid" and b_status == "valid") or (
+            a_status == "dnf" and b_status == "dnf"
+        ):
             return (a_id, a_id, False)  # draw: same id both sides, see docstring
-        return None  # both dnf / both pending — no meaningful result, no event
+        return None  # both pending — no meaningful result, no event
     loser_id = b_id if winner_id == a_id else a_id
     winner_status = a_status if winner_id == a_id else b_status
     is_walkover = winner_status != "valid"
