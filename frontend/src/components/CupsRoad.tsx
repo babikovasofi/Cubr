@@ -148,19 +148,19 @@ export default function CupsRoad({ variant = "full" }: CupsRoadProps) {
           );
         })}
 
-        {/* Узлы-рубежи. */}
+        {/* Узлы-рубежи. Узел центрирован на линии; подписи — ОТДЕЛЬНЫМ блоком
+            ниже узла, чтобы не наезжать на пунктирную дорогу по центру. */}
         {RANKS.map((rank, i) => {
           const reached = i <= currentIndex;
           const x = stationX(i);
           return (
-            <div
-              key={rank.name}
-              className="absolute flex flex-col items-center"
-              style={{ left: x, top: height / 2, transform: "translate(-50%, -50%)" }}
-            >
+            <div key={rank.name}>
               <div
-                className="flex items-center justify-center rounded-tile"
+                className="absolute flex items-center justify-center rounded-tile"
                 style={{
+                  left: x,
+                  top: height / 2,
+                  transform: "translate(-50%, -50%)",
                   width: nodeSize,
                   height: nodeSize,
                   background: reached ? rank.color : "var(--surface-2)",
@@ -174,18 +174,27 @@ export default function CupsRoad({ variant = "full" }: CupsRoadProps) {
                   style={dotsBackground(reached, rank.name)}
                 />
               </div>
-              <span
-                className={`mt-2 whitespace-nowrap font-sans text-small ${reached ? "font-black text-ink" : "font-black"}`}
-                style={reached ? undefined : { color: "#a89e8c" }}
+              <div
+                className="absolute flex flex-col items-center gap-0.5 text-center"
+                style={{
+                  left: x,
+                  top: height / 2 + nodeSize / 2 + 10,
+                  transform: "translateX(-50%)",
+                }}
               >
-                {t(rank.label)}
-              </span>
-              <span
-                className="whitespace-nowrap font-sans text-caption font-extrabold"
-                style={{ color: "#a89e8c" }}
-              >
-                {t("от {n}", { n: rank.floor })}
-              </span>
+                <span
+                  className="whitespace-nowrap font-sans text-small font-black"
+                  style={{ color: reached ? "var(--ink)" : "#a89e8c" }}
+                >
+                  {t(rank.label)}
+                </span>
+                <span
+                  className="whitespace-nowrap font-sans text-caption font-extrabold"
+                  style={{ color: "#a89e8c" }}
+                >
+                  {t("от {n}", { n: rank.floor })}
+                </span>
+              </div>
             </div>
           );
         })}
