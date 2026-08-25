@@ -63,6 +63,7 @@ export default function SolveRitual({ s }: SolveRitualProps) {
                 body="Поставь обе руки в зелёные зоны и замри — таймер запустится сам. Убрал руки — старт, вернул — стоп."
                 timerValue="0.00"
                 timerPhase="ready"
+                signals={s.signals}
               />
             ) : null}
             {phase === "solving" ? (
@@ -107,21 +108,53 @@ function LoadingBlock({ error, onRetry }: { error: string | null; onRetry: () =>
   );
 }
 
+function ReadyChip({ on, label }: { on: boolean; label: string }) {
+  return (
+    <span
+      className={[
+        "inline-flex items-center gap-1 rounded-full border-2 px-2.5 py-0.5 font-sans text-caption font-black",
+        on ? "border-ink bg-success text-white" : "border-line bg-surface-2 text-muted",
+      ].join(" ")}
+    >
+      {on ? "✓" : "○"} {label}
+    </span>
+  );
+}
+
 function StatusPanel({
   title,
   body,
   timerValue,
   timerPhase,
+  signals,
 }: {
   title: string;
   body: string;
   timerValue: string;
   timerPhase: "ready" | "running";
+  signals?: { handsDetected: boolean; bothInZone: boolean; still: boolean; ready: boolean };
 }) {
+  const t = useT();
   return (
     <div className="flex flex-col gap-3 rounded-lg border-2 border-ink bg-surface p-4.5">
       <h3 className="font-sans text-h3 text-ink">{title}</h3>
       <Timer value={timerValue} phase={timerPhase} />
+      {signals ? (
+        <div className="flex flex-col gap-2">
+          <div className="flex flex-wrap gap-1.5">
+            <ReadyChip on={signals.handsDetected} label={t("руки видны")} />
+            <ReadyChip on={signals.bothInZone} label={t("обе в зоне")} />
+            <ReadyChip on={signals.still} label={t("замер")} />
+          </div>
+          <p
+            className={`font-sans text-small font-bold ${signals.ready ? "text-success" : "text-muted"}`}
+          >
+            {signals.ready
+              ? t("Готово — убирай руки, чтобы стартовать!")
+              : t("Обе кисти в зелёные зоны и замри…")}
+          </p>
+        </div>
+      ) : null}
       <p className="font-sans text-small text-muted">{body}</p>
     </div>
   );

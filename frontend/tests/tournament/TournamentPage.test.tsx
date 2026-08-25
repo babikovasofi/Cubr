@@ -43,6 +43,7 @@ let capturedOnResult: UseSoloSessionOpts["onResult"] | undefined;
 function stubSession(): SoloSession {
   return {
     state: initialSoloState,
+    signals: { handsDetected: false, bothInZone: false, still: false, ready: false },
     videoRef: { current: null },
     overlayRef: { current: null },
     workRef: { current: null },

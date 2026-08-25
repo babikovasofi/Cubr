@@ -112,6 +112,9 @@ export interface SoloSession {
   again: () => void;
   // Timer.
   timerSeconds: string;
+  // Живые сигналы для панели «готово к таймеру» — чтобы человек видел, что
+  // система его распознаёт и когда можно стартовать (throttled ~8 Гц).
+  signals: { handsDetected: boolean; bothInZone: boolean; still: boolean; ready: boolean };
   // Server persistence of the finished result (plan §B #8).
   saveState: SaveState;
 }
@@ -161,6 +164,15 @@ export function useSoloSession(opts?: UseSoloSessionOpts): SoloSession {
   const [verifyError, setVerifyError] = useState<string | null>(null);
   const [solveVerifyError, setSolveVerifyError] = useState<string | null>(null);
   const [liveMs, setLiveMs] = useState(0);
+  // Живые сигналы распознавания для панели готовности. Пишутся троттлено
+  // (~8 Гц), чтобы кадры не заваливали рендер (урок из dev-лабы таймера).
+  const [signals, setSignals] = useState({
+    handsDetected: false,
+    bothInZone: false,
+    still: false,
+    ready: false,
+  });
+  const lastSigRef = useRef(0);
   const [saveState, setSaveState] = useState<SaveState>("idle");
   const savedRef = useRef(false);
 
@@ -265,6 +277,17 @@ export function useSoloSession(opts?: UseSoloSessionOpts): SoloSession {
       getFsm().reset();
     }
     if (st.phase === "solving" && st.startT !== null) setLiveMs(nowTs - st.startT);
+
+    // Троттленые сигналы готовности для панели (только пока ждём старт).
+    if (st.phase === "armed" && nowTs - lastSigRef.current >= 120) {
+      lastSigRef.current = nowTs;
+      setSignals({
+        handsDetected: obs.handsDetected,
+        bothInZone: obs.bothInZone,
+        still: obs.still,
+        ready: res.state === "READY",
+      });
+    }
   };
 
   const startCamera = async (): Promise<void> => {
@@ -487,6 +510,7 @@ export function useSoloSession(opts?: UseSoloSessionOpts): SoloSession {
 
   return {
     state,
+    signals,
     videoRef,
     overlayRef,
     workRef,

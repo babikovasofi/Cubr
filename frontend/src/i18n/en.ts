@@ -889,6 +889,11 @@ export const EN: Record<string, string> = {
   "Разреши доступ и повтори кадр с прошлого шага: обе кисти на столе — в зелёные зоны, кубик — в жёлтую рамку. Как только руки видно — можно продолжать.":
     "Allow access and reproduce the frame from the previous step: both hands on the table in the green zones, the cube in the yellow frame. Once your hands are visible you can continue.",
   "Обе руки в зонах — отлично!": "Both hands in the zones — great!",
+  "руки видны": "hands visible",
+  "обе в зоне": "both in zone",
+  замер: "still",
+  "Готово — убирай руки, чтобы стартовать!": "Ready — lift your hands to start!",
+  "Обе кисти в зелёные зоны и замри…": "Put both hands in the green zones and hold still…",
   "Положи обе кисти в зелёные зоны на столе…": "Put both hands in the green zones on the table…",
   "Немного наклони камеру вниз, на стол — чтобы в кадр попали стол и кисти рук.":
     "Tilt the camera down a little, toward the table — so the desk and your hands are in frame.",
