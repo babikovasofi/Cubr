@@ -4,9 +4,8 @@
 // (method + cubing-since year), time-format + chat-email preferences, and
 // registered cubes all live here; identity/stats/social stayed on /profile.
 
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent, type ChangeEvent } from "react";
 import Button from "../components/Button";
-import Input from "../components/Input";
 import ProfileCard, { CARD_MOTIFS } from "../profile/ProfileCard";
 import ShowcaseForm from "../profile/ShowcaseForm";
 import HandleField from "../profile/HandleField";
@@ -17,6 +16,7 @@ import { useSettingsStore } from "../store/settingsStore";
 import { formatSolveMs, type TimeFormat } from "../lib/formatTime";
 import CubeList from "../cubes/CubeList";
 import { ApiError } from "../api/client";
+import { downscaleImage } from "../lib/image";
 import Spinner from "../components/Spinner";
 import { useT } from "../i18n/t";
 
@@ -195,16 +195,58 @@ function EditForm({
     }
   }
 
+  async function onPickFile(e: ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = ""; // позволяем выбрать тот же файл повторно
+    if (!file) return;
+    setError(null);
+    try {
+      const dataUrl = await downscaleImage(file, 128);
+      setAvatar(dataUrl);
+    } catch {
+      setError(t("Не удалось прочитать это изображение. Выбери другое фото."));
+    }
+  }
+
   return (
     <form className="flex flex-col gap-4" onSubmit={onSubmit} noValidate>
-      <Input
-        label={t("Ссылка на аватар")}
-        type="url"
-        placeholder="https://…"
-        maxLength={512}
-        value={avatar}
-        onChange={(e) => setAvatar(e.target.value)}
-      />
+      <div className="flex flex-col gap-3">
+        <span className="font-sans text-small font-bold text-ink">{t("Аватар")}</span>
+        <div className="flex items-center gap-4">
+          {avatar ? (
+            <img
+              src={avatar}
+              alt=""
+              className="h-16 w-16 rounded-full border-2 border-ink object-cover"
+            />
+          ) : (
+            <span
+              aria-hidden
+              className="flex h-16 w-16 items-center justify-center rounded-full border-2 border-dashed border-line font-sans text-caption text-muted"
+            >
+              нет
+            </span>
+          )}
+          <div className="flex flex-wrap items-center gap-2">
+            <label className="inline-flex h-10 cursor-pointer items-center rounded-full border-2 border-ink bg-surface px-4 font-sans text-small font-extrabold text-ink hover:bg-surface-2">
+              {t("Загрузить фото")}
+              <input type="file" accept="image/*" className="sr-only" onChange={onPickFile} />
+            </label>
+            {avatar ? (
+              <button
+                type="button"
+                onClick={() => setAvatar("")}
+                className="font-sans text-small font-bold text-danger"
+              >
+                {t("Убрать")}
+              </button>
+            ) : null}
+          </div>
+        </div>
+        <p className="font-sans text-caption text-muted">
+          {t("Фото с компьютера — само ужмётся до маленькой картинки.")}
+        </p>
+      </div>
       <HandleField id="profile-handle" value={handle} onChange={setHandle} error={error} />
       <div className="flex items-center gap-3">
         <Button type="submit" disabled={busy}>

@@ -2,7 +2,7 @@ from datetime import datetime
 from typing import TYPE_CHECKING
 
 from fastapi_users_db_sqlalchemy import SQLAlchemyBaseUserTableUUID
-from sqlalchemy import DateTime, Index, Integer, String, func
+from sqlalchemy import DateTime, Index, Integer, String, Text, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db import Base
@@ -47,7 +47,7 @@ class User(SQLAlchemyBaseUserTableUUID, Base):
     # `0013_single_user_handle` for how existing `nickname`/`public_handle`
     # data was merged.
     handle: Mapped[str | None] = mapped_column(String(length=64), nullable=True)
-    avatar_url: Mapped[str | None] = mapped_column(String(length=512), nullable=True)
+    avatar_url: Mapped[str | None] = mapped_column(Text(), nullable=True)
     # Витрина профиля (V3): чем человек собирает и с какого года. Видны только
     # владельцу — публичных профилей в Cubr нет, на бордах живёт лишь
     # `handle` (П10). Оба поля необязательные: пустая витрина — норма.

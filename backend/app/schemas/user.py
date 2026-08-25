@@ -104,7 +104,9 @@ class UserUpdate(schemas.BaseUserUpdate):
     """Self-service user update payload."""
 
     handle: str | None = Field(default=None, max_length=64)
-    avatar_url: str | None = Field(default=None, max_length=512)
+    # До 256 КБ: аватар может быть загруженным файлом как data-URL
+    # (клиент жёстко ужимает его до нескольких КБ, лимит — потолок от абьюза).
+    avatar_url: str | None = Field(default=None, max_length=262144)
     method: SolvingMethod | None = None
     cubing_since_year: int | None = None
 

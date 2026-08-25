@@ -889,6 +889,13 @@ export const EN: Record<string, string> = {
   "Разреши доступ и повтори кадр с прошлого шага: обе кисти на столе — в зелёные зоны, кубик — в жёлтую рамку. Как только руки видно — можно продолжать.":
     "Allow access and reproduce the frame from the previous step: both hands on the table in the green zones, the cube in the yellow frame. Once your hands are visible you can continue.",
   "Обе руки в зонах — отлично!": "Both hands in the zones — great!",
+  Аватар: "Avatar",
+  "Загрузить фото": "Upload a photo",
+  Убрать: "Remove",
+  "Фото с компьютера — само ужмётся до маленькой картинки.":
+    "A photo from your computer — it shrinks itself to a small image.",
+  "Не удалось прочитать это изображение. Выбери другое фото.":
+    "Could not read this image. Pick another photo.",
   "руки видны": "hands visible",
   "обе в зоне": "both in zone",
   замер: "still",
