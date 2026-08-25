@@ -47,13 +47,21 @@ export default function SolveRitual({ s }: SolveRitualProps) {
             phase === "walkthrough" ? "hidden" : "grid gap-6 md:grid-cols-[minmax(0,1fr)_20rem]"
           }
         >
-          <CameraStage
-            videoRef={s.videoRef}
-            overlayRef={s.overlayRef}
-            workRef={s.workRef}
-            error={s.cameraError}
-            onRetry={s.startCamera}
-          />
+          <div className="flex flex-col gap-3">
+            <CameraStage
+              videoRef={s.videoRef}
+              overlayRef={s.overlayRef}
+              workRef={s.workRef}
+              error={s.cameraError}
+              onRetry={s.startCamera}
+            />
+            {/* Явная кнопка на случай, если авто-старт камеры не сработал
+                (пермишн, нужен жест) — иначе в челлендже/скрамбле дня камеру
+                нечем запустить, и «точки не горят». */}
+            {!s.cameraStarted ? (
+              <Button onClick={() => void s.startCamera()}>{t("Включить камеру")}</Button>
+            ) : null}
+          </div>
           <aside className="flex flex-col gap-4">
             {phase === "calibrate" ? <CalibratePanel s={s} /> : null}
             {phase === "verify" ? <VerifyPanel s={s} /> : null}
