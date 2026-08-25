@@ -8,7 +8,7 @@
 // Fixed orientation (white top, green front): the player never does whole-cube
 // rotations, only the scramble's layer turns.
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { loadCubing, type TwistyPlayerEl } from "../cubingCdn";
 
 type AnimatablePlayer = TwistyPlayerEl & {
@@ -57,27 +57,35 @@ export function useTwisty() {
     };
   }, []);
 
-  /** Render the cube state after the first `n` moves, statically (no animation). */
-  const showState = (moves: readonly string[], n: number): void => {
+  // useCallback обязателен, а не косметика: драйв-эффект в ScrambleWalkthrough
+  // держит эти функции в зависимостях. Без стабильной ссылки любой ре-рендер
+  // родителя (например, setPlaying(false) сразу после ПОСЛЕДНЕГО хода)
+  // перезапускал эффект, тот видел index===prevIndex и делал showState —
+  // мгновенный снап поверх ещё идущей анимации последнего хода. Отсюда «только
+  // последний ход резкий». Стабильные ссылки убирают лишний перезапуск.
+  const showState = useCallback((moves: readonly string[], n: number): void => {
     const p = playerRef.current;
     if (!p) return;
     p.experimentalSetupAlg = moves.slice(0, n).join(" ");
     p.alg = "";
-  };
+  }, []);
 
   /** Animate the transition INTO the state after `n` moves (plays move n-1). */
-  const animateMove = (moves: readonly string[], n: number): void => {
-    const p = playerRef.current;
-    if (!p) return;
-    if (n <= 0) {
-      showState(moves, 0);
-      return;
-    }
-    p.experimentalSetupAlg = moves.slice(0, n - 1).join(" ");
-    p.alg = moves[n - 1];
-    p.jumpToStart?.();
-    p.play?.();
-  };
+  const animateMove = useCallback(
+    (moves: readonly string[], n: number): void => {
+      const p = playerRef.current;
+      if (!p) return;
+      if (n <= 0) {
+        showState(moves, 0);
+        return;
+      }
+      p.experimentalSetupAlg = moves.slice(0, n - 1).join(" ");
+      p.alg = moves[n - 1];
+      p.jumpToStart?.();
+      p.play?.();
+    },
+    [showState],
+  );
 
   return { slotRef, ready, error, showState, animateMove };
 }
