@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, lazy, Suspense } from "react";
 import { Routes, Route, Link, useNavigate } from "react-router-dom";
 import HomePage from "./pages/HomePage";
+import DecorBackdrop from "./components/DecorBackdrop";
 import LoginPage from "./pages/LoginPage";
 import RegisterPage from "./pages/RegisterPage";
 import VerifyEmailPage from "./pages/VerifyEmailPage";
@@ -268,7 +269,8 @@ export default function App() {
   }, [bootstrap]);
 
   return (
-    <div className="min-h-screen bg-bg text-ink">
+    <div className="min-h-screen text-ink">
+      <DecorBackdrop />
       <Header />
       <main className="mx-auto max-w-content px-4 py-7">
         <RouteErrorBoundary>
