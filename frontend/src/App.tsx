@@ -301,6 +301,11 @@ export default function App() {
               <Route path="/trainer" element={<TrainerPage />} />
 
               {AccuracyPage ? <Route path="/accuracy" element={<AccuracyPage />} /> : null}
+              {/* DEV-only: онбординг без ProtectedRoute, чтобы смотреть туториал
+                  локально без входа/бэкенда. В прод не попадает. */}
+              {import.meta.env.DEV ? (
+                <Route path="/onboarding-preview" element={<OnboardingPage />} />
+              ) : null}
               {TimingLabPage ? <Route path="/lab" element={<TimingLabPage />} /> : null}
 
               <Route

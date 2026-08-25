@@ -112,7 +112,10 @@ export function useCameraCheck(): CameraCheck {
       const octx = overlay.getContext("2d");
       if (octx) drawOverlay(octx, width, height, obs, ZONES, config.GUIDE_RECT, labelsRef.current);
     }
-    const gate = advanceHandsGate(handsRunRef.current, obs.handsDetected);
+    // Засчитываем не «видно хоть какую-то руку» (obs.handsDetected срабатывал
+    // на руки в кадре где угодно — отсюда «распознаются, хотя не поставила»), а
+    // ОБЕ кисти в своих зонах — та же постановка, что в реальной сборке.
+    const gate = advanceHandsGate(handsRunRef.current, obs.bothInZone);
     handsRunRef.current = gate.run;
     if (gate.seen) setHandsSeen(true);
   };

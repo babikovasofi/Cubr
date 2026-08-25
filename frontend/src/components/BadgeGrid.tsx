@@ -64,12 +64,14 @@ export default function BadgeGrid() {
               }`}
             >
               <div className="flex items-center gap-3">
-                <span aria-hidden className="font-sans text-h2 text-ink">
+                <span aria-hidden className="shrink-0 font-sans text-h2 text-ink">
                   {b.icon}
                 </span>
-                <span className="font-sans text-body font-bold text-ink">{b.title}</span>
+                <span className="min-w-0 break-words font-sans text-body font-bold text-ink">
+                  {b.title}
+                </span>
               </div>
-              <p className="font-sans text-small text-muted">{b.description}</p>
+              <p className="break-words font-sans text-small text-muted">{b.description}</p>
               {b.earned && b.earned_at ? (
                 <span className="font-sans text-caption uppercase text-muted">
                   Получен {fmtEarnedAt(b.earned_at)}

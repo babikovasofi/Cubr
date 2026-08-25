@@ -121,7 +121,7 @@ function IntroStep({ onNext }: { onNext: () => void }) {
     <StepCard title={t("Как это работает")}>
       <p className="font-sans text-body text-muted">
         {t(
-          "Cubr судит сборку по камере: она видит твои руки и грани кубика. Дальше проверим, что камера работает, и покажем, где будет регистрация кубика.",
+          "Cubr судит сборку по камере: она видит твои руки и грани кубика. Дальше проверим, что камера работает.",
         )}
       </p>
       <Button onClick={onNext}>{t("Начать")}</Button>
@@ -133,9 +133,6 @@ function RitualStep({ onNext, onBack }: { onNext: () => void; onBack: () => void
   const t = useT();
   return (
     <StepCard title={t("Как проходит сборка")}>
-      <p className="font-sans text-body text-muted">
-        {t("Один и тот же ритуал в соло и в дуэли, четыре шага подряд — камера следит за каждым.")}
-      </p>
       <RitualSteps />
       <div className="flex flex-wrap items-center gap-3">
         <button
@@ -180,9 +177,7 @@ function CupsStep({ onNext, onBack }: { onNext: () => void; onBack: () => void }
   return (
     <StepCard title={t("Кубки и ранги")}>
       <p className="font-sans text-body text-muted">
-        {t(
-          "За победу в дуэли начисляются кубки, за поражение часть уходит сопернику — так же, как в кубковых режимах, к которым ты привык.",
-        )}
+        {t("За победу в дуэли начисляются кубки, за поражение часть уходит сопернику.")}
       </p>
       <CupsIntro />
       <div className="flex flex-wrap items-center gap-3">
@@ -208,7 +203,7 @@ function CameraStep({ onNext, onBack }: { onNext: () => void; onBack: () => void
     <StepCard title={t("Проверка камеры")}>
       <p className="font-sans text-body text-muted">
         {t(
-          "Разреши доступ к камере и покажи обе руки в кадре. Как только руки будут видны — можно продолжать.",
+          "Разреши доступ и повтори кадр с прошлого шага: обе кисти на столе — в зелёные зоны, кубик — в жёлтую рамку. Как только руки видно — можно продолжать.",
         )}
       </p>
 
@@ -239,7 +234,9 @@ function CameraStep({ onNext, onBack }: { onNext: () => void; onBack: () => void
           className={`font-sans text-small font-bold ${ready ? "text-success" : "text-muted"}`}
           aria-live="polite"
         >
-          {ready ? t("Камера и руки распознаются — отлично!") : t("Ищу руки в кадре…")}
+          {ready
+            ? t("Обе руки в зонах — отлично!")
+            : t("Положи обе кисти в зелёные зоны на столе…")}
         </p>
       )}
 
@@ -308,7 +305,10 @@ function CubeStep({ onNext, onBack }: { onNext: () => void; onBack: () => void }
 function HandleStep({ onFinish, onBack }: { onFinish: () => void; onBack: () => void }) {
   const t = useT();
   const updateMe = useAuthStore((s) => s.updateMe);
-  const [handle, setHandle] = useState("");
+  const currentHandle = useAuthStore((s) => s.user?.handle);
+  // Ник, заданный при регистрации, подставляем сразу — человек просто жмёт
+  // «Далее» или правит, а не вводит заново (owner).
+  const [handle, setHandle] = useState(currentHandle ?? "");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -337,7 +337,7 @@ function HandleStep({ onFinish, onBack }: { onFinish: () => void; onBack: () => 
     <StepCard title={t("Твой ник")}>
       <p className="font-sans text-body text-muted">
         {t(
-          "Заведи ник — по нему тебя смогут найти и добавить в друзья, и оно появится в таблицах турнира и скрамбла дня вместо «Аноним». Можно задать или изменить его позже в профиле.",
+          "Твой ник с регистрации уже здесь — проверь или поменяй. По нему тебя находят и добавляют в друзья, и он появляется в таблицах турнира и скрамбла дня. Изменить можно и позже в профиле.",
         )}
       </p>
       <form className="flex flex-col gap-4" onSubmit={onSubmit} noValidate>

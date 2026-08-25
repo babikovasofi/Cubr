@@ -120,8 +120,8 @@ describe("HomePage", () => {
     // (её проверяет tests/pages/legal.test.tsx).
     expect(screen.queryByText(/Честно и без слежки/)).toBeNull();
     expect(screen.queryByRole("link", { name: "Данные и приватность" })).toBeNull();
-    // Единственное, чего больше нигде нет, — предупреждение про рейтинг.
-    expect(screen.getByText(/Мест и рейтинга пока нет/)).toBeTruthy();
+    // Предупреждение про рейтинг убрано с лендинга (owner).
+    expect(screen.queryByText(/Мест и рейтинга пока нет/)).toBeNull();
   });
 
   it("аноним не видит дашборд режимов под аккаунт", () => {

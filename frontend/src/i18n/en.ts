@@ -25,6 +25,10 @@ export const EN: Record<string, string> = {
 
   // --- лендинг ---
   "Дуэли по сборке кубика. Судит камера.": "Cube duels. The camera is the judge.",
+  "Показываешь кубик в камеру — браузер сам проверяет скрамбл, ловит старт и стоп по рукам и подтверждает сборку.":
+    "Show the cube to your camera: the browser checks the scramble itself, catches the start and stop from your hands, and confirms the solve.",
+  "Вся сборка целиком, без аккаунта. Сборки сохраняются, если войти.":
+    "The whole solve, no account needed. Solves are saved once you log in.",
   "Показываешь кубик в камеру — браузер сам проверяет скрамбл, ловит старт и стоп по рукам и подтверждает сборку. Ни живого судьи, ни «поверь на слово».":
     "Show the cube to your camera: the browser checks the scramble itself, catches the start and stop from your hands, and confirms the solve. No human judge, no «take my word for it».",
   "Создать аккаунт": "Create an account",
@@ -36,6 +40,13 @@ export const EN: Record<string, string> = {
 
   "Как проходит сборка": "How a solve goes",
   "Показываешь собранный кубик": "Show the solved cube",
+  "Браузер запоминает цвета именно твоего кубика — до скрамбла.":
+    "The browser learns the colours of your particular cube — before the scramble.",
+  "Скрамбл выдаёт компьютер": "The computer issues the scramble",
+  "Отпустил руки — время пошло. В дуэли старт синхронный, его даёт компьютер обоим.":
+    "Lift your hands and the clock runs. In a duel the start is synchronous — the computer gives it to both.",
+  "За победу в дуэли начисляются кубки, за поражение часть уходит сопернику.":
+    "A duel win earns cups; a loss hands some to your opponent.",
   "Браузер запоминает цвета именно твоего кубика — до скрамбла, чтобы таймер нельзя было взвести заранее.":
     "The browser learns the colours of your particular cube — before the scramble, so the timer cannot be armed in advance.",
   "Скрамбл выдаёт сервер": "The server issues the scramble",
@@ -862,6 +873,27 @@ export const EN: Record<string, string> = {
   "До ранга {rank}": "To {rank} rank",
   "осталось {n}": "{n} to go",
   "ты здесь · {n}": "you are here · {n}",
+
+  // --- онбординг: правки копирайта ---
+  "Cubr судит сборку по камере: она видит твои руки и грани кубика. Дальше проверим, что камера работает.":
+    "Cubr judges the solve by camera: it sees your hands and the cube's faces. Next we'll check the camera works.",
+  "Сколько кубков": "How many cups",
+  Победа: "Win",
+  Поражение: "Loss",
+  Ничья: "Draw",
+  "Чем выше ранг, тем меньше даёт победа и больше отнимает поражение. На старте не теряешь.":
+    "The higher the rank, the less a win gives and the more a loss takes. At the start you lose nothing.",
+  "Ранги — от белого к красному": "Ranks — from white to red",
+  "Твой ник с регистрации уже здесь — проверь или поменяй. По нему тебя находят и добавляют в друзья, и он появляется в таблицах турнира и скрамбла дня. Изменить можно и позже в профиле.":
+    "Your handle from sign-up is already here — check it or change it. People find and friend you by it, and it shows on the tournament and daily boards. You can change it later in your profile.",
+  "Разреши доступ и повтори кадр с прошлого шага: обе кисти на столе — в зелёные зоны, кубик — в жёлтую рамку. Как только руки видно — можно продолжать.":
+    "Allow access and reproduce the frame from the previous step: both hands on the table in the green zones, the cube in the yellow frame. Once your hands are visible you can continue.",
+  "Обе руки в зонах — отлично!": "Both hands in the zones — great!",
+  "Положи обе кисти в зелёные зоны на столе…": "Put both hands in the green zones on the table…",
+  "Немного наклони камеру вниз, на стол — чтобы в кадр попали стол и кисти рук.":
+    "Tilt the camera down a little, toward the table — so the desk and your hands are in frame.",
+  "Главное: наклони камеру вниз, на стол, и держи обе кисти на столе — в зелёных зонах. Кубик собираешь над столом, в кадре видны только кисти рук.":
+    "The key: tilt the camera down toward the table and keep both hands on the table — in the green zones. You solve the cube above the table; only your hands are in frame.",
   "Вся дорога →": "See the whole road →",
   "Дорога рангов": "Rank road",
   "ты здесь · от {n}": "you are here · from {n}",

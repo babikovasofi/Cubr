@@ -98,7 +98,7 @@ describe("OnboardingPage HandleStep", () => {
     ).toBeTruthy();
     // Explicitly says it can be set/changed later — the pitch that makes
     // skipping not feel like a loss.
-    expect(screen.getByText(/Можно задать или изменить его позже в профиле/)).toBeTruthy();
+    expect(screen.getByText(/Изменить можно и позже в профиле/)).toBeTruthy();
   });
 
   it("is skippable: submitting an empty field finishes onboarding without calling the API", async () => {

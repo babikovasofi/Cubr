@@ -91,7 +91,7 @@ describe("OnboardingPage — extended tutorial", () => {
     click("Начать");
     expect(screen.getByRole("heading", { name: "Как проходит сборка" })).toBeTruthy();
     expect(screen.getByText("Показываешь собранный кубик")).toBeTruthy();
-    expect(screen.getByText("Скрамбл выдаёт сервер")).toBeTruthy();
+    expect(screen.getByText("Скрамбл выдаёт компьютер")).toBeTruthy();
     expect(screen.getByText("Две руки на стол — старт")).toBeTruthy();
     expect(screen.getByText("Руки на стол — стоп")).toBeTruthy();
   });
@@ -126,7 +126,7 @@ describe("OnboardingPage — extended tutorial", () => {
     click("cube-wizard-done");
     expect(screen.getByRole("heading", { name: "Кубки и ранги" })).toBeTruthy();
     expect(screen.getByText(/Выиграл дуэль/)).toBeTruthy();
-    expect(screen.getByRole("link", { name: "Открыть дорогу кубков" })).toBeTruthy();
+    expect(screen.getByText("Сколько кубков")).toBeTruthy();
 
     click("Далее"); // -> handle
     expect(screen.getByRole("heading", { name: "Твой ник" })).toBeTruthy();
