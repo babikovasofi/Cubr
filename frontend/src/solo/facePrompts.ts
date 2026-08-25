@@ -55,3 +55,20 @@ export function facePrompt(step: number, solved: boolean): string | null {
   const face = SOLO_FACE_ORDER[step];
   return solved ? SOLVED_PROMPT[face] : SCRAMBLED_PROMPT[face];
 }
+
+/** Подсказка для КОНКРЕТНОЙ грани (не по шагу, а по букве) — нужна панели
+ * слотов, где переснять могут любую из шести, а не только следующую по кругу. */
+export function facePromptFor(face: SoloFace, solved: boolean): string {
+  return solved ? SOLVED_PROMPT[face] : SCRAMBLED_PROMPT[face];
+}
+
+/** Однобуквенная метка цвета грани для мини-плиток слотов (Б/К/З/Ж/О/С —
+ * первая буква русского названия цвета, не URFDLB-жаргон). */
+export const FACE_COLOR_LETTER: Record<SoloFace, string> = {
+  U: "Б",
+  R: "К",
+  F: "З",
+  D: "Ж",
+  L: "О",
+  B: "С",
+};

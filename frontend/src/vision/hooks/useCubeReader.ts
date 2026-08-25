@@ -634,6 +634,8 @@ export interface CubeReader {
   seeded: boolean; // refs came from a stored profile (not a fresh 6-face read)
   validated: boolean; // refs passed a full 6-face registration (accuracy-worthy)
   verifyFacesLength: number; // 0..6, of the in-flight collector
+  /** Which faces (U/R/F/D/L/B) currently hold a captured sample, any order. */
+  verifyCapturedFaces: ColorName[];
   collecting: boolean;
   captureCalibration: (video: HTMLVideoElement) => boolean;
   /**
@@ -656,6 +658,8 @@ export interface CubeReader {
     tolerant?: boolean,
   ) => Promise<VerifyResult>;
   resetVerify: () => void;
+  /** Re-open one already-captured face's slot for a re-shoot (keeps the other 5). */
+  dropVerifyFace: (face: ColorName) => void;
   // Accuracy-harness collector (Stage 0.3): fixed capture order, per-face drift
   // gate, raw grids exposed pre-resolve. Independent of the verify collector.
   accFacesLength: number; // 0..6, of the in-flight accuracy collector
@@ -767,6 +771,9 @@ export function useCubeReader(workRef: React.RefObject<HTMLCanvasElement | null>
   const [seeded, setSeeded] = useState(false);
   const [validated, setValidated] = useState(false);
   const [verifyFacesLength, setVerifyFacesLength] = useState(0);
+  // Какие грани УЖЕ лежат в коллекторе (для UI — «переснять эту» вместо
+  // расплывчатого «X/6»). Пересчитывается вместе с verifyFacesLength.
+  const [verifyCapturedFaces, setVerifyCapturedFaces] = useState<ColorName[]>([]);
   const [collecting, setCollecting] = useState(false);
   const [accFacesLength, setAccFacesLength] = useState(0);
   const [collectingAccuracy, setCollectingAccuracy] = useState(false);
@@ -774,7 +781,14 @@ export function useCubeReader(workRef: React.RefObject<HTMLCanvasElement | null>
   const [calibrationProblem, setCalibrationProblem] = useState<CalibrationProblem | null>(null);
   const refsRef = useRef<Refs | null>(null);
   const calibRgbRef = useRef<Partial<Record<ColorName, RGB>>>({});
-  const collectorRef = useRef<FaceSample[] | null>(null);
+  // Слоты по грани (ключ — центр = U/R/F/D/L/B), НЕ порядковый список. Съёмка
+  // не РАСТЁТ линейно: она ЗАМЕЩАЕТ свой слот. Это даёт две вещи разом (owner
+  // bug 2026-08-24: одна неверно прочитанная грань заставляла переснимать все
+  // шесть заново) — (1) единственная плохая грань после финальной сверки
+  // выбивает из коллектора только СВОЙ слот, остальные пять остаются; (2)
+  // повторный показ той же грани больше не ломает раскладку «шесть разных
+  // подряд» — он просто перезаписывает тот же слот.
+  const collectorRef = useRef<Map<ColorName, FaceSample> | null>(null);
   const accCollectorRef = useRef<FaceSample[] | null>(null);
   // Какие грани уже забракованы замком решётки в ТЕКУЩЕМ чтении. Бюджет — одна
   // пересъёмка на грань: у грани, где рядом лежат наклейки одного цвета, оба
@@ -889,15 +903,27 @@ export function useCubeReader(workRef: React.RefObject<HTMLCanvasElement | null>
   };
 
   const beginVerify = (): void => {
-    collectorRef.current = [];
+    collectorRef.current = new Map();
     setVerifyFacesLength(0);
+    setVerifyCapturedFaces([]);
     setCollecting(true);
   };
 
   const resetVerify = (): void => {
     collectorRef.current = null;
     setVerifyFacesLength(0);
+    setVerifyCapturedFaces([]);
     setCollecting(false);
+  };
+
+  // Явная пересъёмка ОДНОЙ уже снятой грани (кнопка «Переснять грань» на её
+  // слоте) — убирает только этот слот, остальные остаются. Следующий успешный
+  // pushVerifyFace() заполнит его заново, каким бы центром его ни показали.
+  const dropVerifyFace = (face: ColorName): void => {
+    if (!collectorRef.current) return;
+    collectorRef.current.delete(face);
+    setVerifyFacesLength(collectorRef.current.size);
+    setVerifyCapturedFaces(Array.from(collectorRef.current.keys()));
   };
 
   const pushVerifyFace = async (
@@ -951,21 +977,30 @@ export function useCubeReader(workRef: React.RefObject<HTMLCanvasElement | null>
     }
     lowConfidenceRef.current = 0;
 
-    // Кладём СЫРОЙ сэмпл: нормировка и квоты применяются одним местом ниже
-    // (resolveSixFaces), чтобы харнесс точности мог отдельно посмотреть сырое
-    // чтение и продуктовое.
-    collectorRef.current.push(face);
-    const n = collectorRef.current.length;
+    // Кладём СЫРОЙ сэмпл в СВОЙ слот (грань = её центр), не в конец списка:
+    // повторный показ той же грани замещает слот, а не плодит седьмую запись.
+    // Нормировка и квоты применяются одним местом ниже (resolveSixFaces), чтобы
+    // харнесс точности мог отдельно посмотреть сырое чтение и продуктовое.
+    collectorRef.current.set(centerName, face);
+    const n = collectorRef.current.size;
     setVerifyFacesLength(n);
+    setVerifyCapturedFaces(Array.from(collectorRef.current.keys()));
     if (n < 6) return { kind: "pending", facesLength: n };
 
-    // 6 faces in. Assign each to a face by its center color, then resolve rotations.
-    const faces = collectorRef.current;
-    collectorRef.current = null;
-    setCollecting(false);
-    setVerifyFacesLength(0);
-
+    // Все шесть слотов заняты — сверяем целиком. Слоты НЕ обнуляются здесь на
+    // случай неудачи: при мягком (tolerant) расхождении выбивается только
+    // виновная грань, остальные пять остаются в коллекторе, и следующая съёмка
+    // переснимает ровно её (owner bug: раньше любая ошибка после 6/6 стирала
+    // всё, и приходилось переснимать шесть граней заново ради одной).
+    const faces = COLOR_NAMES.map((c) => collectorRef.current!.get(c)!);
     const { productFaceGrids, resolved, reason } = resolveSixFaces(faces, refs);
+
+    const finishVerify = (): void => {
+      collectorRef.current = null;
+      setCollecting(false);
+      setVerifyFacesLength(0);
+      setVerifyCapturedFaces([]);
+    };
 
     // Casual solo (tolerant): don't demand a globally-legal cube. Score the real
     // per-sticker read against `expected` face-by-face and accept within tolerance,
@@ -976,10 +1011,21 @@ export function useCubeReader(workRef: React.RefObject<HTMLCanvasElement | null>
       const centers = assignFacesByCenter(normalizeSamples(faces, refs), refs).faces;
       const lm = lenientVerify(productFaceGrids, centers, expected);
       const correctFrac = (lm.totalStickers - lm.mismatches) / lm.totalStickers;
-      if (correctFrac >= config.CASUAL_VERIFY_MIN_CORRECT_FRAC) return { kind: "ok" };
+      if (correctFrac >= config.CASUAL_VERIFY_MIN_CORRECT_FRAC) {
+        finishVerify();
+        return { kind: "ok" };
+      }
+      // Одна грань виновата больше остальных — переснимаем только её слот,
+      // остальные пять остаются собранными.
+      dropVerifyFace(lm.worstFace);
       return { kind: "mismatch", face: lm.worstFace, count: lm.mismatches };
     }
 
+    // Strict path (Stage 4 ranked, tolerant=false — solo never reaches here, it
+    // always passes tolerant=true). assign/ambiguous/resolve/illegal are
+    // cross-face legality failures with no single face reliably to blame, so
+    // this path still discards the whole in-flight set.
+    finishVerify();
     if (reason === "assign") return { kind: "assign" };
     if (reason === "ambiguous") return { kind: "ambiguous" };
     if (reason === "resolve") return { kind: "resolve" };
@@ -1165,6 +1211,7 @@ export function useCubeReader(workRef: React.RefObject<HTMLCanvasElement | null>
     seeded,
     validated,
     verifyFacesLength,
+    verifyCapturedFaces,
     collecting,
     captureCalibration,
     calibrationProblem,
@@ -1175,6 +1222,7 @@ export function useCubeReader(workRef: React.RefObject<HTMLCanvasElement | null>
     beginVerify,
     pushVerifyFace,
     resetVerify,
+    dropVerifyFace,
     accFacesLength,
     collectingAccuracy,
     beginAccuracy,

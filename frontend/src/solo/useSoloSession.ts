@@ -28,6 +28,7 @@ import { useCamera, CameraError, type FrameInfo } from "../vision/hooks/useCamer
 import { cameraErrorRu } from "../vision/cameraErrors";
 import { useHands, HandsInitError } from "../vision/hooks/useHands";
 import { useCubeReader } from "../vision/hooks/useCubeReader";
+import type { ColorName } from "../vision/colors";
 import { useScramble } from "../scramble/hooks/useScramble";
 import {
   cameraDeniedRu,
@@ -95,8 +96,12 @@ export interface SoloSession {
   // Scramble verify.
   collecting: boolean;
   verifyFacesLength: number;
+  /** Which of U/R/F/D/L/B currently hold a captured face (any order). */
+  verifyCapturedFaces: readonly string[];
   verifyError: string | null;
   verifyStep: () => Promise<void>;
+  /** Re-open one already-captured face's slot for a re-shoot (keeps the other 5). */
+  dropVerifyFace: (face: string) => void;
   // Demo escape hatch: appears after repeated camera-read failures (skeptic-honest —
   // marks the result cameraVerified:false rather than pretending it verified).
   verifyFailCount: number;
@@ -367,25 +372,24 @@ export function useSoloSession(opts?: UseSoloSessionOpts): SoloSession {
       case "unreadable":
         setVerifyFailCount((n) => n + 1);
         // Причина отказа — часть сообщения: «повтори» без объяснения не даёт
-        // человеку ничего сделать (блик? рамка мимо? два похожих цвета?).
+        // человеку ничего сделать (блик? рамка мимо? два похожих цвета?). НЕ
+        // сбрасываем коллектор: это провал ОДНОЙ попытки съёмки, которая ещё
+        // не заняла слот — уже собранные грани (0..5) остаются на месте (owner
+        // bug: раньше resetVerify() здесь стирал их все).
         setVerifyError(r.diag ? `${faceUnreadableRu()} (${r.diag})` : faceUnreadableRu());
-        reader.resetVerify();
         return;
       case "assign":
         setVerifyFailCount((n) => n + 1);
         setVerifyError(faceUnreadableRu());
-        reader.resetVerify();
         return;
       case "ambiguous":
         setVerifyFailCount((n) => n + 1);
         setVerifyError(rotationAmbiguousRu());
-        reader.resetVerify();
         return;
       case "illegal":
       case "resolve":
         setVerifyFailCount((n) => n + 1);
         setVerifyError(rotationFailedRu());
-        reader.resetVerify();
         return;
     }
   };
@@ -428,29 +432,30 @@ export function useSoloSession(opts?: UseSoloSessionOpts): SoloSession {
         dispatch({ type: "solve_verify_ok" });
         return;
       case "mismatch":
+        // Виновата ровно одна грань (reader.pushVerifyFace уже выбило её слот
+        // и оставило остальные пять) — не reader.resetVerify() здесь, иначе
+        // пришлось бы переснимать все шесть заново ради одной.
         setSolveVerifyFailCount((n) => n + 1);
         dispatch({ type: "solve_verify_mismatch", face: r.face, count: r.count });
         setSolveVerifyError(solveVerifyMismatchRu(r.count, t));
-        reader.resetVerify();
         return;
       case "unreadable":
       case "assign":
+        // Провал ОДНОЙ попытки съёмки — слот ещё не занят, уже подтверждённые
+        // грани (0..5) остаются в коллекторе (не reader.resetVerify()).
         setSolveVerifyFailCount((n) => n + 1);
         setSolveVerifyError(
           "diag" in r && r.diag ? `${faceUnreadableRu()} (${r.diag})` : faceUnreadableRu(),
         );
-        reader.resetVerify();
         return;
       case "ambiguous":
         setSolveVerifyFailCount((n) => n + 1);
         setSolveVerifyError(rotationAmbiguousRu());
-        reader.resetVerify();
         return;
       case "illegal":
       case "resolve":
         setSolveVerifyFailCount((n) => n + 1);
         setSolveVerifyError(rotationFailedRu());
-        reader.resetVerify();
         return;
     }
   };
@@ -464,6 +469,15 @@ export function useSoloSession(opts?: UseSoloSessionOpts): SoloSession {
     reader.resetVerify();
     getFsm().reset();
     dispatch({ type: "solve_verify_skip" });
+  };
+
+  // Ручная пересъёмка одной уже снятой грани (кнопка «Переснять грань» на её
+  // слоте, verify и solve_verify). Убирает только этот слот, остальные пять
+  // остаются, и заодно гасит устаревший баннер ошибки/расхождения.
+  const dropVerifyFace = (face: string): void => {
+    setVerifyError(null);
+    setSolveVerifyError(null);
+    reader.dropVerifyFace(face as ColorName);
   };
 
   // Переход НЕ ждёт камеру: экран verify сам показывает cameraError и «Повторить»,
@@ -534,8 +548,10 @@ export function useSoloSession(opts?: UseSoloSessionOpts): SoloSession {
     fallbackToFullCalibration: calibrate.fallbackToFullCalibration,
     collecting: reader.collecting,
     verifyFacesLength: reader.verifyFacesLength,
+    verifyCapturedFaces: reader.verifyCapturedFaces,
     verifyError,
     verifyStep,
+    dropVerifyFace,
     verifyFailCount,
     skipVerify,
     solveVerifyError,
