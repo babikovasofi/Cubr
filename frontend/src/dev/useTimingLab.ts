@@ -12,7 +12,7 @@
 // the FSM state live, and tune thresholds + zone rects until start/stop feel
 // right, before baking the numbers back into vision/config.ts.
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type MutableRefObject } from "react";
 import { HandsFsm, type FsmState, type FsmEvent } from "../vision/fsm";
 import { config as defaultConfig, type Config, type Rect } from "../vision/config";
 import { drawOverlay, defaultZones } from "../vision/overlay";
@@ -54,7 +54,17 @@ export interface LabObs {
   hands: { inZone: boolean }[];
 }
 
-function defaultLabConfig(): LabConfig {
+// Live readout the frame loop writes into a ref (NOT React state) — see the
+// comment at `readoutRef`. `<LiveReadout>` snapshots it on its own interval.
+export interface LabReadout {
+  fsmState: FsmState;
+  lastEvent: FsmEvent;
+  obs: LabObs;
+  liveMs: number;
+  eventLog: LabEventLogEntry[];
+}
+
+export function defaultLabConfig(): LabConfig {
   return {
     ZONE_ENTER_MS: defaultConfig.ZONE_ENTER_MS,
     STILL_MS: defaultConfig.STILL_MS,
@@ -74,12 +84,9 @@ export interface TimingLab {
   cameraError: string | null;
   startCamera: () => Promise<void>;
 
-  // Live readout, updated once per processed frame.
-  fsmState: FsmState;
-  lastEvent: FsmEvent;
-  obs: LabObs;
-  liveMs: number; // ms since solve_start, 0 while not solving
-  eventLog: LabEventLogEntry[];
+  // Live readout — mutated in a ref every frame (no re-render). Read it from
+  // <LiveReadout>, which snapshots the ref on its own interval.
+  readoutRef: MutableRefObject<LabReadout>;
   resetFsm: () => void;
 
   // Live-tunable config + zones. Editing these takes effect on the NEXT
@@ -123,11 +130,18 @@ export function useTimingLab(): TimingLab {
   const fsmRef = useRef<HandsFsm | null>(null);
   const getFsm = (): HandsFsm => (fsmRef.current ??= new HandsFsm(cfgRef.current));
 
-  const [fsmState, setFsmState] = useState<FsmState>("NO_HANDS");
-  const [lastEvent, setLastEvent] = useState<FsmEvent>(null);
-  const [obs, setObs] = useState<LabObs>(NO_OBS);
-  const [liveMs, setLiveMs] = useState(0);
-  const [eventLog, setEventLog] = useState<LabEventLogEntry[]>([]);
+  // Читалку НЕ держим в React-состоянии. Кадр (~60 Гц) писал бы setState и
+  // ре-рендерил ВСЮ страницу так часто, что контролируемый слайдер откатывался
+  // бы при перетаскивании (его value сбрасывается к prop быстрее, чем едет
+  // мышь). Кадр пишет в этот ref, а <LiveReadout> сам снимает его на своём
+  // интервале — ре-рендерится только читалка, колонка с порогами не трогается.
+  const readoutRef = useRef<LabReadout>({
+    fsmState: "NO_HANDS",
+    lastEvent: null,
+    obs: NO_OBS,
+    liveMs: 0,
+    eventLog: [],
+  });
   const startTRef = useRef<number | null>(null);
 
   const setLabConfig = (patch: Partial<LabConfig>): void => {
@@ -151,9 +165,11 @@ export function useTimingLab(): TimingLab {
   const resetFsm = (): void => {
     getFsm().reset();
     startTRef.current = null;
-    setFsmState("NO_HANDS");
-    setLastEvent(null);
-    setLiveMs(0);
+    const r = readoutRef.current;
+    r.fsmState = "NO_HANDS";
+    r.lastEvent = null;
+    r.liveMs = 0;
+    r.eventLog = [];
   };
 
   const resetDefaults = (): void => {
@@ -182,14 +198,8 @@ export function useTimingLab(): TimingLab {
       if (ctx) drawOverlay(ctx, width, height, o, zonesRef.current, cfgRef.current.GUIDE_RECT);
     }
 
-    setObs({
-      handsDetected: o.handsDetected,
-      bothInZone: o.bothInZone,
-      still: o.still,
-      handsOutOfZone: o.handsOutOfZone,
-      hands: o.hands.map((h) => ({ inZone: h.inZone })),
-    });
-
+    // FSM — каждый кадр (точность). Пишем только в ref: никакого setState,
+    // никакого ре-рендера страницы из цикла кадров.
     const res = getFsm().step({
       t: nowTs,
       handsDetected: o.handsDetected,
@@ -197,25 +207,34 @@ export function useTimingLab(): TimingLab {
       still: o.still,
       handsOutOfZone: o.handsOutOfZone,
     });
-    setFsmState(res.state);
+
+    const r = readoutRef.current;
+    r.obs = {
+      handsDetected: o.handsDetected,
+      bothInZone: o.bothInZone,
+      still: o.still,
+      handsOutOfZone: o.handsOutOfZone,
+      hands: o.hands.map((h) => ({ inZone: h.inZone })),
+    };
+    r.fsmState = res.state;
 
     if (res.event === "solve_start") startTRef.current = nowTs;
     if (res.event) {
-      setLastEvent(res.event);
+      r.lastEvent = res.event;
       const startT = res.event === "solve_start" ? nowTs : startTRef.current;
-      setEventLog((log) => [
-        ...log,
+      r.eventLog = [
+        ...r.eventLog,
         {
           event: res.event as Exclude<FsmEvent, null>,
           t: nowTs,
           elapsedMs: startT === null ? NaN : nowTs - startT,
         },
-      ]);
+      ].slice(-100);
       if (res.event === "abort") startTRef.current = null;
     }
 
     if (res.state === "SOLVING" && startTRef.current !== null) {
-      setLiveMs(nowTs - startTRef.current);
+      r.liveMs = nowTs - startTRef.current;
     }
   };
 
@@ -255,11 +274,7 @@ export function useTimingLab(): TimingLab {
     cameraStarted,
     cameraError,
     startCamera,
-    fsmState,
-    lastEvent,
-    obs,
-    liveMs,
-    eventLog,
+    readoutRef,
     resetFsm,
     labConfig,
     setLabConfig,

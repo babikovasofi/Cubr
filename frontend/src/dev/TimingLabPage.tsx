@@ -2,11 +2,22 @@
 // /accuracy, but for WHEN the timer starts/stops relative to hands + cube).
 // Gated behind import.meta.env.DEV at the route level (App.tsx) — never shipped.
 
+import { useEffect, useState, type MutableRefObject } from "react";
 import { Link } from "react-router-dom";
 import CameraStage from "../solo/CameraStage";
 import Button from "../components/Button";
-import { useTimingLab, type LabConfig, type LabZones } from "./useTimingLab";
+import {
+  useTimingLab,
+  defaultLabConfig,
+  type LabConfig,
+  type LabZones,
+  type LabReadout,
+} from "./useTimingLab";
+import { defaultZones } from "../vision/overlay";
 import type { FsmState } from "../vision/fsm";
+
+const DEFAULT_CFG = defaultLabConfig();
+const DEFAULT_ZONES = defaultZones();
 
 const STATE_ORDER: FsmState[] = ["NO_HANDS", "HANDS_IN_ZONE", "READY", "SOLVING", "STOPPED"];
 
@@ -53,6 +64,7 @@ function NumberField({
   max,
   step,
   unit,
+  defaultValue,
   onChange,
 }: {
   label: string;
@@ -61,15 +73,30 @@ function NumberField({
   max: number;
   step: number;
   unit: string;
+  defaultValue?: number;
   onChange: (v: number) => void;
 }) {
+  const changed = defaultValue !== undefined && value !== defaultValue;
   return (
     <label className="flex flex-col gap-1 font-sans text-small text-ink">
-      <span className="flex items-center justify-between">
+      <span className="flex items-center justify-between gap-2">
         <span className="font-bold">{label}</span>
-        <span className="tabular-nums text-muted">
-          {value}
-          {unit}
+        <span className="flex items-center gap-2">
+          {changed ? (
+            <button
+              type="button"
+              onClick={() => onChange(defaultValue as number)}
+              title={`Сбросить к ${defaultValue}${unit}`}
+              className="rounded-full border border-line px-1.5 py-0.5 text-caption font-bold text-primary hover:bg-surface-2"
+            >
+              ↺ {defaultValue}
+              {unit}
+            </button>
+          ) : null}
+          <span className="tabular-nums text-muted">
+            {value}
+            {unit}
+          </span>
         </span>
       </span>
       <input
@@ -88,10 +115,12 @@ function NumberField({
 function RectFields({
   label,
   rect,
+  defaults,
   onChange,
 }: {
   label: string;
   rect: LabZones["left"];
+  defaults: LabZones["left"];
   onChange: (patch: Partial<LabZones["left"]>) => void;
 }) {
   const AXES: { key: "x" | "y" | "w" | "h"; label: string }[] = [
@@ -112,10 +141,92 @@ function RectFields({
           max={1}
           step={0.01}
           unit=""
+          defaultValue={defaults[key]}
           onChange={(v) => onChange({ [key]: v } as Partial<LabZones["left"]>)}
         />
       ))}
     </fieldset>
+  );
+}
+
+// Живая читалка: снимает readoutRef на своём интервале (~8 Гц) и рендерит
+// ТОЛЬКО себя. Так цикл кадров не заставляет ре-рендериться колонку с
+// ползунками — контролируемые слайдеры больше не откатываются при перетаскивании.
+function LiveReadout({
+  readoutRef,
+  resetFsm,
+}: {
+  readoutRef: MutableRefObject<LabReadout>;
+  resetFsm: () => void;
+}) {
+  const [snap, setSnap] = useState<LabReadout>(readoutRef.current);
+  useEffect(() => {
+    const id = window.setInterval(() => {
+      const r = readoutRef.current;
+      // Новый объект каждый тик — иначе setState не заметит мутацию ref.
+      setSnap({
+        fsmState: r.fsmState,
+        lastEvent: r.lastEvent,
+        obs: r.obs,
+        liveMs: r.liveMs,
+        eventLog: r.eventLog,
+      });
+    }, 120);
+    return () => window.clearInterval(id);
+  }, [readoutRef]);
+
+  return (
+    <div className="flex flex-col gap-3 rounded-lg border-2 border-ink bg-surface p-4 lg:sticky lg:top-4">
+      <StateReadout state={snap.fsmState} />
+
+      <div className="flex flex-wrap gap-2">
+        <Chip on={snap.obs.handsDetected} label="руки видны" />
+        <Chip on={snap.obs.bothInZone} label="обе в зоне" />
+        <Chip on={snap.obs.still} label="неподвижны" />
+        <Chip on={snap.obs.handsOutOfZone > 0} label={`вне зоны: ${snap.obs.handsOutOfZone}`} />
+      </div>
+
+      <div className="flex items-baseline justify-between">
+        <span className="font-sans text-small font-bold text-muted">Таймер</span>
+        <span className="font-mono text-h2 tabular-nums text-ink">{formatMs(snap.liveMs)}</span>
+      </div>
+      {snap.lastEvent ? (
+        <p className="font-sans text-small text-muted">
+          Последнее событие: <span className="font-bold text-ink">{snap.lastEvent}</span>
+        </p>
+      ) : null}
+
+      <Button variant="secondary" onClick={resetFsm}>
+        Сбросить FSM
+      </Button>
+
+      <div className="flex flex-col gap-1">
+        <span className="font-sans text-overline uppercase text-muted">
+          Журнал событий ({snap.eventLog.length})
+        </span>
+        <div className="max-h-48 overflow-y-auto rounded-md border border-line">
+          {snap.eventLog.length === 0 ? (
+            <p className="p-2 font-sans text-small text-faint">Событий пока не было.</p>
+          ) : (
+            <table className="w-full font-mono text-small">
+              <tbody>
+                {[...snap.eventLog]
+                  .slice(-30)
+                  .reverse()
+                  .map((e, i) => (
+                    <tr key={`${e.t}-${i}`} className="border-t border-line first:border-t-0">
+                      <td className="px-2 py-1 text-ink">{e.event}</td>
+                      <td className="px-2 py-1 text-right tabular-nums text-muted">
+                        {formatMs(e.elapsedMs)}
+                      </td>
+                    </tr>
+                  ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -143,75 +254,28 @@ export default function TimingLabPage() {
         </p>
       </header>
 
+      {/* Камера крупная — как на сайте: своим блоком во всю ширину сверху. */}
+      <div className="mx-auto w-full max-w-3xl">
+        <CameraStage
+          videoRef={lab.videoRef}
+          overlayRef={lab.overlayRef}
+          workRef={lab.workRef}
+          error={lab.cameraError}
+          onRetry={lab.startCamera}
+        />
+        {!lab.cameraStarted ? (
+          <Button className="mt-3" onClick={lab.startCamera}>
+            Включить камеру
+          </Button>
+        ) : null}
+      </div>
+
       <div className="grid items-start gap-6 lg:grid-cols-2">
-        {/* Камера + живой статус — одним липким блоком: настройку крутят,
-            глядя одновременно и на руки в кадре, и на состояние FSM. */}
-        <div className="flex flex-col gap-3 lg:sticky lg:top-4">
-          <CameraStage
-            videoRef={lab.videoRef}
-            overlayRef={lab.overlayRef}
-            workRef={lab.workRef}
-            error={lab.cameraError}
-            onRetry={lab.startCamera}
-          />
-          {!lab.cameraStarted ? <Button onClick={lab.startCamera}>Включить камеру</Button> : null}
+        {/* Живой статус слева, пороги справа. Читалка — отдельный компонент со
+            своим тиком по ref, чтобы кадры не ре-рендерили колонку с порогами. */}
+        <LiveReadout readoutRef={lab.readoutRef} resetFsm={lab.resetFsm} />
 
-          <div className="flex flex-col gap-3 rounded-lg border-2 border-ink bg-surface p-4">
-            <StateReadout state={lab.fsmState} />
-
-            <div className="flex flex-wrap gap-2">
-              <Chip on={lab.obs.handsDetected} label="руки видны" />
-              <Chip on={lab.obs.bothInZone} label="обе в зоне" />
-              <Chip on={lab.obs.still} label="неподвижны" />
-              <Chip on={lab.obs.handsOutOfZone > 0} label={`вне зоны: ${lab.obs.handsOutOfZone}`} />
-            </div>
-
-            <div className="flex items-baseline justify-between">
-              <span className="font-sans text-small font-bold text-muted">Таймер</span>
-              <span className="font-mono text-h2 tabular-nums text-ink">
-                {formatMs(lab.liveMs)}
-              </span>
-            </div>
-            {lab.lastEvent ? (
-              <p className="font-sans text-small text-muted">
-                Последнее событие: <span className="font-bold text-ink">{lab.lastEvent}</span>
-              </p>
-            ) : null}
-
-            <Button variant="secondary" onClick={lab.resetFsm}>
-              Сбросить FSM
-            </Button>
-
-            <div className="flex flex-col gap-1">
-              <span className="font-sans text-overline uppercase text-muted">
-                Журнал событий ({lab.eventLog.length})
-              </span>
-              <div className="max-h-48 overflow-y-auto rounded-md border border-line">
-                {lab.eventLog.length === 0 ? (
-                  <p className="p-2 font-sans text-small text-faint">Событий пока не было.</p>
-                ) : (
-                  <table className="w-full font-mono text-small">
-                    <tbody>
-                      {[...lab.eventLog]
-                        .slice(-30)
-                        .reverse()
-                        .map((e, i) => (
-                          <tr key={`${e.t}-${i}`} className="border-t border-line first:border-t-0">
-                            <td className="px-2 py-1 text-ink">{e.event}</td>
-                            <td className="px-2 py-1 text-right tabular-nums text-muted">
-                              {formatMs(e.elapsedMs)}
-                            </td>
-                          </tr>
-                        ))}
-                    </tbody>
-                  </table>
-                )}
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Пороги — трогают редко, справа, без прилипания к экрану. */}
+        {/* Пороги — трогают редко, второй колонкой. */}
         <div className="flex flex-col gap-4">
           <div className="flex flex-col gap-4 rounded-lg border-2 border-ink bg-surface p-4">
             <div className="flex items-center justify-between">
@@ -228,6 +292,7 @@ export default function TimingLabPage() {
               max={2000}
               step={10}
               unit=" мс"
+              defaultValue={DEFAULT_CFG.STOP_MS}
               onChange={(v) => patchConfig({ STOP_MS: v })}
             />
             <NumberField
@@ -237,6 +302,7 @@ export default function TimingLabPage() {
               max={2000}
               step={10}
               unit=" мс"
+              defaultValue={DEFAULT_CFG.ZONE_ENTER_MS}
               onChange={(v) => patchConfig({ ZONE_ENTER_MS: v })}
             />
             <NumberField
@@ -246,6 +312,7 @@ export default function TimingLabPage() {
               max={3000}
               step={10}
               unit=" мс"
+              defaultValue={DEFAULT_CFG.STILL_MS}
               onChange={(v) => patchConfig({ STILL_MS: v })}
             />
             <NumberField
@@ -255,6 +322,7 @@ export default function TimingLabPage() {
               max={1000}
               step={10}
               unit=" мс"
+              defaultValue={DEFAULT_CFG.LEAVE_DEBOUNCE_MS}
               onChange={(v) => patchConfig({ LEAVE_DEBOUNCE_MS: v })}
             />
             <NumberField
@@ -264,6 +332,7 @@ export default function TimingLabPage() {
               max={3000}
               step={10}
               unit=" мс"
+              defaultValue={DEFAULT_CFG.ABORT_MS}
               onChange={(v) => patchConfig({ ABORT_MS: v })}
             />
             <NumberField
@@ -273,12 +342,22 @@ export default function TimingLabPage() {
               max={0.2}
               step={0.005}
               unit=""
+              defaultValue={DEFAULT_CFG.STILL_MOTION_FRAC}
               onChange={(v) => patchConfig({ STILL_MOTION_FRAC: v })}
             />
 
             <fieldset className="flex flex-col gap-2">
-              <legend className="font-sans text-small font-bold text-ink">
-                START_RULE — какая рука стартует таймер
+              <legend className="flex w-full items-center justify-between gap-2 font-sans text-small font-bold text-ink">
+                <span>START_RULE — какая рука стартует таймер</span>
+                {lab.labConfig.START_RULE !== DEFAULT_CFG.START_RULE ? (
+                  <button
+                    type="button"
+                    onClick={() => patchConfig({ START_RULE: DEFAULT_CFG.START_RULE })}
+                    className="rounded-full border border-line px-1.5 py-0.5 text-caption font-bold text-primary hover:bg-surface-2"
+                  >
+                    ↺ {DEFAULT_CFG.START_RULE === "first" ? "первая рука" : "обе руки"}
+                  </button>
+                ) : null}
               </legend>
               <div className="inline-flex w-fit overflow-hidden rounded-full border-2 border-ink">
                 {(["first", "both"] as const).map((rule) => (
@@ -310,11 +389,13 @@ export default function TimingLabPage() {
             <RectFields
               label="Левая зона (сырой кадр)"
               rect={lab.zones.left}
+              defaults={DEFAULT_ZONES.left}
               onChange={(patch) => lab.setZones({ left: { ...lab.zones.left, ...patch } })}
             />
             <RectFields
               label="Правая зона (сырой кадр)"
               rect={lab.zones.right}
+              defaults={DEFAULT_ZONES.right}
               onChange={(patch) => lab.setZones({ right: { ...lab.zones.right, ...patch } })}
             />
           </div>
