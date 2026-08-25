@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 //
-// Onboarding step 4 — the account handle (П10). Covers: the step renders and
+// Onboarding's final step — the account handle (П10). Covers: the step renders and
 // is honest about where the name becomes visible; it is skippable (empty
 // submit advances without touching the API); a filled name is sent via PATCH
 // /users/me; the name filter's and the handle-collision's real error text
@@ -69,9 +69,12 @@ async function renderAtHandleStep() {
       <OnboardingPage />
     </MemoryRouter>,
   );
-  fireEvent.click(screen.getByText("Начать")); // step 0 -> 1
-  fireEvent.click(screen.getByRole("button", { name: "Далее" })); // step 1 -> 2 (hands already seen)
-  fireEvent.click(screen.getByText("stub: leave cube step")); // step 2 -> 3
+  fireEvent.click(screen.getByText("Начать")); // step 0 -> 1 (ritual)
+  fireEvent.click(screen.getByRole("button", { name: "Далее" })); // 1 -> 2 (camera guide)
+  fireEvent.click(screen.getByRole("button", { name: "Далее" })); // 2 -> 3 (camera check)
+  fireEvent.click(screen.getByRole("button", { name: "Далее" })); // 3 -> 4 (cube step, hands already seen)
+  fireEvent.click(screen.getByText("stub: leave cube step")); // 4 -> 5 (cups)
+  fireEvent.click(screen.getByRole("button", { name: "Далее" })); // 5 -> 6 (handle)
   return utils;
 }
 
@@ -173,9 +176,9 @@ describe("OnboardingPage HandleStep", () => {
     expect(markOnboardedMock).not.toHaveBeenCalled();
   });
 
-  it("can go back to the cube step", async () => {
+  it("can go back to the cups step", async () => {
     await renderAtHandleStep();
     fireEvent.click(screen.getByText("← Назад"));
-    expect(screen.getByText("stub: leave cube step")).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "Кубки и ранги" })).toBeTruthy();
   });
 });

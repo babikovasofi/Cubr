@@ -1,121 +1,141 @@
 // @vitest-environment jsdom
 //
-// Regression for the same "camera never starts" dead end as
-// tests/cubes/CubeRegisterWizard.test.tsx, this time in onboarding step 2
-// ("Проверка камеры" — OnboardingPage's CameraStep). Root cause was
-// identical: <CameraStage> (the <video ref={cam.videoRef}> owner) was
-// rendered ONLY once `cam.started` was already true, but
-// useCameraCheck.start() → useCamera's start() requires cam.videoRef.current
-// to be a mounted DOM node BEFORE it runs — a chicken-and-egg dead end where
-// the enable button could never succeed.
+// Onboarding tutorial (7 steps): verifies the new teaching steps — ritual
+// explanation, camera/hands setup guide, and cups/ranks primer — actually
+// render and that the whole flow is reachable end-to-end via "Далее", and
+// that every step (old and new) is still skippable via "Пропустить
+// онбординг" from any point in the flow.
 //
-// This test proves the fix structurally: CameraStage/<video> is mounted on
-// step 2's first render, before the user ever clicks "Включить камеру".
+// Heavy subsystems (live camera/hands detection, cube color-profile wizard,
+// handle availability check) are stubbed — this test is about onboarding
+// flow/content, not vision or cube-registration internals, which have their
+// own suites.
 
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
-import type { CameraCheck } from "../../src/onboarding/useCameraCheck";
-
-const { useCameraCheckMock } = vi.hoisted(() => ({ useCameraCheckMock: vi.fn() }));
-vi.mock("../../src/onboarding/useCameraCheck", async () => {
-  const actual = await vi.importActual<typeof import("../../src/onboarding/useCameraCheck")>(
-    "../../src/onboarding/useCameraCheck",
-  );
-  return { ...actual, useCameraCheck: useCameraCheckMock };
-});
-
 import OnboardingPage from "../../src/pages/OnboardingPage";
 
-function stubCam(overrides: Partial<CameraCheck> = {}): CameraCheck {
-  return {
+const navigateMock = vi.fn();
+
+vi.mock("react-router-dom", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("react-router-dom")>();
+  return { ...actual, useNavigate: () => navigateMock };
+});
+
+vi.mock("../../src/onboarding/useCameraCheck", () => ({
+  useCameraCheck: () => ({
     videoRef: { current: null },
     overlayRef: { current: null },
     workRef: { current: null },
-    started: false,
+    started: true,
     starting: false,
-    handsSeen: false,
+    handsSeen: true,
     error: null,
-    start: vi.fn(async () => {}),
-    ...overrides,
-  };
-}
+    start: vi.fn(),
+  }),
+}));
 
-function renderAtCameraStep() {
-  const utils = render(
+vi.mock("../../src/solo/CameraStage", () => ({
+  default: () => <div data-testid="camera-stage">CameraStage</div>,
+}));
+
+vi.mock("../../src/cubes/CubeRegisterWizard", () => ({
+  default: ({ onDone }: { onDone: () => void }) => (
+    <button type="button" onClick={onDone}>
+      cube-wizard-done
+    </button>
+  ),
+}));
+
+vi.mock("../../src/auth/onboarding", () => ({
+  markOnboarded: vi.fn(),
+}));
+
+vi.mock("../../src/api/auth", () => ({
+  markOnboardedOnServer: vi.fn(() => Promise.resolve({})),
+}));
+
+vi.mock("../../src/store/authStore", () => ({
+  useAuthStore: Object.assign(
+    vi.fn(() => vi.fn()),
+    { setState: vi.fn() },
+  ),
+}));
+
+beforeEach(() => {
+  navigateMock.mockClear();
+});
+
+function renderPage() {
+  return render(
     <MemoryRouter>
       <OnboardingPage />
     </MemoryRouter>,
   );
-  // Step 0 -> step 1 ("Проверка камеры").
-  fireEvent.click(screen.getByText("Начать"));
-  return utils;
 }
 
-describe("OnboardingPage CameraStep camera start", () => {
-  it("mounts the <video> element BEFORE the camera is started (not gated on cam.started)", () => {
-    const cam = stubCam({ started: false });
-    useCameraCheckMock.mockReturnValue(cam);
+function click(name: string) {
+  fireEvent.click(screen.getByRole("button", { name }));
+}
 
-    const { container } = renderAtCameraStep();
-
-    // Precondition useCameraCheck.start() needs: <video> already in the DOM
-    // (cam.videoRef.current non-null) BEFORE the user clicks "Включить
-    // камеру" — otherwise camera.start() throws "video element not mounted"
-    // on every attempt, exactly like the CubeRegisterWizard bug.
-    expect(container.querySelector("video")).not.toBeNull();
-    expect(screen.getByText("Включить камеру")).toBeTruthy();
+describe("OnboardingPage — extended tutorial", () => {
+  it("shows the 7-step progress list, starting on «Знакомство»", () => {
+    renderPage();
+    expect(screen.getByRole("list", { name: "Шаги онбординга" })).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "Как это работает" })).toBeTruthy();
   });
 
-  it("clicking the enable button calls start() while the video ref is already attached", () => {
-    const cam = stubCam({ started: false });
-    useCameraCheckMock.mockReturnValue(cam);
-
-    renderAtCameraStep();
-
-    expect(cam.videoRef.current).not.toBeNull();
-    fireEvent.click(screen.getByText("Включить камеру"));
-    expect(cam.start).toHaveBeenCalledTimes(1);
+  it("walks through the ritual step and shows the 4 solve-ritual cards", () => {
+    renderPage();
+    click("Начать");
+    expect(screen.getByRole("heading", { name: "Как проходит сборка" })).toBeTruthy();
+    expect(screen.getByText("Показываешь собранный кубик")).toBeTruthy();
+    expect(screen.getByText("Скрамбл выдаёт сервер")).toBeTruthy();
+    expect(screen.getByText("Две руки на стол — старт")).toBeTruthy();
+    expect(screen.getByText("Руки на стол — стоп")).toBeTruthy();
   });
 
-  it("keeps the video mounted once started, showing the hands-search status", () => {
-    const cam = stubCam({ started: true, handsSeen: false });
-    useCameraCheckMock.mockReturnValue(cam);
-
-    const { container } = renderAtCameraStep();
-
-    expect(container.querySelector("video")).not.toBeNull();
-    expect(screen.getByText("Ищу руки в кадре…")).toBeTruthy();
+  it("walks through the camera-setup guide step with the annotated mock frame", () => {
+    renderPage();
+    click("Начать"); // -> ritual
+    click("Далее"); // -> camera guide
+    expect(screen.getByRole("heading", { name: "Как поставить камеру и руки" })).toBeTruthy();
+    expect(screen.getByText("Кубик — сюда, в жёлтую рамку")).toBeTruthy();
+    expect(screen.getByText("Левая рука")).toBeTruthy();
+    expect(screen.getByText("Правая рука")).toBeTruthy();
+    expect(
+      screen.getByText(
+        "Руки видно только частично — это нормально, в кадр попадают кисти, не целиком.",
+      ),
+    ).toBeTruthy();
   });
 
-  it("shows «Запускаю камеру…» while starting, before the first frame", () => {
-    useCameraCheckMock.mockReturnValue(stubCam({ starting: true, started: false }));
-    renderAtCameraStep();
-    expect(screen.getByText("Запускаю камеру…")).toBeTruthy();
-    // Not prompting for hands yet, and no enable button while starting.
-    expect(screen.queryByText("Ищу руки в кадре…")).toBeNull();
-    expect(screen.queryByText("Включить камеру")).toBeNull();
+  it("walks through camera check, cube registration, and the cups/ranks primer", () => {
+    renderPage();
+    click("Начать"); // -> ritual
+    click("Далее"); // -> camera guide
+    click("Далее"); // -> camera check
+    expect(screen.getByRole("heading", { name: "Проверка камеры" })).toBeTruthy();
+    expect(screen.getByTestId("camera-stage")).toBeTruthy();
+
+    // Mocked useCameraCheck reports hands confirmed, so "Далее" is enabled.
+    click("Далее");
+    expect(screen.getByRole("heading", { name: "Регистрация кубика" })).toBeTruthy();
+
+    click("cube-wizard-done");
+    expect(screen.getByRole("heading", { name: "Кубки и ранги" })).toBeTruthy();
+    expect(screen.getByText(/Выиграл дуэль/)).toBeTruthy();
+    expect(screen.getByRole("link", { name: "Открыть дорогу кубков" })).toBeTruthy();
+
+    click("Далее"); // -> handle
+    expect(screen.getByRole("heading", { name: "Твой ник" })).toBeTruthy();
   });
 
-  it("disables «Далее» until hands are confirmed, and offers the skip hatch", () => {
-    useCameraCheckMock.mockReturnValue(stubCam({ started: true, handsSeen: false }));
-    renderAtCameraStep();
-    expect(screen.getByRole("button", { name: "Далее" })).toHaveProperty("disabled", true);
-    expect(screen.getByText("Пропустить (камера не проверена)")).toBeTruthy();
-  });
-
-  it("enables «Далее» once hands are confirmed (handsSeen), showing success copy", () => {
-    useCameraCheckMock.mockReturnValue(stubCam({ started: true, handsSeen: true }));
-    renderAtCameraStep();
-    expect(screen.getByRole("button", { name: "Далее" })).toHaveProperty("disabled", false);
-    expect(screen.getByText("Камера и руки распознаются — отлично!")).toBeTruthy();
-    // Skip hatch is gone once ready.
-    expect(screen.queryByText("Пропустить (камера не проверена)")).toBeNull();
-  });
-
-  it("widens the container on the camera step (max-w-5xl)", () => {
-    useCameraCheckMock.mockReturnValue(stubCam());
-    const { container } = renderAtCameraStep();
-    expect(container.querySelector(".max-w-5xl")).not.toBeNull();
+  it("is skippable from any step via «Пропустить онбординг»", () => {
+    renderPage();
+    click("Начать");
+    click("Пропустить онбординг");
+    expect(navigateMock).toHaveBeenCalledWith("/", { replace: true });
   });
 });

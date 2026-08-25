@@ -1,8 +1,12 @@
-// Onboarding (plan §B): 4 steps — intro, camera check (reuses useCamera+useHands),
-// cube registration (CubeRegisterWizard → first cube becomes primary), and the
-// account name (`handle`, П10). Every step is skippable; finishing marks the
-// local onboarded flag. The cube step is skippable too — the profile isn't
-// consumed in solo yet, so it's not a play gate.
+// Onboarding (plan §B, extended into a full first-run tutorial): 7 steps —
+// intro, the solve ritual explained, an annotated camera/hands setup guide,
+// the live camera check (reuses useCamera+useHands), cube registration
+// (CubeRegisterWizard → first cube becomes primary), a cups/ranks primer, and
+// the account name (`handle`, П10). Every step is skippable; finishing marks
+// the local onboarded flag. The teaching steps (ritual, camera guide, cups)
+// sit BEFORE the live camera check on purpose — learn the setup, then try it
+// live — and the cube step stays skippable: the profile isn't consumed in
+// solo yet, so it's not a play gate.
 //
 // The name step is deliberately LAST, not folded into an existing one: it is
 // the one field in the whole product that makes a person's name visible to
@@ -17,6 +21,9 @@ import Button from "../components/Button";
 import CameraStage from "../solo/CameraStage";
 import CubeRegisterWizard from "../cubes/CubeRegisterWizard";
 import HandleField from "../profile/HandleField";
+import RitualSteps from "../onboarding/RitualSteps";
+import CameraGuide from "../onboarding/CameraGuide";
+import CupsIntro from "../onboarding/CupsIntro";
 import { useCameraCheck } from "../onboarding/useCameraCheck";
 import { markOnboarded } from "../auth/onboarding";
 import { markOnboardedOnServer } from "../api/auth";
@@ -24,7 +31,21 @@ import { useAuthStore } from "../store/authStore";
 import { ApiError } from "../api/client";
 import { useT } from "../i18n/t";
 
-const STEPS = ["Знакомство", "Проверка камеры", "Регистрация кубика", "Твой ник"] as const;
+const STEPS = [
+  "Знакомство",
+  "Как проходит сборка",
+  "Камера и руки",
+  "Проверка камеры",
+  "Регистрация кубика",
+  "Кубки и ранги",
+  "Твой ник",
+] as const;
+
+// Steps whose content wants a wide column: the live camera preview and the
+// mock camera-setup illustration both get squeezed in a narrow form column;
+// the ritual grid reads fine wide too. Intro, cups primer and the name field
+// are calm single-column content, so they stay narrow.
+const WIDE_STEPS = new Set([1, 2, 3, 4]);
 
 export default function OnboardingPage() {
   const t = useT();
@@ -43,10 +64,7 @@ export default function OnboardingPage() {
     navigate("/", { replace: true });
   }
 
-  // Camera steps (1 «Проверка камеры», 2 «Регистрация») need a wide container so
-  // the live preview isn't squeezed to a tiny column; the intro and the public
-  // name step are both a calm single form field, so they stay narrow.
-  const containerWidth = step === 1 || step === 2 ? "max-w-5xl" : "max-w-2xl";
+  const containerWidth = WIDE_STEPS.has(step) ? "max-w-5xl" : "max-w-2xl";
 
   return (
     <div className={`mx-auto flex w-full ${containerWidth} flex-col gap-6`}>
@@ -64,15 +82,18 @@ export default function OnboardingPage() {
                   : "border-line text-muted",
             ].join(" ")}
           >
-            {i + 1}. {label}
+            {i + 1}. {t(label)}
           </li>
         ))}
       </ol>
 
       {step === 0 ? <IntroStep onNext={() => setStep(1)} /> : null}
-      {step === 1 ? <CameraStep onNext={() => setStep(2)} onBack={() => setStep(0)} /> : null}
-      {step === 2 ? <CubeStep onNext={() => setStep(3)} onBack={() => setStep(1)} /> : null}
-      {step === 3 ? <HandleStep onFinish={finish} onBack={() => setStep(2)} /> : null}
+      {step === 1 ? <RitualStep onNext={() => setStep(2)} onBack={() => setStep(0)} /> : null}
+      {step === 2 ? <CameraGuideStep onNext={() => setStep(3)} onBack={() => setStep(1)} /> : null}
+      {step === 3 ? <CameraStep onNext={() => setStep(4)} onBack={() => setStep(2)} /> : null}
+      {step === 4 ? <CubeStep onNext={() => setStep(5)} onBack={() => setStep(3)} /> : null}
+      {step === 5 ? <CupsStep onNext={() => setStep(6)} onBack={() => setStep(4)} /> : null}
+      {step === 6 ? <HandleStep onFinish={finish} onBack={() => setStep(5)} /> : null}
 
       <button
         type="button"
@@ -104,6 +125,76 @@ function IntroStep({ onNext }: { onNext: () => void }) {
         )}
       </p>
       <Button onClick={onNext}>{t("Начать")}</Button>
+    </StepCard>
+  );
+}
+
+function RitualStep({ onNext, onBack }: { onNext: () => void; onBack: () => void }) {
+  const t = useT();
+  return (
+    <StepCard title={t("Как проходит сборка")}>
+      <p className="font-sans text-body text-muted">
+        {t("Один и тот же ритуал в соло и в дуэли, четыре шага подряд — камера следит за каждым.")}
+      </p>
+      <RitualSteps />
+      <div className="flex flex-wrap items-center gap-3">
+        <button
+          type="button"
+          onClick={onBack}
+          className="font-sans text-small font-bold text-muted"
+        >
+          {t("← Назад")}
+        </button>
+        <Button onClick={onNext}>{t("Далее")}</Button>
+      </div>
+    </StepCard>
+  );
+}
+
+function CameraGuideStep({ onNext, onBack }: { onNext: () => void; onBack: () => void }) {
+  const t = useT();
+  return (
+    <StepCard title={t("Как поставить камеру и руки")}>
+      <p className="font-sans text-body text-muted">
+        {t(
+          "Прежде чем включать камеру — вот как выглядит правильный кадр. Дальше проверим твой настоящий.",
+        )}
+      </p>
+      <CameraGuide />
+      <div className="flex flex-wrap items-center gap-3">
+        <button
+          type="button"
+          onClick={onBack}
+          className="font-sans text-small font-bold text-muted"
+        >
+          {t("← Назад")}
+        </button>
+        <Button onClick={onNext}>{t("Далее")}</Button>
+      </div>
+    </StepCard>
+  );
+}
+
+function CupsStep({ onNext, onBack }: { onNext: () => void; onBack: () => void }) {
+  const t = useT();
+  return (
+    <StepCard title={t("Кубки и ранги")}>
+      <p className="font-sans text-body text-muted">
+        {t(
+          "За победу в дуэли начисляются кубки, за поражение часть уходит сопернику — так же, как в кубковых режимах, к которым ты привык.",
+        )}
+      </p>
+      <CupsIntro />
+      <div className="flex flex-wrap items-center gap-3">
+        <button
+          type="button"
+          onClick={onBack}
+          className="font-sans text-small font-bold text-muted"
+        >
+          {t("← Назад")}
+        </button>
+        <Button onClick={onNext}>{t("Далее")}</Button>
+      </div>
     </StepCard>
   );
 }

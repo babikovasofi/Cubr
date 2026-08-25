@@ -875,4 +875,26 @@ export const EN: Record<string, string> = {
   "ты здесь": "you are here",
   "Бейджи дороги": "Road badges",
   "Появятся по мере прохождения рангов.": "They'll appear as you climb the ranks.",
+
+  // --- onboarding tutorial: ritual/camera-guide/cups steps (react-ts agent) ---
+  "Камера и руки": "Camera & hands",
+  "Кубки и ранги": "Cups & ranks",
+  "Один и тот же ритуал в соло и в дуэли, четыре шага подряд — камера следит за каждым.":
+    "The same ritual in solo and duel, four steps in a row — the camera watches each one.",
+  "Прежде чем включать камеру — вот как выглядит правильный кадр. Дальше проверим твой настоящий.":
+    "Before you turn the camera on — here's what a correct frame looks like. Next we'll check your real one.",
+  "Кубик — сюда, в жёлтую рамку": "Cube goes here, in the yellow frame",
+  "Руки видно только частично — это нормально, в кадр попадают кисти, не целиком.":
+    "Only part of your hands is visible — that's normal, the frame catches your wrists and fingers, not the whole arm.",
+  "Видна часть стола — держи руки на столе, обе зоны должны быть в кадре.":
+    "Part of the table is visible — keep your hands on it, both zones need to be in frame.",
+  "Ставь ноутбук так, чтобы стол и кисти рук были в кадре целиком.":
+    "Angle your laptop so the table and both hands are fully in frame.",
+  "Свет обычный комнатный, без контрового света в камеру.":
+    "Ordinary room light is fine — just avoid backlight shining into the camera.",
+  "За победу в дуэли начисляются кубки, за поражение часть уходит сопернику — так же, как в кубковых режимах, к которым ты привык.":
+    "Win a duel and you earn cups; lose one and some go to your opponent — the same cup system you already know from other games.",
+  "Выиграл дуэль — получил кубки. Проиграл — часть кубков ушла сопернику. Побеждай стабильно — поднимайся по рангам.":
+    "Win a duel — earn cups. Lose one — some cups go to your opponent. Keep winning to climb the ranks.",
+  "Открыть дорогу кубков": "Open the trophy road",
 };
