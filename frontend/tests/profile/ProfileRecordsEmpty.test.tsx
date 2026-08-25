@@ -8,16 +8,12 @@ import { render, screen } from "@testing-library/react";
 import { BrowserRouter } from "react-router-dom";
 import ProfilePage from "../../src/pages/ProfilePage";
 
-const { useAuthStoreMock, updateMeMock, listSolvesMock } = vi.hoisted(() => ({
-  updateMeMock: vi.fn(),
+const { useAuthStoreMock, listSolvesMock } = vi.hoisted(() => ({
   useAuthStoreMock: vi.fn(),
   listSolvesMock: vi.fn(),
 }));
 
 vi.mock("../../src/store/authStore", () => ({ useAuthStore: useAuthStoreMock }));
-vi.mock("../../src/cubes/CubeList", () => ({
-  default: () => <div data-testid="cube-list">Cube List</div>,
-}));
 vi.mock("../../src/api/solves", () => ({ listSolves: listSolvesMock }));
 
 const BASE_USER = {
@@ -28,11 +24,13 @@ const BASE_USER = {
   is_superuser: false,
   avatar_url: null,
   cups: 42,
+  cups_rank: "white",
+  cups_floor: 0,
+  cups_to_next: 50,
   handle: "SpeedCuber",
 };
 
 beforeEach(() => {
-  updateMeMock.mockReset();
   useAuthStoreMock.mockReset();
   listSolvesMock.mockReset();
   listSolvesMock.mockResolvedValue([]);
@@ -43,7 +41,7 @@ describe("ProfilePage — Records пустые", () => {
     useAuthStoreMock.mockImplementation((selector) =>
       selector({
         user: { ...BASE_USER, best_single_ms: null, best_ao5_ms: null },
-        updateMe: updateMeMock,
+        updateMe: vi.fn(),
       }),
     );
 
@@ -65,7 +63,7 @@ describe("ProfilePage — Records пустые", () => {
     useAuthStoreMock.mockImplementation((selector) =>
       selector({
         user: { ...BASE_USER, best_single_ms: 65000, best_ao5_ms: null },
-        updateMe: updateMeMock,
+        updateMe: vi.fn(),
       }),
     );
 

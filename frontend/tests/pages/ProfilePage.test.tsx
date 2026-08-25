@@ -1,42 +1,25 @@
 // @vitest-environment jsdom
 
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, fireEvent, waitFor, act, within } from "@testing-library/react";
+import { render, screen, waitFor, act } from "@testing-library/react";
 import { BrowserRouter } from "react-router-dom";
 import ProfilePage from "../../src/pages/ProfilePage";
-import { ApiError } from "../../src/api/client";
 import type { SolveRead } from "../../src/api/solves";
 import { useSettingsStore } from "../../src/store/settingsStore";
 import { useLangStore } from "../../src/store/langStore";
 import { loadEnDict } from "../../src/i18n/t";
 
-const { useAuthStoreMock, updateMeMock, listSolvesMock, getEmailPrefsMock, updateEmailPrefsMock } =
-  vi.hoisted(() => ({
-    updateMeMock: vi.fn(),
-    useAuthStoreMock: vi.fn(),
-    listSolvesMock: vi.fn(),
-    getEmailPrefsMock: vi.fn(),
-    updateEmailPrefsMock: vi.fn(),
-  }));
+const { useAuthStoreMock, listSolvesMock } = vi.hoisted(() => ({
+  useAuthStoreMock: vi.fn(),
+  listSolvesMock: vi.fn(),
+}));
 
 vi.mock("../../src/store/authStore", () => ({
   useAuthStore: useAuthStoreMock,
 }));
 
-// Mock the CubeList and History components to focus on the handle field
-vi.mock("../../src/cubes/CubeList", () => ({
-  default: () => <div data-testid="cube-list">Cube List</div>,
-}));
-
-// Mock listSolves
 vi.mock("../../src/api/solves", () => ({
   listSolves: listSolvesMock,
-}));
-
-// Mock email API
-vi.mock("../../src/api/email", () => ({
-  getEmailPrefs: getEmailPrefsMock,
-  updateEmailPrefs: updateEmailPrefsMock,
 }));
 
 const MOCK_USER = {
@@ -47,330 +30,115 @@ const MOCK_USER = {
   is_superuser: false,
   avatar_url: null,
   cups: 0,
+  cups_rank: "white",
+  cups_floor: 0,
+  cups_to_next: 50,
   best_single_ms: null,
   best_ao5_ms: null,
   handle: "SpeedCuber",
 };
 
 beforeEach(() => {
-  updateMeMock.mockReset();
   useAuthStoreMock.mockReset();
   listSolvesMock.mockReset();
   listSolvesMock.mockResolvedValue([]);
-  getEmailPrefsMock.mockReset();
-  updateEmailPrefsMock.mockReset();
-  // Default: email prefs enabled, so existing tests don't break
-  getEmailPrefsMock.mockResolvedValue({ chat_email_enabled: true });
-  updateEmailPrefsMock.mockResolvedValue({ chat_email_enabled: true });
+  useAuthStoreMock.mockImplementation((selector) =>
+    selector({ user: MOCK_USER, updateMe: vi.fn() }),
+  );
 });
 
-describe("ProfilePage — поле handle", () => {
-  it("renders 'Ник' input with notice, and header shows «@ник»", () => {
-    updateMeMock.mockResolvedValue(undefined);
-    useAuthStoreMock.mockImplementation((selector) => {
-      const state = {
-        user: MOCK_USER,
-        updateMe: updateMeMock,
-      };
-      return selector(state);
-    });
+function renderPage() {
+  return render(
+    <BrowserRouter>
+      <ProfilePage />
+    </BrowserRouter>,
+  );
+}
 
-    render(
-      <BrowserRouter>
-        <ProfilePage />
-      </BrowserRouter>,
-    );
-
-    expect(screen.getByLabelText("Ник")).toBeTruthy();
-
-    // Header shows the handle WITH a leading "@" — the stored value itself has none.
+describe("ProfilePage — header", () => {
+  it("shows the handle with a leading @ and a link to /settings", () => {
+    renderPage();
     expect(screen.getByRole("heading", { name: "@SpeedCuber" })).toBeTruthy();
-
-    // Notice text — honest about every surface this name reaches (now including own header).
-    expect(
-      screen.getByText(/в шапке профиля, списке друзей и таблицах турнира и скрамбла дня/),
-    ).toBeTruthy();
-    expect(screen.getByPlaceholderText("Не задано — покажем как «Аноним»")).toBeTruthy();
+    expect(screen.getByRole("link", { name: "Настройки" }).getAttribute("href")).toBe("/settings");
   });
 
-  it("input value is the bare handle, without the leading @", () => {
-    updateMeMock.mockResolvedValue(undefined);
+  it("handles unset handle (null) with an honest fallback + CTA into /settings", () => {
     useAuthStoreMock.mockImplementation((selector) =>
-      selector({ user: MOCK_USER, updateMe: updateMeMock }),
+      selector({ user: { ...MOCK_USER, handle: null }, updateMe: vi.fn() }),
     );
-
-    render(
-      <BrowserRouter>
-        <ProfilePage />
-      </BrowserRouter>,
-    );
-
-    const input = screen.getByLabelText("Ник") as HTMLInputElement;
-    expect(input.value).toBe("SpeedCuber");
-  });
-
-  it("если набрать «@ник» вручную, ведущая собака молча срезается", async () => {
-    updateMeMock.mockResolvedValue(undefined);
-    useAuthStoreMock.mockImplementation((selector) =>
-      selector({ user: MOCK_USER, updateMe: updateMeMock }),
-    );
-
-    render(
-      <BrowserRouter>
-        <ProfilePage />
-      </BrowserRouter>,
-    );
-
-    const input = screen.getByLabelText("Ник") as HTMLInputElement;
-    await act(async () => {
-      fireEvent.change(input, { target: { value: "@NewHandle" } });
-    });
-    expect(input.value).toBe("NewHandle");
-  });
-
-  it("saves handle via PATCH /users/me when form submitted", async () => {
-    updateMeMock.mockResolvedValue(undefined);
-    useAuthStoreMock.mockImplementation((selector) => {
-      const state = {
-        user: MOCK_USER,
-        updateMe: updateMeMock,
-      };
-      return selector(state);
-    });
-
-    render(
-      <BrowserRouter>
-        <ProfilePage />
-      </BrowserRouter>,
-    );
-
-    const input = screen.getByLabelText("Ник") as HTMLInputElement;
-    expect(input.value).toBe("SpeedCuber");
-
-    // Change the value
-    await act(async () => {
-      fireEvent.change(input, { target: { value: "NewHandle" } });
-    });
-
-    // Submit the form
-    const submitButton = screen.getByRole("button", { name: "Сохранить" });
-    await act(async () => {
-      fireEvent.click(submitButton);
-    });
-
-    // Verify updateMe was called with the handle
-    await waitFor(() => {
-      expect(updateMeMock).toHaveBeenCalledWith(
-        expect.objectContaining({
-          handle: "NewHandle",
-        }),
-      );
-    });
-  });
-
-  it("sends null when handle field is empty (cleared)", async () => {
-    updateMeMock.mockResolvedValue(undefined);
-    useAuthStoreMock.mockImplementation((selector) => {
-      const state = {
-        user: MOCK_USER,
-        updateMe: updateMeMock,
-      };
-      return selector(state);
-    });
-
-    render(
-      <BrowserRouter>
-        <ProfilePage />
-      </BrowserRouter>,
-    );
-
-    const input = screen.getByLabelText("Ник") as HTMLInputElement;
-
-    // Clear the value
-    await act(async () => {
-      fireEvent.change(input, { target: { value: "" } });
-    });
-
-    // Submit the form
-    const submitButton = screen.getByRole("button", { name: "Сохранить" });
-    await act(async () => {
-      fireEvent.click(submitButton);
-    });
-
-    // Verify updateMe was called with handle: null
-    await waitFor(() => {
-      expect(updateMeMock).toHaveBeenCalledWith(
-        expect.objectContaining({
-          handle: null,
-        }),
-      );
-    });
-  });
-
-  it("displays 'Сохранено' message after successful save", async () => {
-    updateMeMock.mockResolvedValue(undefined);
-    useAuthStoreMock.mockImplementation((selector) => {
-      const state = {
-        user: MOCK_USER,
-        updateMe: updateMeMock,
-      };
-      return selector(state);
-    });
-
-    render(
-      <BrowserRouter>
-        <ProfilePage />
-      </BrowserRouter>,
-    );
-
-    const input = screen.getByLabelText("Ник") as HTMLInputElement;
-    await act(async () => {
-      fireEvent.change(input, { target: { value: "Updated" } });
-    });
-
-    const submitButton = screen.getByRole("button", { name: "Сохранить" });
-    await act(async () => {
-      fireEvent.click(submitButton);
-    });
-
-    await waitFor(() => {
-      expect(screen.getByText("Сохранено")).toBeTruthy();
-    });
-  });
-
-  // Этап 6: серверный фильтр имён отвечает 400 {code, reason} — пользователь должен
-  // увидеть внятную причину, а не молча несохранённую форму.
-  it("показывает причину, когда фильтр имён отклонил ник", async () => {
-    updateMeMock.mockRejectedValue(
-      new ApiError(400, "NAME_NOT_ALLOWED", "Такое имя не подходит. Выбери другое."),
-    );
-    useAuthStoreMock.mockImplementation((selector) => {
-      const state = { user: MOCK_USER, updateMe: updateMeMock };
-      return selector(state);
-    });
-
-    render(
-      <BrowserRouter>
-        <ProfilePage />
-      </BrowserRouter>,
-    );
-
-    const input = screen.getByLabelText("Ник") as HTMLInputElement;
-    await act(async () => {
-      fireEvent.change(input, { target: { value: "мудак" } });
-    });
-    await act(async () => {
-      fireEvent.click(screen.getByRole("button", { name: "Сохранить" }));
-    });
-
-    await waitFor(() => {
-      expect(screen.getByText("Такое имя не подходит. Выбери другое.")).toBeTruthy();
-    });
-    expect(screen.queryByText("Сохранено")).toBeNull();
-  });
-
-  // Новая ошибка контракта (single-handle-work): занятый ник при сохранении
-  // профиля должен читаться понятно, а не как обобщённое «не удалось».
-  it("показывает «занято», когда сохранение ловит HANDLE_TAKEN", async () => {
-    updateMeMock.mockRejectedValue(
-      new ApiError(400, "HANDLE_TAKEN", "Это имя уже занято другим пользователем."),
-    );
-    useAuthStoreMock.mockImplementation((selector) => {
-      const state = { user: MOCK_USER, updateMe: updateMeMock };
-      return selector(state);
-    });
-
-    render(
-      <BrowserRouter>
-        <ProfilePage />
-      </BrowserRouter>,
-    );
-
-    const input = screen.getByLabelText("Ник") as HTMLInputElement;
-    await act(async () => {
-      fireEvent.change(input, { target: { value: "TakenHandle" } });
-    });
-    await act(async () => {
-      fireEvent.click(screen.getByRole("button", { name: "Сохранить" }));
-    });
-
-    await waitFor(() => {
-      expect(screen.getByText("Это имя уже занято другим пользователем.")).toBeTruthy();
-    });
-    expect(screen.queryByText("Сохранено")).toBeNull();
-  });
-
-  it("handles unset handle (null) by showing empty input, honest header fallback and a CTA", () => {
-    updateMeMock.mockResolvedValue(undefined);
-    const userWithoutHandle = { ...MOCK_USER, handle: null };
-    useAuthStoreMock.mockImplementation((selector) => {
-      const state = {
-        user: userWithoutHandle,
-        updateMe: updateMeMock,
-      };
-      return selector(state);
-    });
-
-    render(
-      <BrowserRouter>
-        <ProfilePage />
-      </BrowserRouter>,
-    );
-
-    const input = screen.getByLabelText("Ник") as HTMLInputElement;
-    expect(input.value).toBe("");
-
-    // Honest empty state: no "@null", no blank heading — same fallback text as
-    // before, plus a link to go set it right below.
+    renderPage();
     expect(screen.getByRole("heading", { name: "Без ника" })).toBeTruthy();
     expect(screen.queryByText(/^@null$/)).toBeNull();
-    expect(screen.getByRole("link", { name: "Задать имя в профиле" })).toBeTruthy();
+    const link = screen.getByRole("link", { name: "Задать имя в профиле" });
+    expect(link.getAttribute("href")).toBe("/settings#profile-handle");
   });
-});
 
-describe("ProfilePage — time-format setting", () => {
-  beforeEach(() => {
-    useSettingsStore.setState({ timeFormat: "clock" });
+  it("cups badge links to /cups", () => {
     useAuthStoreMock.mockImplementation((selector) =>
-      selector({ user: { ...MOCK_USER, best_single_ms: 65000 }, updateMe: updateMeMock }),
+      selector({ user: { ...MOCK_USER, cups: 42 }, updateMe: vi.fn() }),
     );
-  });
-
-  it("переключает формат времени и меняет показанный рекорд", () => {
-    render(
-      <BrowserRouter>
-        <ProfilePage />
-      </BrowserRouter>,
-    );
-
-    // Переключатель формата — своя радиогруппа (на странице есть и другая, метод
-    // сборки), поэтому ищем внутри неё, а не по всей странице.
-    const group = screen.getByRole("radiogroup", { name: "Формат времени" });
-    const radios = within(group).getAllByRole("radio");
-    expect(radios).toHaveLength(2);
-    expect(screen.getByText("1:05.00")).toBeTruthy();
-
-    // Switch to seconds → the same record re-renders as plain seconds.
-    act(() => {
-      fireEvent.click(radios[1]);
-    });
-    expect(useSettingsStore.getState().timeFormat).toBe("seconds");
-    expect(screen.getByText("65.00")).toBeTruthy();
-    expect(screen.queryByText("1:05.00")).toBeNull();
+    renderPage();
+    const link = screen.getByRole("link", { name: /42 кубков/ });
+    expect(link.getAttribute("href")).toBe("/cups");
   });
 });
 
-describe("ProfilePage — Progress Chart + History", () => {
-  it("renders both Прогресс времени heading and History table with valid+dnf mix, listSolves called exactly ONCE", async () => {
-    updateMeMock.mockResolvedValue(undefined);
-    useAuthStoreMock.mockImplementation((selector) => {
-      const state = {
-        user: MOCK_USER,
-        updateMe: updateMeMock,
-      };
-      return selector(state);
-    });
+describe("ProfilePage — Records", () => {
+  it("best_single_ms===null → EmptyState с CTA /solo, кубки остаются числом", () => {
+    useAuthStoreMock.mockImplementation((selector) =>
+      selector({
+        user: { ...MOCK_USER, cups: 42, best_single_ms: null, best_ao5_ms: null },
+        updateMe: vi.fn(),
+      }),
+    );
+    renderPage();
 
+    expect(screen.getByText("Рекордов пока нет")).toBeTruthy();
+    const link = screen.getByRole("link", { name: "К соло-тренировке →" });
+    expect(link.getAttribute("href")).toBe("/solo");
+    expect(screen.getAllByText("42").length).toBeGreaterThan(0);
+    expect(screen.queryByText("Лучшая сборка")).toBeNull();
+  });
+
+  it("best задан → обычный грид рекордов, без EmptyState", () => {
+    useAuthStoreMock.mockImplementation((selector) =>
+      selector({
+        user: { ...MOCK_USER, best_single_ms: 65000, best_ao5_ms: null },
+        updateMe: vi.fn(),
+      }),
+    );
+    renderPage();
+
+    expect(screen.getByText("Лучшая сборка")).toBeTruthy();
+    expect(screen.queryByText("Рекордов пока нет")).toBeNull();
+  });
+});
+
+// The time-format TOGGLE itself now lives on /settings (SettingsPage.test.tsx)
+// — this only checks that Records reads useSettingsStore correctly here too.
+describe("ProfilePage — records respect the stored time format", () => {
+  beforeEach(() => {
+    useAuthStoreMock.mockImplementation((selector) =>
+      selector({ user: { ...MOCK_USER, best_single_ms: 65000 }, updateMe: vi.fn() }),
+    );
+  });
+
+  it("clock format shows mm:ss.cc", () => {
+    useSettingsStore.setState({ timeFormat: "clock" });
+    renderPage();
+    expect(screen.getByText("1:05.00")).toBeTruthy();
+  });
+
+  it("seconds format shows plain seconds", () => {
+    useSettingsStore.setState({ timeFormat: "seconds" });
+    renderPage();
+    expect(screen.getByText("65.00")).toBeTruthy();
+    useSettingsStore.setState({ timeFormat: "clock" });
+  });
+});
+
+describe("ProfilePage — Progress + History", () => {
+  it("renders Прогресс времени + History table with valid+dnf mix, listSolves called exactly ONCE", async () => {
     const mockSolves: SolveRead[] = [
       {
         id: "solve-1",
@@ -406,35 +174,26 @@ describe("ProfilePage — Progress Chart + History", () => {
 
     listSolvesMock.mockResolvedValue(mockSolves);
 
-    render(
-      <BrowserRouter>
-        <ProfilePage />
-      </BrowserRouter>,
-    );
+    renderPage();
 
-    // Wait for the history to load
     await waitFor(() => {
       expect(screen.getByText("Прогресс времени")).toBeTruthy();
     });
 
-    // Verify listSolves was called exactly once
+    // The single useSolves() call is shared by both the Progress card and the
+    // History card — this is the whole point of lifting it in ProfilePage.
     expect(listSolvesMock).toHaveBeenCalledTimes(1);
     expect(listSolvesMock).toHaveBeenCalledWith(50, 0);
 
-    // Verify "Прогресс времени" heading is rendered
-    expect(screen.getByText("Прогресс времени")).toBeTruthy();
     expect(screen.getByText("за последние сборки")).toBeTruthy();
 
-    // Verify the chart SVG is rendered
     const svg = screen.getByRole("img", { name: /График времени сборок/ });
     expect(svg).toBeTruthy();
 
-    // Verify History table is rendered with solves
     expect(screen.getByText("Время")).toBeTruthy();
     expect(screen.getByText("Статус")).toBeTruthy();
     expect(screen.getByText("Когда")).toBeTruthy();
 
-    // Verify table rows are present (3 solves)
     const tableRows = screen.getAllByRole("row");
     expect(tableRows.length).toBeGreaterThanOrEqual(4); // header + 3 data rows
   });
@@ -445,19 +204,9 @@ describe("ProfilePage — Progress Chart + History", () => {
 describe("ProfilePage — пустая история (userflow §10)", () => {
   it("пустая история зовёт в соло-режим", async () => {
     listSolvesMock.mockResolvedValue([]);
-    useAuthStoreMock.mockImplementation((selector) =>
-      selector({ user: MOCK_USER, updateMe: updateMeMock }),
-    );
-
-    render(
-      <BrowserRouter>
-        <ProfilePage />
-      </BrowserRouter>,
-    );
+    renderPage();
 
     await waitFor(() => expect(screen.getByText(/Пока нет сохранённых сборок/)).toBeTruthy());
-    // Ссылок «в соло» на пустом профиле две (пустая история + пустой график) —
-    // обе ведут туда же, важно что путь ведёт в ритуал.
     const links = screen.getAllByRole("link", { name: /К соло-тренировке/ });
     expect(links.length).toBeGreaterThan(0);
     expect(links.every((a) => a.getAttribute("href") === "/solo")).toBe(true);
@@ -465,206 +214,22 @@ describe("ProfilePage — пустая история (userflow §10)", () => {
 });
 
 // Локализация, проход 2: профиль говорит по-английски целиком (карточки рекордов,
-// настройки, история). Полнота словаря — забота tests/i18n/coverage.test.ts.
+// заголовки карточек). Полнота словаря — забота tests/i18n/coverage.test.ts.
 describe("ProfilePage — английский", () => {
   it("переводит карточки рекордов и заголовки", async () => {
-    // en — ленивый чанк (см. src/i18n/t.ts); догружаем явно перед рендером.
     await loadEnDict();
-    // best_single_ms must be set here: null now renders the "no records yet"
-    // EmptyState instead of the record cards this test is localizing.
     useAuthStoreMock.mockImplementation((selector) =>
-      selector({ user: { ...MOCK_USER, best_single_ms: 65000 }, updateMe: updateMeMock }),
+      selector({ user: { ...MOCK_USER, best_single_ms: 65000 }, updateMe: vi.fn() }),
     );
     act(() => useLangStore.setState({ lang: "en" }));
     try {
-      render(
-        <BrowserRouter>
-          <ProfilePage />
-        </BrowserRouter>,
-      );
+      renderPage();
       expect(screen.getByText("Best single")).toBeTruthy();
-      expect(screen.getByText("Showcase")).toBeTruthy();
+      expect(screen.getByText("Records")).toBeTruthy();
+      expect(screen.getByText("Progress")).toBeTruthy();
       expect(screen.queryByText("Лучшая сборка")).toBeNull();
     } finally {
       act(() => useLangStore.setState({ lang: "ru" }));
     }
-  });
-});
-
-describe("ProfilePage — ChatEmailToggle (email preferences)", () => {
-  beforeEach(() => {
-    getEmailPrefsMock.mockReset();
-    updateEmailPrefsMock.mockReset();
-    updateMeMock.mockReset();
-    useAuthStoreMock.mockReset();
-  });
-
-  it("reads GET /email/prefs on mount and shows current state", async () => {
-    getEmailPrefsMock.mockResolvedValue({ chat_email_enabled: true });
-    useAuthStoreMock.mockImplementation((selector) =>
-      selector({ user: MOCK_USER, updateMe: updateMeMock }),
-    );
-
-    render(
-      <BrowserRouter>
-        <ProfilePage />
-      </BrowserRouter>,
-    );
-
-    // Section title
-    expect(screen.getByText("Письма о новых сообщениях от друзей")).toBeTruthy();
-
-    // Wait for the toggle to load
-    await waitFor(() => {
-      expect(getEmailPrefsMock).toHaveBeenCalledTimes(1);
-    });
-
-    // Toggle should show "on" as selected
-    await waitFor(() => {
-      const toggles = screen.getAllByRole("radio") as HTMLInputElement[];
-      const onToggle = toggles.find((r) => r.value === "on");
-      expect(onToggle).toBeTruthy();
-      expect(onToggle?.checked).toBe(true);
-    });
-  });
-
-  it("shows loading state initially then ready state", async () => {
-    getEmailPrefsMock.mockResolvedValue({ chat_email_enabled: true });
-    useAuthStoreMock.mockImplementation((selector) =>
-      selector({ user: MOCK_USER, updateMe: updateMeMock }),
-    );
-
-    render(
-      <BrowserRouter>
-        <ProfilePage />
-      </BrowserRouter>,
-    );
-
-    // Initially shows loading
-    expect(screen.getByText("Загружаю настройку писем…")).toBeTruthy();
-
-    // After fetch, loading disappears and toggle appears
-    await waitFor(() => {
-      expect(screen.queryByText("Загружаю настройку писем…")).toBeNull();
-      expect(screen.getByRole("radio", { name: "Включены" })).toBeTruthy();
-    });
-  });
-
-  it("shows error state when GET /email/prefs fails", async () => {
-    getEmailPrefsMock.mockRejectedValue(new Error("Network error"));
-    useAuthStoreMock.mockImplementation((selector) =>
-      selector({ user: MOCK_USER, updateMe: updateMeMock }),
-    );
-
-    render(
-      <BrowserRouter>
-        <ProfilePage />
-      </BrowserRouter>,
-    );
-
-    await waitFor(() => {
-      expect(screen.getByText("Не удалось загрузить настройку писем.")).toBeTruthy();
-    });
-  });
-
-  it("calls PUT /email/prefs when toggling from on to off", async () => {
-    getEmailPrefsMock.mockResolvedValue({ chat_email_enabled: true });
-    updateEmailPrefsMock.mockResolvedValue({ chat_email_enabled: false });
-    useAuthStoreMock.mockImplementation((selector) =>
-      selector({ user: MOCK_USER, updateMe: updateMeMock }),
-    );
-
-    render(
-      <BrowserRouter>
-        <ProfilePage />
-      </BrowserRouter>,
-    );
-
-    // Wait for load
-    await waitFor(() => {
-      expect(getEmailPrefsMock).toHaveBeenCalledTimes(1);
-    });
-
-    // Find and click the "off" toggle
-    const offToggle = await screen.findByRole("radio", { name: "Выключены" });
-    await act(async () => {
-      fireEvent.click(offToggle);
-    });
-
-    // Verify PUT was called with the right data
-    await waitFor(() => {
-      expect(updateEmailPrefsMock).toHaveBeenCalled();
-      const callArgs = updateEmailPrefsMock.mock.calls[0];
-      expect(callArgs[0]).toEqual({ chat_email_enabled: false });
-    });
-  });
-
-  it("calls PUT /email/prefs when toggling from off to on", async () => {
-    getEmailPrefsMock.mockResolvedValue({ chat_email_enabled: false });
-    updateEmailPrefsMock.mockResolvedValue({ chat_email_enabled: true });
-    useAuthStoreMock.mockImplementation((selector) =>
-      selector({ user: MOCK_USER, updateMe: updateMeMock }),
-    );
-
-    render(
-      <BrowserRouter>
-        <ProfilePage />
-      </BrowserRouter>,
-    );
-
-    // Wait for load
-    await waitFor(() => {
-      expect(getEmailPrefsMock).toHaveBeenCalledTimes(1);
-    });
-
-    // Find and click the "on" toggle
-    const onToggle = await screen.findByRole("radio", { name: "Включены" });
-    await act(async () => {
-      fireEvent.click(onToggle);
-    });
-
-    // Verify PUT was called with the right data
-    await waitFor(() => {
-      expect(updateEmailPrefsMock).toHaveBeenCalled();
-      const callArgs = updateEmailPrefsMock.mock.calls[0];
-      expect(callArgs[0]).toEqual({ chat_email_enabled: true });
-    });
-  });
-
-  it("reverts toggle on PUT failure", async () => {
-    getEmailPrefsMock.mockResolvedValue({ chat_email_enabled: true });
-    updateEmailPrefsMock.mockRejectedValue(new Error("Save failed"));
-    useAuthStoreMock.mockImplementation((selector) =>
-      selector({ user: MOCK_USER, updateMe: updateMeMock }),
-    );
-
-    render(
-      <BrowserRouter>
-        <ProfilePage />
-      </BrowserRouter>,
-    );
-
-    // Wait for load
-    await waitFor(() => {
-      expect(getEmailPrefsMock).toHaveBeenCalledTimes(1);
-    });
-
-    // Initially "on"
-    const onToggle = (await screen.findByRole("radio", {
-      name: "Включены",
-    })) as HTMLInputElement;
-    expect(onToggle.checked).toBe(true);
-
-    // Try to toggle to "off"
-    const offToggle = screen.getByRole("radio", { name: "Выключены" });
-    await act(async () => {
-      fireEvent.click(offToggle);
-    });
-
-    // PUT fails, toggle should revert back to "on"
-    await waitFor(() => {
-      expect(updateEmailPrefsMock).toHaveBeenCalledTimes(1);
-      expect(screen.getByRole("radio", { name: "Включены", checked: true })).toBeTruthy();
-    });
   });
 });

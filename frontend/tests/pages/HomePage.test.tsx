@@ -157,14 +157,18 @@ describe("HomePage", () => {
       "/tournament",
     );
     expect(screen.getByRole("link", { name: /Скрамбл дня/ }).getAttribute("href")).toBe("/daily");
+    // Соло — карточка-ссылка, как остальные режимы (не голая кнопка).
+    expect(screen.getByRole("link", { name: /Соло-тренировка/ }).getAttribute("href")).toBe(
+      "/solo",
+    );
   });
 
   it("у каждого режима своя мини-сетка-индикатор", () => {
     useAuthStore.setState({ status: "authed" });
     renderHome();
 
-    // Челлендж, скрамбл дня, дуэль, тренажёр PLL.
-    expect(screen.getAllByTestId("mini-grid")).toHaveLength(4);
+    // Соло, челлендж, скрамбл дня, тренажёр PLL, дуэль.
+    expect(screen.getAllByTestId("mini-grid")).toHaveLength(5);
   });
 
   it("дашборд предлагает тренажёр PLL без гейта по регистрации", () => {

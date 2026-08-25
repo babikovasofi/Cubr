@@ -304,7 +304,15 @@ function Dashboard() {
         </p>
       </section>
 
-      {/* §6.2 карточки-режимы: surface + 1px line, live-бейдж «идёт запись». */}
+      {/* §6.2 карточки-режимы: surface + 1px line, live-бейдж «идёт запись».
+          Соло — первым: это разогрев и единственный режим без соперника. Карточка,
+          как у всех режимов (раньше была голой кнопкой снизу — выбивалась). */}
+      <ModeCard
+        to="/solo"
+        mode="solo"
+        title={t("Соло-тренировка")}
+        text={t("Весь ритуал целиком, без аккаунта. Сборки сохраняются, если войти.")}
+      />
       <ModeCard
         to="/tournament"
         mode="week"
@@ -349,21 +357,16 @@ function Dashboard() {
         ) : null}
       </section>
 
-      <section className="flex flex-wrap items-center gap-4">
-        <Link to="/solo" className="no-underline">
-          <Button>{t("Соло-тренировка")}</Button>
-        </Link>
-        {import.meta.env.DEV ? (
+      {import.meta.env.DEV ? (
+        <section className="flex flex-wrap items-center gap-4">
           <Link to="/accuracy" className="no-underline">
             <Button variant="secondary">{t("Замер точности (dev)")}</Button>
           </Link>
-        ) : null}
-        {import.meta.env.DEV ? (
           <Link to="/lab" className="no-underline">
             <Button variant="secondary">{t("Настройка таймера (dev)")}</Button>
           </Link>
-        ) : null}
-      </section>
+        </section>
+      ) : null}
 
       <CupsTeaser />
 

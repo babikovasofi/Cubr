@@ -861,4 +861,14 @@ export const EN: Record<string, string> = {
   "Вся дорога →": "See the whole road →",
   "Дорога рангов": "Rank road",
   "ты здесь · от {n}": "you are here · from {n}",
+
+  // --- /profile ↔ /settings split (react-ts agent) ---
+  Предпочтения: "Preferences",
+  Прогресс: "Progress",
+  "Загрузка настроек…": "Loading settings…",
+
+  // --- brawl-style horizontal cups road (react-ts agent) ---
+  "ты здесь": "you are here",
+  "Бейджи дороги": "Road badges",
+  "Появятся по мере прохождения рангов.": "They'll appear as you climb the ranks.",
 };

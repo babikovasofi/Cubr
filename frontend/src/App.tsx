@@ -12,7 +12,7 @@ import DesktopOnlyGate from "./components/DesktopOnlyGate";
 import Spinner from "./components/Spinner";
 import RouteErrorBoundary from "./components/RouteErrorBoundary";
 import TrophyIcon from "./components/TrophyIcon";
-import { ToastViewport, toast } from "./components/Toast";
+import { ToastViewport } from "./components/Toast";
 import { useAuthStore } from "./store/authStore";
 import { useLangStore, type Lang } from "./store/langStore";
 import { useUiStore, type Theme } from "./store/uiStore";
@@ -39,6 +39,7 @@ const DuelPage = lazy(() => import("./pages/DuelPage"));
 const DuelJoinPage = lazy(() => import("./pages/DuelJoinPage"));
 const OnboardingPage = lazy(() => import("./pages/OnboardingPage"));
 const ProfilePage = lazy(() => import("./pages/ProfilePage"));
+const SettingsPage = lazy(() => import("./pages/SettingsPage"));
 const CupsPage = lazy(() => import("./pages/CupsPage"));
 
 // Правила и приватность — длинная проза, и обе версии, русская и английская,
@@ -129,17 +130,14 @@ function AuthMenu() {
             >
               {t("Профиль")}
             </Link>
-            <button
-              type="button"
+            <Link
+              to="/settings"
               role="menuitem"
-              onClick={() => {
-                setOpen(false);
-                toast(t("Настройки появятся позже."), "info");
-              }}
-              className="rounded px-3 py-2 text-left font-sans text-small text-muted hover:bg-surface-2"
+              onClick={() => setOpen(false)}
+              className="rounded px-3 py-2 font-sans text-small text-ink no-underline hover:bg-surface-2"
             >
               {t("Настройки")}
-            </button>
+            </Link>
             <button
               type="button"
               role="menuitem"
@@ -345,6 +343,14 @@ export default function App() {
                 element={
                   <ProtectedRoute>
                     <ProfilePage />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/settings"
+                element={
+                  <ProtectedRoute>
+                    <SettingsPage />
                   </ProtectedRoute>
                 }
               />

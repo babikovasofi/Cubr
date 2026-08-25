@@ -1,10 +1,12 @@
-// /profile (protected). Shows the current user (from authStore), records (best
-// single is the only meaningful one in 2.3; ao5 renders as "—"), an editable
-// handle + avatar-URL (PATCH /api/users/me), and solve history (GET /api/solves).
+// /profile (protected). Identity + stats + social only — account editing,
+// showcase, registered cubes and preferences moved out to /settings
+// (plan: profile-settings-split). Shows the current user (from authStore),
+// records, badges, goals/coach/progress, solve history, and friends.
+//
+// Card-based redesign: every section is a titled panel (ProfileCard, §5.5
+// canon border-2 ink) instead of bare h2 stacks — the "big text dump" the
+// owner flagged in the old layout.
 
-import { useEffect, useState, type FormEvent } from "react";
-import Button from "../components/Button";
-import Input from "../components/Input";
 import Spinner from "../components/Spinner";
 import BadgeGrid from "../components/BadgeGrid";
 import SolveProgressChart from "../components/SolveProgressChart";
@@ -12,21 +14,19 @@ import EmptyState from "../components/EmptyState";
 import TrophyIcon from "../components/TrophyIcon";
 import GoalCard from "../profile/GoalCard";
 import CoachCard from "../profile/CoachCard";
+import ProfileCard, { CARD_MOTIFS } from "../profile/ProfileCard";
 import { currentAo5, AVERAGE_SIZE } from "../profile/average";
-import ShowcaseForm from "../profile/ShowcaseForm";
-import HandleField from "../profile/HandleField";
 import { formatHandle } from "../lib/handle";
-import SegmentedToggle from "../components/SegmentedToggle";
-import { getEmailPrefs, updateEmailPrefs } from "../api/email";
-import { useAuthStore } from "../store/authStore";
-import { useSettingsStore } from "../store/settingsStore";
-import { formatSolveMs, type TimeFormat } from "../lib/formatTime";
-import CubeList from "../cubes/CubeList";
+import { RANKS } from "../components/CupsRoad";
 import FriendsSection from "../friends/FriendsSection";
 import { useSolves } from "../lib/useSolves";
 import type { SolveRead } from "../api/solves";
-import { ApiError } from "../api/client";
+import { useAuthStore } from "../store/authStore";
+import { useSettingsStore } from "../store/settingsStore";
+import { formatSolveMs, type TimeFormat } from "../lib/formatTime";
+import { Link } from "react-router-dom";
 import { useT } from "../i18n/t";
+import type { SolvesState } from "../lib/useSolves";
 
 function fmtMs(ms: number | null, format: TimeFormat): string {
   if (ms == null) return "—";
@@ -42,75 +42,112 @@ function fmtDate(iso: string): string {
 export default function ProfilePage() {
   const t = useT();
   const user = useAuthStore((s) => s.user);
-  const updateMe = useAuthStore((s) => s.updateMe);
+  // Lifted once here: Progress (goal/coach/chart) and History both need the
+  // same window of solves — a single fetch, no duplicate GET /api/solves.
+  const { state, reload } = useSolves();
 
   if (!user) return <Spinner label={t("Загрузка профиля…")} />;
 
   return (
-    <div className="flex flex-col gap-7">
-      <header className="flex items-center gap-4">
+    <div className="flex flex-col gap-5">
+      <ProfileHeader user={user} />
+
+      <div className="grid gap-5 lg:grid-cols-2">
+        <ProfileCard title={t("Рекорды")} motif={CARD_MOTIFS.records} accent="var(--primary)">
+          <Records best={user.best_single_ms} ao5={user.best_ao5_ms} cups={user.cups} />
+        </ProfileCard>
+
+        {/* BadgeGrid renders its own "Бейджи" heading — no title here, just
+            the shared card border (avoids a duplicated title). */}
+        <ProfileCard motif={CARD_MOTIFS.badges} accent="var(--warning)">
+          <BadgeGrid />
+        </ProfileCard>
+      </div>
+
+      <ProfileCard title={t("Прогресс")} motif={CARD_MOTIFS.progress} accent="var(--success)">
+        <Progress state={state} />
+      </ProfileCard>
+
+      <ProfileCard title={t("История сборок")} motif={CARD_MOTIFS.history} accent="var(--live)">
+        <History state={state} reload={reload} />
+      </ProfileCard>
+
+      {/* FriendsSection renders its own "Друзья" heading — same reason. */}
+      <ProfileCard motif={CARD_MOTIFS.friends} accent="var(--danger)">
+        <FriendsSection />
+      </ProfileCard>
+    </div>
+  );
+}
+
+// §5.6/§5.11 identity card: avatar tile, handle, cups pill (links to the
+// trophy road — owner: "cups everywhere jump to the cups window"), rank
+// label, verification notice. Records live in their own card below; this
+// header is who-you-are, not what-you've-done.
+function ProfileHeader({
+  user,
+}: {
+  user: {
+    handle: string | null;
+    email: string;
+    avatar_url: string | null;
+    cups: number;
+    cups_rank: string;
+    is_verified: boolean;
+  };
+}) {
+  const t = useT();
+  const currentRank = RANKS.find((r) => r.name === user.cups_rank) ?? null;
+
+  return (
+    <section className="flex flex-col gap-4 rounded-lg border-2 border-ink bg-surface p-5 shadow-sticker sm:flex-row sm:items-center sm:justify-between sm:p-6">
+      <div className="flex items-center gap-4">
         <Avatar url={user.avatar_url} name={user.handle ?? user.email} />
         <div className="flex flex-col gap-1">
-          <div className="flex flex-wrap items-center gap-2.5">
-            <h1 className="font-sans text-h2 text-ink">
-              {user.handle ? formatHandle(user.handle) : t("Без ника")}
-            </h1>
-            <CupsBadge cups={user.cups} />
-          </div>
+          <h1 className="font-sans text-h2 text-ink">
+            {user.handle ? formatHandle(user.handle) : t("Без ника")}
+          </h1>
           <span className="font-sans text-small text-muted">{user.email}</span>
           {!user.handle ? (
-            <a
-              href="#profile-handle"
+            <Link
+              to="/settings#profile-handle"
               className="font-sans text-small font-bold text-primary no-underline"
             >
               {t("Задать имя в профиле")}
-            </a>
+            </Link>
           ) : null}
           {!user.is_verified ? (
             <span className="font-sans text-small text-warning">{t("Почта не подтверждена")}</span>
           ) : null}
         </div>
-      </header>
-
-      <Records best={user.best_single_ms} ao5={user.best_ao5_ms} cups={user.cups} />
-
-      <BadgeGrid />
-
-      <History />
-
-      <CubeList />
-
-      <FriendsSection />
-
-      <ShowcaseForm
-        initialMethod={user.method}
-        initialYear={user.cubing_since_year}
-        onSave={(patch) => updateMe(patch)}
-      />
-
-      <EditForm
-        initialAvatar={user.avatar_url ?? ""}
-        initialHandle={user.handle ?? ""}
-        onSave={(avatar_url, handle) => updateMe({ avatar_url, handle })}
-      />
-
-      <SettingsSection />
-    </div>
+      </div>
+      <div className="flex items-center gap-3 self-start sm:self-center">
+        <CupsBadge cups={user.cups} rankLabel={currentRank ? t(currentRank.label) : null} />
+        <Link
+          to="/settings"
+          className="inline-flex h-11 items-center rounded-full border-2 border-ink bg-surface px-4.5 font-sans text-small font-extrabold text-ink no-underline hover:bg-surface-2"
+        >
+          {t("Настройки")}
+        </Link>
+      </div>
+    </section>
   );
 }
 
 // §5.6 «Бейдж кубков» — обычный вариант: пилюля, фон warning, обводка 2px ink.
 // Иконка кубка-с-кубиком (TrophyIcon) вместо эмодзи — единый значок кубков по
-// всему приложению.
-function CupsBadge({ cups }: { cups: number }) {
+// всему приложению. Ведёт на /cups — свой прогресс на дороге рангов.
+function CupsBadge({ cups, rankLabel }: { cups: number; rankLabel: string | null }) {
   const t = useT();
   return (
-    <span
+    <Link
+      to="/cups"
       aria-label={t("{n} кубков", { n: cups })}
-      className="inline-flex items-center gap-1 rounded-full border-2 border-ink bg-warning px-3 py-1 font-sans text-small font-black text-ink [font-variant-numeric:tabular-nums]"
+      className="inline-flex items-center gap-1.5 rounded-full border-2 border-ink bg-warning px-3.5 py-1.5 font-sans text-small font-black text-ink no-underline"
     >
       <TrophyIcon size={16} /> {cups}
-    </span>
+      {rankLabel ? <span className="font-bold opacity-70">· {rankLabel}</span> : null}
+    </Link>
   );
 }
 
@@ -136,9 +173,9 @@ function Avatar({ url, name }: { url: string | null; name: string }) {
   );
 }
 
-// Текущий Ao5 по последним пяти попыткам. Рекорд Ao5 живёт в карточках выше и
-// приходит с сервера; здесь — «как я иду прямо сейчас», считается из уже
-// загруженной истории (без второго запроса).
+// Текущий Ao5 по последним пяти попыткам. Рекорд Ao5 живёт в карточке
+// «Рекорды»; здесь — «как я иду прямо сейчас», считается из уже загруженной
+// истории (без второго запроса).
 function CurrentAverage({ solves }: { solves: SolveRead[] }) {
   const t = useT();
   const timeFormat = useSettingsStore((s) => s.timeFormat);
@@ -162,7 +199,7 @@ function Records({ best, ao5, cups }: { best: number | null; ao5: number | null;
   // начисляют без соло-сборок), поэтому та карточка остаётся.
   if (best === null) {
     return (
-      <section className="grid gap-4 sm:grid-cols-3" aria-label={t("Рекорды")}>
+      <div className="grid gap-4 sm:grid-cols-3">
         <EmptyState
           className="sm:col-span-2"
           title={t("Рекордов пока нет")}
@@ -170,13 +207,13 @@ function Records({ best, ao5, cups }: { best: number | null; ao5: number | null;
           ctaLabel={t("К соло-тренировке →")}
           ctaTo="/solo"
         />
-        <div className="flex flex-col gap-1 rounded-lg border-2 border-ink bg-surface p-4">
+        <div className="flex flex-col gap-1 rounded-md border border-line bg-surface-2 p-4">
           <span className="font-sans text-overline uppercase text-muted">{t("Кубки")}</span>
           <span className="font-sans text-h2 text-ink [font-variant-numeric:tabular-nums]">
             {String(cups)}
           </span>
         </div>
-      </section>
+      </div>
     );
   }
 
@@ -186,11 +223,11 @@ function Records({ best, ao5, cups }: { best: number | null; ao5: number | null;
     { label: t("Кубки"), value: String(cups) },
   ];
   return (
-    <section className="grid gap-4 sm:grid-cols-3" aria-label={t("Рекорды")}>
+    <div className="grid gap-4 sm:grid-cols-3">
       {cards.map((c) => (
         <div
           key={c.label}
-          className="flex flex-col gap-1 rounded-lg border-2 border-ink bg-surface p-4"
+          className="flex flex-col gap-1 rounded-md border border-line bg-surface-2 p-4"
         >
           <span className="font-sans text-overline uppercase text-muted">{c.label}</span>
           <span className="font-sans text-h2 text-ink [font-variant-numeric:tabular-nums]">
@@ -198,205 +235,54 @@ function Records({ best, ao5, cups }: { best: number | null; ao5: number | null;
           </span>
         </div>
       ))}
-    </section>
-  );
-}
-
-function SettingsSection() {
-  const t = useT();
-  const timeFormat = useSettingsStore((s) => s.timeFormat);
-  const setTimeFormat = useSettingsStore((s) => s.setTimeFormat);
-  // Пример времени прямо в подписи: «мм:сс» и «секунды» на словах различают
-  // хуже, чем 1:23.45 против 83.45.
-  const options: { value: TimeFormat; label: string }[] = [
-    { value: "clock", label: `${t("Минуты : секунды")} · ${formatSolveMs(83450, "clock")}` },
-    { value: "seconds", label: `${t("Секунды")} · ${formatSolveMs(83450, "seconds")}` },
-  ];
-  return (
-    <section className="flex flex-col gap-4 rounded-lg border-2 border-ink bg-surface p-6">
-      <h2 className="font-sans text-h3 text-ink">{t("Настройки")}</h2>
-      <div className="flex flex-col gap-2">
-        <span className="font-sans text-small font-bold text-ink">{t("Формат времени")}</span>
-        <SegmentedToggle<TimeFormat>
-          value={timeFormat}
-          onChange={setTimeFormat}
-          label={t("Формат времени")}
-          options={options}
-          className="self-start"
-        />
-      </div>
-      <ChatEmailToggle />
-    </section>
-  );
-}
-
-type ChatEmailState =
-  { kind: "loading" } | { kind: "error" } | { kind: "ready"; enabled: boolean; saving: boolean };
-
-// GET/PUT /api/email/prefs (swarm-report/friend-chat-plan.md §7 "Этап B").
-// Same load/error/ready dance as useSolves — no store for this, it's a single
-// screen and a single value, so a local hook is enough.
-function ChatEmailToggle() {
-  const t = useT();
-  const [state, setState] = useState<ChatEmailState>({ kind: "loading" });
-
-  useEffect(() => {
-    let alive = true;
-    getEmailPrefs()
-      .then((prefs) => {
-        if (alive) setState({ kind: "ready", enabled: prefs.chat_email_enabled, saving: false });
-      })
-      .catch(() => {
-        if (alive) setState({ kind: "error" });
-      });
-    return () => {
-      alive = false;
-    };
-  }, []);
-
-  const options: { value: "on" | "off"; label: string }[] = [
-    { value: "on", label: t("Включены") },
-    { value: "off", label: t("Выключены") },
-  ];
-
-  async function onChange(next: "on" | "off") {
-    if (state.kind !== "ready") return;
-    const enabled = next === "on";
-    const prev = state.enabled;
-    setState({ kind: "ready", enabled, saving: true });
-    try {
-      await updateEmailPrefs({ chat_email_enabled: enabled });
-      setState({ kind: "ready", enabled, saving: false });
-    } catch {
-      // Revert on failure — no toast here, the segmented control snapping
-      // back to the previous value already tells the story.
-      setState({ kind: "ready", enabled: prev, saving: false });
-    }
-  }
-
-  return (
-    <div className="flex flex-col gap-2">
-      <span className="font-sans text-small font-bold text-ink">
-        {t("Письма о новых сообщениях от друзей")}
-      </span>
-      <p className="font-sans text-small text-muted">
-        {t(
-          "Если ты давно не заходил на сайт, а друг тебе написал, пришлём письмо — не чаще раза в час и без текста сообщения.",
-        )}
-      </p>
-      {state.kind === "loading" ? (
-        <span className="font-sans text-small text-muted">{t("Загружаю настройку писем…")}</span>
-      ) : null}
-      {state.kind === "error" ? (
-        <span role="alert" className="font-sans text-small text-danger">
-          {t("Не удалось загрузить настройку писем.")}
-        </span>
-      ) : null}
-      {state.kind === "ready" ? (
-        <SegmentedToggle<"on" | "off">
-          value={state.enabled ? "on" : "off"}
-          onChange={(v) => void onChange(v)}
-          label={t("Письма о новых сообщениях от друзей")}
-          options={options}
-          className="self-start"
-        />
-      ) : null}
     </div>
   );
 }
 
-function EditForm({
-  initialAvatar,
-  initialHandle,
-  onSave,
-}: {
-  initialAvatar: string;
-  initialHandle: string;
-  onSave: (avatarUrl: string | null, handle: string | null) => Promise<unknown>;
-}) {
+// Цель, коуч, текущий Ao5 и график — все читают «как я иду», в одном порядке:
+// цель («куда»), коуч и средняя («что сейчас»), график («как шёл»).
+function Progress({ state }: { state: SolvesState }) {
   const t = useT();
-  const [avatar, setAvatar] = useState(initialAvatar);
-  const [handle, setHandle] = useState(initialHandle);
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [saved, setSaved] = useState(false);
 
-  async function onSubmit(e: FormEvent) {
-    e.preventDefault();
-    setBusy(true);
-    setError(null);
-    setSaved(false);
-    try {
-      await onSave(avatar.trim() || null, handle.trim() || null);
-      setSaved(true);
-    } catch (err) {
-      setError(err instanceof ApiError ? err.message : t("Не удалось сохранить изменения."));
-    } finally {
-      setBusy(false);
-    }
-  }
+  if (state.kind === "loading") return <Spinner label={t("Загружаю историю…")} />;
+  if (state.kind === "error")
+    return <p className="font-sans text-small text-danger">{state.message}</p>;
 
   return (
-    <section className="flex flex-col gap-4 rounded-lg border-2 border-ink bg-surface p-6">
-      <h2 className="font-sans text-h3 text-ink">{t("Профиль")}</h2>
-      <form className="flex flex-col gap-4" onSubmit={onSubmit} noValidate>
-        <Input
-          label={t("Ссылка на аватар")}
-          type="url"
-          placeholder="https://…"
-          maxLength={512}
-          value={avatar}
-          onChange={(e) => setAvatar(e.target.value)}
-        />
-        <HandleField id="profile-handle" value={handle} onChange={setHandle} error={error} />
-        <div className="flex items-center gap-3">
-          <Button type="submit" disabled={busy}>
-            {busy ? t("Сохраняю…") : t("Сохранить")}
-          </Button>
-          {saved ? (
-            <span className="font-sans text-small text-success">{t("Сохранено")}</span>
-          ) : null}
+    <div className="flex flex-col gap-4">
+      <GoalCard solves={state.solves} />
+      <CurrentAverage solves={state.solves} />
+      <CoachCard solves={state.solves} />
+      <div className="flex flex-col gap-3">
+        <div className="flex flex-col gap-1">
+          <h3 className="font-sans text-body font-bold text-ink">{t("Прогресс времени")}</h3>
+          <span className="font-sans text-small text-muted">{t("за последние сборки")}</span>
         </div>
-      </form>
-    </section>
+        <SolveProgressChart solves={state.solves} />
+      </div>
+    </div>
   );
 }
 
-function History() {
+function History({ state, reload }: { state: SolvesState; reload: () => void }) {
   const t = useT();
   const timeFormat = useSettingsStore((s) => s.timeFormat);
-  const { state, reload } = useSolves();
 
   return (
-    <section className="flex flex-col gap-4">
-      <h2 className="font-sans text-h3 text-ink">{t("История сборок")}</h2>
-
+    <div className="flex flex-col gap-4">
       {state.kind === "loading" ? <Spinner label={t("Загружаю историю…")} /> : null}
 
       {state.kind === "error" ? (
         <div role="alert" className="flex flex-col items-start gap-3">
           <p className="font-sans text-small text-danger">{state.message}</p>
-          <Button onClick={reload}>{t("Повторить")}</Button>
+          <button
+            type="button"
+            onClick={reload}
+            className="inline-flex h-11 items-center rounded-full border-2 border-ink bg-primary px-4.5 font-sans text-small font-extrabold text-white"
+          >
+            {t("Повторить")}
+          </button>
         </div>
-      ) : null}
-
-      {/* Цель — над графиком: она отвечает «куда я иду», график — «как шёл». */}
-      {state.kind === "ok" ? <GoalCard solves={state.solves} /> : null}
-
-      {state.kind === "ok" ? <CurrentAverage solves={state.solves} /> : null}
-
-      {/* Коуч — тоже текстовый вывод перед графиком, тем же порядком, что и цель:
-          сначала «что это значит», потом визуализация «как это выглядело». */}
-      {state.kind === "ok" ? <CoachCard solves={state.solves} /> : null}
-
-      {state.kind === "ok" ? (
-        <section className="flex flex-col gap-3">
-          <div className="flex flex-col gap-1">
-            <h2 className="font-sans text-h3 text-ink">{t("Прогресс времени")}</h2>
-            <span className="font-sans text-small text-muted">{t("за последние сборки")}</span>
-          </div>
-          <SolveProgressChart solves={state.solves} />
-        </section>
       ) : null}
 
       {state.kind === "ok" && state.solves.length === 0 ? (
@@ -435,7 +321,7 @@ function History() {
           </table>
         </div>
       ) : null}
-    </section>
+    </div>
   );
 }
 
