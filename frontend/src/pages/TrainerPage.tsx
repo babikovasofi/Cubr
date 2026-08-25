@@ -7,6 +7,7 @@
 // mocked fetch and asserting 0 calls.
 
 import { useEffect } from "react";
+import { Link } from "react-router-dom";
 import Button from "../components/Button";
 import LastLayerDiagram from "../components/LastLayerDiagram";
 import OllDiagram from "../components/OllDiagram";
@@ -195,7 +196,12 @@ export default function TrainerPage() {
   return (
     <div className="mx-auto flex max-w-[720px] flex-col gap-6">
       <div className="flex flex-col gap-2">
-        <h1 className="font-sans text-h1 text-ink">{t("Тренажёр")}</h1>
+        <div className="flex items-center justify-between gap-4">
+          <h1 className="font-sans text-h1 text-ink">{t("Тренажёр")}</h1>
+          <Link to="/" className="font-sans text-small font-bold text-primary no-underline">
+            {t("← На главную")}
+          </Link>
+        </div>
         <p className="max-w-prose font-sans text-body text-muted">
           {t(
             "Выбери один или несколько случаев — получишь скрамбл, который гарантированно ставит кубик именно в этот случай. Без сборки, без камеры: собери скрамбл руками и сверься с ответом.",

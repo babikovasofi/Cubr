@@ -10,6 +10,7 @@
 
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, fireEvent, cleanup } from "@testing-library/react";
+import { MemoryRouter } from "react-router-dom";
 import TrainerPage from "../../src/pages/TrainerPage";
 import { ALL_CASE_IDS } from "../../src/trainer/pll";
 import { ALL_OLL_CASE_IDS, OLL_CASES } from "../../src/trainer/oll";
@@ -54,7 +55,11 @@ afterEach(() => {
 
 describe("TrainerPage", () => {
   it("no selection (fresh localStorage) defaults to both sets, all cases", () => {
-    render(<TrainerPage />);
+    render(
+      <MemoryRouter>
+        <TrainerPage />
+      </MemoryRouter>,
+    );
     expect(
       screen.getByRole("button", { name: "PLL (перестановка)" }).getAttribute("aria-pressed"),
     ).toBe("true");
@@ -77,7 +82,11 @@ describe("TrainerPage", () => {
   });
 
   it('"Следующий случай" changes the scramble string', () => {
-    render(<TrainerPage />);
+    render(
+      <MemoryRouter>
+        <TrainerPage />
+      </MemoryRouter>,
+    );
     const before = screen.getByLabelText("Скрамбл").textContent;
     let changed = false;
     for (let i = 0; i < 30 && !changed; i++) {
@@ -88,7 +97,11 @@ describe("TrainerPage", () => {
   });
 
   it('"Показать ответ" reveals name/algorithm/diagram, absent before the click', () => {
-    render(<TrainerPage />);
+    render(
+      <MemoryRouter>
+        <TrainerPage />
+      </MemoryRouter>,
+    );
     expect(screen.queryByRole("button", { name: "Показать ответ" })).toBeTruthy();
     expect(screen.queryAllByTestId("ll-sticker")).toHaveLength(0);
 
@@ -99,7 +112,11 @@ describe("TrainerPage", () => {
   });
 
   it("a single-case PLL selection shows the name immediately, no reveal needed, and renders the PLL (not OLL) diagram", () => {
-    render(<TrainerPage />);
+    render(
+      <MemoryRouter>
+        <TrainerPage />
+      </MemoryRouter>,
+    );
     // Turn OLL off, then deselect every PLL case but Ua.
     fireEvent.click(screen.getByRole("button", { name: "OLL (ориентация)" }));
     for (const id of ALL_CASE_IDS) {
@@ -118,7 +135,11 @@ describe("TrainerPage", () => {
   });
 
   it("a single-case OLL selection shows the name immediately and renders the binary OLL diagram", () => {
-    render(<TrainerPage />);
+    render(
+      <MemoryRouter>
+        <TrainerPage />
+      </MemoryRouter>,
+    );
     fireEvent.click(screen.getByRole("button", { name: "PLL (перестановка)" })); // turn PLL off
     for (const id of ALL_OLL_CASE_IDS) {
       if (id === "OLL27") continue;
@@ -136,7 +157,11 @@ describe("TrainerPage", () => {
   });
 
   it("unchecking the last remaining case is a no-op", () => {
-    render(<TrainerPage />);
+    render(
+      <MemoryRouter>
+        <TrainerPage />
+      </MemoryRouter>,
+    );
     fireEvent.click(screen.getByRole("button", { name: "OLL (ориентация)" })); // turn OLL off
     for (const id of ALL_CASE_IDS) {
       if (id === "Ua") continue;
@@ -149,7 +174,11 @@ describe("TrainerPage", () => {
   });
 
   it("turning off the last remaining set is a no-op", () => {
-    render(<TrainerPage />);
+    render(
+      <MemoryRouter>
+        <TrainerPage />
+      </MemoryRouter>,
+    );
     fireEvent.click(screen.getByRole("button", { name: "OLL (ориентация)" })); // pll only now
     const pllToggle = screen.getByRole("button", { name: "PLL (перестановка)" });
     expect(pllToggle.getAttribute("aria-pressed")).toBe("true");
@@ -159,7 +188,11 @@ describe("TrainerPage", () => {
 
   it("selection and any-grip round-trip through localStorage (new keys)", () => {
     const data = stubStorage();
-    render(<TrainerPage />);
+    render(
+      <MemoryRouter>
+        <TrainerPage />
+      </MemoryRouter>,
+    );
 
     fireEvent.click(screen.getByRole("checkbox", { name: "Ua" })); // deselect Ua
     expect(JSON.parse(data.get("cubr.trainer.cases")!)).not.toContain("Ua");
@@ -174,7 +207,11 @@ describe("TrainerPage", () => {
       "cubr.trainer.pll.cases": JSON.stringify(["Ua", "T"]),
       "cubr.trainer.pll.anyGrip": "1",
     });
-    render(<TrainerPage />);
+    render(
+      <MemoryRouter>
+        <TrainerPage />
+      </MemoryRouter>,
+    );
 
     expect(
       screen.getByRole("button", { name: "PLL (перестановка)" }).getAttribute("aria-pressed"),
@@ -198,7 +235,11 @@ describe("TrainerPage", () => {
 
   it("a corrupt legacy PLL selection falls back to all 21 PLL cases, PLL-only", () => {
     stubStorage({ "cubr.trainer.pll.cases": "{not json" });
-    render(<TrainerPage />);
+    render(
+      <MemoryRouter>
+        <TrainerPage />
+      </MemoryRouter>,
+    );
     expect(
       screen.getByRole("button", { name: "OLL (ориентация)" }).getAttribute("aria-pressed"),
     ).toBe("false");
@@ -225,7 +266,13 @@ describe("TrainerPage", () => {
       length: 0,
     } as unknown as Storage);
 
-    expect(() => render(<TrainerPage />)).not.toThrow();
+    expect(() =>
+      render(
+        <MemoryRouter>
+          <TrainerPage />
+        </MemoryRouter>,
+      ),
+    ).not.toThrow();
     expect(screen.getByText("Тренажёр")).toBeTruthy();
   });
 });
@@ -236,7 +283,11 @@ describe("TrainerPage — §П5 zero network", () => {
       throw new Error("fetch should never be called from TrainerPage");
     });
 
-    render(<TrainerPage />);
+    render(
+      <MemoryRouter>
+        <TrainerPage />
+      </MemoryRouter>,
+    );
     fireEvent.click(screen.getByRole("button", { name: "Следующий случай" }));
     fireEvent.click(screen.getByRole("button", { name: "Показать ответ" }));
     fireEvent.click(screen.getByRole("checkbox", { name: "T" }));

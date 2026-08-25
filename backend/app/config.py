@@ -117,15 +117,19 @@ class Settings(BaseSettings):
     DUEL_ROOM_STALE_SECONDS: int = 7200
     DUEL_SESSION_TOKEN_TTL_SECONDS: int = 7200
     # Max time between the WS `start` broadcast and both players sending `ready`
-    # before the room is force-finalized (whoever isn't ready -> dnf).
-    DUEL_PREP_TIMEOUT_SECONDS: int = 180
+    # before the room is force-finalized (whoever isn't ready -> dnf). Поднято
+    # со 180: люди на дуэли/реванше настраивают камеру и кубик дольше трёх минут
+    # (owner-тест), и слишком короткое окно рвало сборку до старта.
+    DUEL_PREP_TIMEOUT_SECONDS: int = 600
     # Max time in the solving phase before a still-unsubmitted player is forced dnf.
     DUEL_SOLVE_TIMEOUT_SECONDS: int = 600
     # Grace window to reconnect after a disconnect before/at/during prep — past it
     # the room is abandoned. NOT used once solving has started (see duel_manager).
-    DUEL_DISCONNECT_GRACE_SECONDS: int = 60
+    DUEL_DISCONNECT_GRACE_SECONDS: int = 90
     DUEL_HEARTBEAT_INTERVAL_SECONDS: int = 5
-    DUEL_HEARTBEAT_TIMEOUT_SECONDS: int = 15
+    # Поднято с 15: пока соперник возится с камерой/кубиком, вкладка может
+    # притормаживать пинги, и 15 с давали ложное «соперник отключён» (owner-тест).
+    DUEL_HEARTBEAT_TIMEOUT_SECONDS: int = 40
     DUEL_COUNTDOWN_SECONDS: int = 3
     # Pause between a game's finish and the next rematch's creation beyond
     # which the running "series" score (GET /duel/rooms/{id}/series) treats
