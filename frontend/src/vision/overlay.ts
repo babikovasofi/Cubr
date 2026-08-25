@@ -11,10 +11,14 @@ import { squareGuidePx, type Rect } from "./config";
 import type { HandObservation } from "./hooks/useHands";
 
 // Two zones at the bottom of the frame (left half / right half).
+// Зоны рук подобраны вживую на dev-роуте /lab (владелец): левая — под реальную
+// позу решения, правая — симметрично левой (зеркало через центр 0.5:
+// x = 1 − 0.06 − 0.35 = 0.59). Узкая полоса чуть выше низа кадра, чтобы обычная
+// поза сборки не заводила руки в зону раньше времени (лечит ранний стоп).
 export function defaultZones(): { left: Rect; right: Rect } {
   return {
-    left: { x: 0.05, y: 0.62, w: 0.4, h: 0.33 },
-    right: { x: 0.55, y: 0.62, w: 0.4, h: 0.33 },
+    left: { x: 0.06, y: 0.71, w: 0.35, h: 0.25 },
+    right: { x: 0.59, y: 0.71, w: 0.35, h: 0.25 },
   };
 }
 

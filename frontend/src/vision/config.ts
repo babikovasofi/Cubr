@@ -214,9 +214,12 @@ export interface Config {
 
 export const config: Config = {
   ZONE_ENTER_MS: 200,
-  STILL_MS: 500,
+  // STILL_MS/LEAVE_DEBOUNCE_MS подобраны вживую на dev-роуте /lab (владелец):
+  // готовность ловится почти сразу (40 мс неподвижности), уход руки —
+  // отзывчиво (30 мс).
+  STILL_MS: 40,
   STOP_MS: 200,
-  LEAVE_DEBOUNCE_MS: 120,
+  LEAVE_DEBOUNCE_MS: 30,
   ABORT_MS: 800,
 
   STILL_MOTION_FRAC: 0.03,
@@ -224,11 +227,12 @@ export const config: Config = {
   START_RULE: "first",
 
   // Large, roughly PIXEL-SQUARE on a 16:9 frame so all 9 sticker cells land on the
-  // cube (squareGuidePx enforces the exact centered square). On 1280x720: w*W≈384,
-  // h*H≈396 → ~384px square. Centered horizontally; vertical band covers chest
-  // height. Was previously {w:0.36,h:0.20} — a 3.2:1 strip whose side columns read
-  // the background, so a solved cube verified ~70% wrong.
-  GUIDE_RECT: { x: 0.35, y: 0.24, w: 0.3, h: 0.55 },
+  // cube (squareGuidePx enforces the exact centered square). Centered horizontally;
+  // Was previously {w:0.36,h:0.20} — a 3.2:1 strip whose side columns read the
+  // background, so a solved cube verified ~70% wrong.
+  // y поднят (0.24 → 0.06), чтобы квадрат-наводка не накладывался на зоны рук
+  // внизу кадра (owner: «размести квадрат выше, чтобы не накладывались»).
+  GUIDE_RECT: { x: 0.35, y: 0.06, w: 0.3, h: 0.5 },
   CELL_CENTER_FRAC: 0.5,
   CELL_LUMA_TOLERANCE: 34,
   CELL_BLOWN_LUMA: 246,
