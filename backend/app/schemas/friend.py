@@ -48,6 +48,7 @@ class FriendRead(BaseModel):
 
     friendship_id: UUID
     display_name: str
+    avatar_url: str | None = None
     since: datetime
     is_online: bool = False
 

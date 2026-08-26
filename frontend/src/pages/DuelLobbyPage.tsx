@@ -119,7 +119,12 @@ function OnlineFriends() {
               className="flex flex-wrap items-center justify-between gap-3 bg-surface px-3.5 py-3"
             >
               <span className="flex min-w-0 items-center gap-3">
-                <PresenceAvatar displayName={f.display_name} online size={40} />
+                <PresenceAvatar
+                  displayName={f.display_name}
+                  online
+                  size={40}
+                  avatarUrl={f.avatar_url}
+                />
                 <span className="flex min-w-0 flex-col">
                   <span className="truncate font-sans text-small font-bold text-ink">
                     {f.display_name}

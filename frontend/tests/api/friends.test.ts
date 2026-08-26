@@ -25,6 +25,7 @@ function res(opts: { status: number; json?: unknown; text?: string }): Response 
 const FRIEND: FriendRead = {
   friendship_id: "friendship-1",
   display_name: "SpeedCuber",
+  avatar_url: null,
   since: "2026-08-01T00:00:00Z",
   is_online: false,
 };

@@ -172,6 +172,7 @@ export default function FriendsSection() {
           friendshipId={profileFriend.friendship_id}
           displayName={profileFriend.display_name}
           online={profileFriend.is_online}
+          avatarUrl={profileFriend.avatar_url}
           onClose={() => setProfileFriend(null)}
         />
       ) : null}
@@ -351,7 +352,12 @@ function FriendList({
           aria-label={t("Открыть профиль игрока")}
           className="flex min-w-0 items-center gap-3 rounded-md text-left hover:opacity-80"
         >
-          <PresenceAvatar displayName={f.display_name} online={f.is_online} size={40} />
+          <PresenceAvatar
+            displayName={f.display_name}
+            online={f.is_online}
+            size={40}
+            avatarUrl={f.avatar_url}
+          />
           <span className="flex min-w-0 flex-col">
             <span className="truncate font-sans text-small font-bold text-ink">
               {f.display_name}

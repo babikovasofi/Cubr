@@ -86,7 +86,8 @@ describe("BadgeGrid", () => {
       const sub30Title = screen.getByText("Меньше 30");
       expect(sub30Title).toBeTruthy();
       const sub30Card = sub30Title.closest("[class*='flex flex-col']");
-      expect(sub30Card?.textContent).toContain("⏱️");
+      // Icon is the app's cube-motif mini-grid now, not an emoji.
+      expect(sub30Card?.querySelector("[data-testid='mini-grid']")).toBeTruthy();
       expect(sub30Card?.textContent).toContain("Сборка кубика быстрее 30 секунд.");
       // earned_at should be shown
       expect(sub30Card?.textContent).toMatch(/Получен/);

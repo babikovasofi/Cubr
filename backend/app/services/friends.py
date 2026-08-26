@@ -62,6 +62,10 @@ class FriendConflictError(Exception):
 class FriendEntry:
     friendship_id: uuid.UUID
     display_name: str
+    # The friend's uploaded avatar (or None) — so a friend's photo shows up
+    # for the other party too, not just a first-letter tile. Same opt-in
+    # `avatar_url` the user set on themselves; no other PII travels with it.
+    avatar_url: str | None
     since: datetime
     # friends-hub plan, Этап A — presence dot. `True` iff the OTHER party's
     # `user_presence.last_seen_at` (bumped by `GET /chat/poll`, see
@@ -391,6 +395,7 @@ async def list_friends(
             FriendEntry(
                 friendship_id=row.id,
                 display_name=display_name_for(other.handle),
+                avatar_url=other.avatar_url,
                 since=row.responded_at if row.responded_at is not None else row.created_at,
                 is_online=is_online,
             )

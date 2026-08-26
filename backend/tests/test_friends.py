@@ -420,6 +420,7 @@ async def test_friend_list_has_no_pii(client: AsyncClient, email_spy: EmailSpy) 
             assert set(entry.keys()) <= {
                 "friendship_id",
                 "display_name",
+                "avatar_url",  # own opt-in avatar, shown to friends — never PII
                 "since",
                 "created_at",
                 "is_online",  # friends-hub Этап A presence dot — never PII

@@ -11,6 +11,7 @@ import { request } from "./client";
 export interface FriendRead {
   friendship_id: string;
   display_name: string;
+  avatar_url: string | null;
   since: string;
   // friends-hub plan, Этап A: presence dot — `user_presence.last_seen_at`
   // within the server's online window. Always present on the wire (server

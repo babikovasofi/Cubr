@@ -180,7 +180,10 @@ function BackBar() {
   const location = useLocation();
   const navigate = useNavigate();
 
-  if (location.pathname === "/") return null;
+  // Not on home, and not inside an active duel room (/duel/:id, /duel/join/:id)
+  // — there the ONLY exit must be DuelPage's "Выйти из дуэли", which abandons
+  // the room; a plain back-navigation would leave the duel slot stuck active.
+  if (location.pathname === "/" || location.pathname.startsWith("/duel/")) return null;
 
   function goBack(): void {
     const idx = (window.history.state as { idx?: number } | null)?.idx ?? 0;
@@ -210,7 +213,7 @@ function Header() {
       <div className="mx-auto flex h-full max-w-content items-center justify-between px-4">
         {/* Словомарк без знака 2×2: знак из §6 пробовали в шапке — визуально
             перегружал, оставлен только словомарк. */}
-        <Link to="/" className="font-sans text-h2 font-black text-ink no-underline">
+        <Link to="/" className="font-sans text-h1 font-black leading-none text-ink no-underline">
           Cubr
         </Link>
         {status === "authed" ? (

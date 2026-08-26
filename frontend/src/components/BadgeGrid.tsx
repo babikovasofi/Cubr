@@ -6,9 +6,47 @@
 import { useEffect, useState } from "react";
 import Button from "./Button";
 import Spinner from "./Spinner";
+import MiniGrid from "./MiniGrid";
 import { getBadges, type BadgeRead } from "../api/badges";
 import { ApiError } from "../api/client";
 import { useT } from "../i18n/t";
+
+// Badge icons use the app's OWN cube-motif language (the 3×3 mini-grid from
+// §4, same as the mode cards) instead of OS emoji, which read as cheap and
+// off-brand (owner). Each badge gets a stable motif + accent derived from its
+// `code`, so it's consistent across sessions and new badges get an icon for
+// free — no per-badge art to maintain, no emoji.
+const BADGE_ACCENTS = [
+  "var(--success)",
+  "var(--warning)",
+  "var(--primary)",
+  "var(--live)",
+  "var(--danger)",
+];
+const O = false;
+const X = true;
+const BADGE_PATTERNS: boolean[][] = [
+  [X, O, X, O, X, O, X, O, X],
+  [O, X, O, X, X, X, O, X, O],
+  [X, X, X, O, X, O, O, O, O],
+  [O, O, X, O, X, O, X, O, O],
+  [X, O, O, O, X, O, O, O, X],
+  [O, X, O, X, O, X, O, X, O],
+  [X, X, O, X, O, O, O, O, X],
+  [O, X, X, O, X, O, X, X, O],
+];
+function hashCode(s: string): number {
+  let h = 5381;
+  for (let i = 0; i < s.length; i++) h = (h * 33) ^ s.charCodeAt(i);
+  return Math.abs(h);
+}
+function badgeMotif(code: string): { accent: string; cells: boolean[] } {
+  const h = hashCode(code);
+  return {
+    cells: BADGE_PATTERNS[h % BADGE_PATTERNS.length],
+    accent: BADGE_ACCENTS[(h >> 3) % BADGE_ACCENTS.length],
+  };
+}
 
 function fmtEarnedAt(iso: string): string {
   const d = new Date(iso);
@@ -64,8 +102,8 @@ export default function BadgeGrid() {
               }`}
             >
               <div className="flex items-center gap-3">
-                <span aria-hidden className="shrink-0 font-sans text-h2 text-ink">
-                  {b.icon}
+                <span aria-hidden className="shrink-0">
+                  <MiniGrid {...badgeMotif(b.code)} />
                 </span>
                 <span className="min-w-0 break-words font-sans text-body font-bold text-ink">
                   {b.title}

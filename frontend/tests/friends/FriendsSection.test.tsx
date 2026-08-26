@@ -82,6 +82,7 @@ vi.mock("react-router-dom", async (importOriginal) => {
 const FRIEND_SPEEDCUBER: FriendRead = {
   friendship_id: "friendship-friend-1",
   display_name: "SpeedCuber",
+  avatar_url: null,
   since: "2026-08-01T00:00:00Z",
   is_online: true,
 };
@@ -89,6 +90,7 @@ const FRIEND_SPEEDCUBER: FriendRead = {
 const FRIEND_ANON: FriendRead = {
   friendship_id: "friendship-friend-2",
   display_name: "Аноним",
+  avatar_url: null,
   since: "2026-08-02T00:00:00Z",
   is_online: false,
 };

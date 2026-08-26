@@ -16,6 +16,7 @@ import {
   getH2H,
   getRoom,
   getSeries,
+  leaveRoom,
   loadDuelSessionToken,
   rematch,
   saveDuelSessionToken,
@@ -40,6 +41,7 @@ export default function DuelPage() {
   const [state, dispatch] = useReducer(duelReducer, initialDuelState);
   const [rematchBusy, setRematchBusy] = useState(false);
   const [rematchError, setRematchError] = useState<string | null>(null);
+  const [leaveBusy, setLeaveBusy] = useState(false);
   const [h2h, setH2h] = useState<DuelH2HRead | null>(null);
   const [series, setSeries] = useState<DuelSeriesRead | null>(null);
 
@@ -165,6 +167,18 @@ export default function DuelPage() {
 
   const socket = useDuelSocket(state.roomId, state.sessionToken, state.yourSlot, dispatch);
 
+  // Leave (abandon) the duel and go home. Without this the ONLY way out was
+  // navigating away, which left the DuelParticipant slot active — so the next
+  // matchmaking/challenge kept saying "вы уже в дуэли" (owner). Abandon is
+  // best-effort: even if the call fails, we still navigate home rather than
+  // trap the player on the duel screen.
+  const onLeave = async (): Promise<void> => {
+    setLeaveBusy(true);
+    const id = state.roomId ?? roomId;
+    if (id) await leaveRoom(id).catch(() => undefined);
+    navigate("/");
+  };
+
   const onRematch = async (): Promise<void> => {
     if (!state.roomId) return;
     setRematchBusy(true);
@@ -184,9 +198,20 @@ export default function DuelPage() {
     <div className="flex flex-col gap-6">
       <div className="flex flex-wrap items-center justify-between gap-4">
         <h2 className="font-sans text-h2 text-ink">{t("Дуэль")}</h2>
-        <Link to="/" className="font-sans text-body font-bold text-primary no-underline">
-          {t("← На главную")}
-        </Link>
+        {state.phase === "result" ? (
+          <Link to="/" className="font-sans text-body font-bold text-primary no-underline">
+            {t("← На главную")}
+          </Link>
+        ) : (
+          <button
+            type="button"
+            onClick={() => void onLeave()}
+            disabled={leaveBusy}
+            className="inline-flex h-10 items-center gap-1.5 self-start rounded-full border-2 border-ink bg-surface px-4 font-sans text-small font-extrabold text-ink hover:bg-surface-2"
+          >
+            {leaveBusy ? t("Выхожу…") : t("Выйти из дуэли")}
+          </button>
+        )}
       </div>
 
       {state.phase === "result" && state.result && state.yourSlot ? (

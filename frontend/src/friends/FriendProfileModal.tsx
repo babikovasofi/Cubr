@@ -35,11 +35,13 @@ export default function FriendProfileModal({
   friendshipId,
   displayName,
   online,
+  avatarUrl = null,
   onClose,
 }: {
   friendshipId: string;
   displayName: string;
   online: boolean;
+  avatarUrl?: string | null;
   onClose: () => void;
 }) {
   const t = useT();
@@ -97,7 +99,12 @@ export default function FriendProfileModal({
       >
         <div className="flex items-center justify-between gap-3">
           <div className="flex min-w-0 items-center gap-3">
-            <PresenceAvatar displayName={displayName} online={online} size={56} />
+            <PresenceAvatar
+              displayName={displayName}
+              online={online}
+              size={56}
+              avatarUrl={profile?.avatar_url ?? avatarUrl}
+            />
             <div className="flex min-w-0 flex-col">
               <h2 className="truncate font-sans text-h3 text-ink">{formatHandle(displayName)}</h2>
               <span

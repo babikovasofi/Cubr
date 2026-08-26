@@ -173,6 +173,7 @@ async def accept_request(
     return FriendRead(
         friendship_id=friendship.id,
         display_name=display_name_for(other.handle),
+        avatar_url=other.avatar_url,
         since=friendship.responded_at
         if friendship.responded_at is not None
         else friendship.created_at,

@@ -47,6 +47,13 @@ export function getRoom(roomId: string, signal?: AbortSignal): Promise<DuelRoomR
   return request<DuelRoomRead>(`/duel/rooms/${encodeURIComponent(roomId)}`, { signal });
 }
 
+// Leave (abandon) the room. Backend abandons it if not already
+// finished/abandoned, freeing the caller's active-duel slot so they can
+// matchmake/challenge again. 204 either way (idempotent).
+export function leaveRoom(roomId: string, signal?: AbortSignal): Promise<void> {
+  return request<void>(`/duel/rooms/${encodeURIComponent(roomId)}`, { method: "DELETE", signal });
+}
+
 export function joinRoom(inviteToken: string, signal?: AbortSignal): Promise<DuelJoinRead> {
   return request<DuelJoinRead>(`/duel/join/${encodeURIComponent(inviteToken)}`, {
     method: "POST",
