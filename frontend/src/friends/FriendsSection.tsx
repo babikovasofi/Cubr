@@ -110,15 +110,19 @@ export default function FriendsSection() {
                 onSecondary={(id) => deleteRequest(id).then(reload)}
               />
             ) : null}
-
-            <FriendList
-              friends={lists.friends}
-              onRemoved={reload}
-              onOpenChat={setOpenChatFriendshipId}
-            />
           </>
         ) : null}
       </ProfileCard>
+
+      {state.kind === "ok" ? (
+        <ProfileCard title={t("Список друзей")} motif={CARD_MOTIFS.badges} accent="var(--warning)">
+          <FriendList
+            friends={lists.friends}
+            onRemoved={reload}
+            onOpenChat={setOpenChatFriendshipId}
+          />
+        </ProfileCard>
+      ) : null}
 
       {state.kind === "ok" && lists.friends.length > 0 ? (
         <ProfileCard
@@ -345,8 +349,6 @@ function FriendList({
 
   return (
     <div className="flex flex-col gap-3">
-      <h3 className="font-sans text-small font-bold text-ink">{t("Список друзей")}</h3>
-
       {friends.length === 0 ? (
         <p className="font-sans text-small text-muted">
           {t("Пока нет друзей — добавь кого-нибудь по нику выше.")}
