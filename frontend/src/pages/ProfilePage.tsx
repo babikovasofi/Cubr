@@ -18,7 +18,7 @@ import ProfileCard, { CARD_MOTIFS } from "../profile/ProfileCard";
 import { currentAo5, AVERAGE_SIZE } from "../profile/average";
 import { formatHandle } from "../lib/handle";
 import { RANKS } from "../components/CupsRoad";
-import FriendsSection from "../friends/FriendsSection";
+import Button from "../components/Button";
 import { useSolves } from "../lib/useSolves";
 import type { SolveRead } from "../api/solves";
 import { useAuthStore } from "../store/authStore";
@@ -72,9 +72,17 @@ export default function ProfilePage() {
         <History state={state} reload={reload} />
       </ProfileCard>
 
-      {/* FriendsSection renders its own "Друзья" heading — same reason. */}
+      {/* friends-hub plan, Этап A: friends/requests/chat moved to their own
+          screen — this card is a short pointer, not a rebuild of that UI. */}
       <ProfileCard motif={CARD_MOTIFS.friends} accent="var(--danger)">
-        <FriendsSection />
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <p className="font-sans text-small text-muted">
+            {t("Друзья, заявки и переписка переехали на отдельный экран.")}
+          </p>
+          <Link to="/friends">
+            <Button variant="secondary">{t("Друзья и сообщения")}</Button>
+          </Link>
+        </div>
       </ProfileCard>
     </div>
   );

@@ -12,6 +12,10 @@ export interface FriendRead {
   friendship_id: string;
   display_name: string;
   since: string;
+  // friends-hub plan, Этап A: presence dot — `user_presence.last_seen_at`
+  // within the server's online window. Always present on the wire (server
+  // default False, not omitted), so this is NOT optional here.
+  is_online: boolean;
 }
 
 export interface FriendRequestRead {

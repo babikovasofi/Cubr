@@ -28,6 +28,7 @@ import { useChallengeFriend } from "./useChallengeFriend";
 import { stripHandlePrefix } from "../lib/handle";
 import { useT } from "../i18n/t";
 import ChatSection from "./chat/ChatSection";
+import PresenceAvatar from "./PresenceAvatar";
 
 interface Lists {
   friends: FriendRead[];
@@ -315,7 +316,10 @@ function FriendList({
               key={f.friendship_id}
               className="flex items-center justify-between gap-3 rounded-md border border-line bg-surface px-3.5 py-2.5"
             >
-              <span className="font-sans text-small text-ink">{f.display_name}</span>
+              <span className="flex min-w-0 items-center gap-2.5">
+                <PresenceAvatar displayName={f.display_name} online={f.is_online} size={36} />
+                <span className="truncate font-sans text-small text-ink">{f.display_name}</span>
+              </span>
               <div className="flex items-center gap-2">
                 <Button variant="secondary" onClick={() => onOpenChat(f.friendship_id)}>
                   {t("Написать")}

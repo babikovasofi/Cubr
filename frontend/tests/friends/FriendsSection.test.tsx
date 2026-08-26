@@ -83,12 +83,14 @@ const FRIEND_SPEEDCUBER: FriendRead = {
   friendship_id: "friendship-friend-1",
   display_name: "SpeedCuber",
   since: "2026-08-01T00:00:00Z",
+  is_online: true,
 };
 
 const FRIEND_ANON: FriendRead = {
   friendship_id: "friendship-friend-2",
   display_name: "Аноним",
   since: "2026-08-02T00:00:00Z",
+  is_online: false,
 };
 
 const INCOMING: FriendRequestRead = {
@@ -370,6 +372,20 @@ describe("FriendsSection — удаление друга", () => {
     await waitFor(() =>
       expect(removeFriendMock).toHaveBeenCalledWith(FRIEND_SPEEDCUBER.friendship_id),
     );
+  });
+});
+
+describe("FriendsSection — presence-точка", () => {
+  it("онлайн-друг помечен «В сети», офлайн — «Не в сети»", async () => {
+    listFriendsMock.mockResolvedValue([FRIEND_SPEEDCUBER, FRIEND_ANON]);
+
+    renderSection();
+    await waitFor(() => expect(screen.getByText("SpeedCuber")).toBeTruthy());
+
+    const online = screen.getByText("SpeedCuber").closest("li") as HTMLElement;
+    const offline = screen.getByText("Аноним").closest("li") as HTMLElement;
+    expect(within(online).getByText("В сети")).toBeTruthy();
+    expect(within(offline).getByText("Не в сети")).toBeTruthy();
   });
 });
 

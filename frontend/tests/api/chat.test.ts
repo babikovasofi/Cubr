@@ -32,6 +32,8 @@ const MESSAGE: ChatMessage = {
   seq: 1,
   sender_id: "user-1",
   body: "hi",
+  kind: "text",
+  invite: null,
   created_at: "2026-08-24T10:00:00Z",
   deleted_at: null,
 };

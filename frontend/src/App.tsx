@@ -48,6 +48,7 @@ const OnboardingPage = lazy(() => import("./pages/OnboardingPage"));
 const ProfilePage = lazy(() => import("./pages/ProfilePage"));
 const SettingsPage = lazy(() => import("./pages/SettingsPage"));
 const CupsPage = lazy(() => import("./pages/CupsPage"));
+const FriendsPage = lazy(() => import("./pages/FriendsPage"));
 
 // Правила и приватность — длинная проза, и обе версии, русская и английская,
 // лежат в бандле целиком (перевод здесь пофайловый, а не по словарю). Читают их
@@ -136,6 +137,14 @@ function AuthMenu() {
               className="rounded px-3 py-2 font-sans text-small text-ink no-underline hover:bg-surface-2"
             >
               {t("Профиль")}
+            </Link>
+            <Link
+              to="/friends"
+              role="menuitem"
+              onClick={() => setOpen(false)}
+              className="rounded px-3 py-2 font-sans text-small text-ink no-underline hover:bg-surface-2"
+            >
+              {t("Друзья")}
             </Link>
             <Link
               to="/settings"
@@ -367,6 +376,14 @@ export default function App() {
                 element={
                   <ProtectedRoute>
                     <SettingsPage />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/friends"
+                element={
+                  <ProtectedRoute>
+                    <FriendsPage />
                   </ProtectedRoute>
                 }
               />

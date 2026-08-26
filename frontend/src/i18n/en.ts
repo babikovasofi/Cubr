@@ -941,4 +941,34 @@ export const EN: Record<string, string> = {
   "Выиграл дуэль — получил кубки. Проиграл — часть кубков ушла сопернику. Побеждай стабильно — поднимайся по рангам.":
     "Win a duel — earn cups. Lose one — some cups go to your opponent. Keep winning to climb the ranks.",
   "Открыть дорогу кубков": "Open the trophy road",
+
+  // --- friends-hub: /friends, presence, duel invites, matchmaking (react-ts agent) ---
+  "Друзья, заявки и переписка переехали на отдельный экран.":
+    "Friends, requests, and chat moved to their own screen.",
+  "Друзья и сообщения": "Friends and messages",
+  "В сети": "Online",
+  "Не в сети": "Offline",
+  "Случайный соперник": "Random opponent",
+  "Сразу в дуэль со случайным соперником — без заявки в друзья.":
+    "Straight into a duel with a random opponent — no friend request needed.",
+  "Ищем соперника…": "Looking for an opponent…",
+  "Отменить поиск": "Cancel search",
+  "Не удалось найти соперника.": "Could not find an opponent.",
+  // Коды ошибок /chat/invites/*, /matchmaking/* (client.ts RU_BY_CODE) —
+  // рендерятся через t(e.message), см. InviteMessage/useMatchmaking.
+  "Приглашение не найдено.": "Invite not found.",
+  "Это не твоё приглашение.": "This isn't your invite.",
+  "Приглашение уже не активно.": "This invite is no longer active.",
+  "Соперник уже в дуэли.": "The opponent is already in a duel.",
+  "У тебя уже есть активная дуэль.": "You already have an active duel.",
+  "Отправляю приглашение…": "Sending the invite…",
+  "Не удалось отправить приглашение на дуэль.": "Could not send the duel invite.",
+  "Приглашение на дуэль": "Duel invite",
+  VS: "VS",
+  "Отменяю…": "Canceling…",
+  "Принимаю…": "Accepting…",
+  "Войти в дуэль": "Enter the duel",
+  "Приглашение отклонено.": "Invite declined.",
+  "Приглашение отменено.": "Invite canceled.",
+  "Время приглашения истекло.": "The invite has expired.",
 };

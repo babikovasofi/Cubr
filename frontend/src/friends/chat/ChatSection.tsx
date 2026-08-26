@@ -7,7 +7,12 @@ import Spinner from "../../components/Spinner";
 import Button from "../../components/Button";
 import { useAuthStore } from "../../store/authStore";
 import { useT } from "../../i18n/t";
-import { markRead, type ChatMessage, type ConversationSummary } from "../../api/chat";
+import {
+  markRead,
+  type ChatMessage,
+  type ConversationSummary,
+  type DuelInviteRead,
+} from "../../api/chat";
 import { useChatPoll } from "./useChatPoll";
 import ConversationList from "./ConversationList";
 import ConversationView from "./ConversationView";
@@ -69,6 +74,15 @@ export default function ChatSection({
     // loop.
   }, [selectedConversation?.id]);
 
+  // External sync (Этап B): keeps useChatPoll's own ref of "which
+  // conversation is open" current, so its poll loop knows which one to
+  // re-pull on every wake for fresh invite state — see useChatPoll's
+  // refetchOpenConversation. Same "keyed only on the id" reasoning as above.
+  useEffect(() => {
+    chat.setOpenConversationId(selectedConversation?.id ?? null);
+    return () => chat.setOpenConversationId(null);
+  }, [selectedConversation?.id]);
+
   function handleSelectFromList(conversation: ConversationSummary): void {
     setSelection({ conversationId: conversation.id, friendshipId: conversation.friendship_id });
   }
@@ -91,6 +105,11 @@ export default function ChatSection({
   function handleMessageDeleted(messageId: string): void {
     if (!selectedConversation) return;
     chat.applyLocalDelete(selectedConversation.id, messageId);
+  }
+
+  function handleInviteUpdated(messageId: string, invite: DuelInviteRead): void {
+    if (!selectedConversation) return;
+    chat.applyLocalInvitePatch(selectedConversation.id, messageId, invite);
   }
 
   function handleBlockedChange(nextBlocked: boolean): void {
@@ -137,6 +156,7 @@ export default function ChatSection({
           onMessageSent={handleMessageSent}
           onMessageDeleted={handleMessageDeleted}
           onBlockedChange={handleBlockedChange}
+          onInviteUpdated={handleInviteUpdated}
         />
       ) : (
         <p className="font-sans text-small text-muted">

@@ -22,6 +22,7 @@ import {
   pollChat,
   type ChatMessage,
   type ConversationSummary,
+  type DuelInviteRead,
 } from "../../api/chat";
 
 export interface ChatPollState {
@@ -51,10 +52,33 @@ export function useChatPoll() {
   // Cursor lives in a ref, not state: the poll loop reads it synchronously
   // between iterations and must never restart from a stale render's closure.
   const cursorRef = useRef<string | null>(null);
+  // Этап B: which conversation is currently open in this tab, if any — set
+  // by ChatSection whenever the selection changes (see setOpenConversationId
+  // below). A ref, not state: read synchronously inside the poll loop
+  // closure, same reason as cursorRef.
+  const openConversationIdRef = useRef<string | null>(null);
 
   useEffect(() => {
     let alive = true;
     const controller = new AbortController();
+
+    // Этап B (friends-hub plan): an invite's state (accept/decline/cancel)
+    // flips a `duel_invites` row, not a new `chat_messages` row — the poll's
+    // own cursor never re-delivers it. So every poll WAKE (not just a
+    // non-empty one) re-pulls the open conversation's messages, which
+    // re-derives every invite card's state/session_token fresh server-side
+    // (`chat_invite_service.build_invite_read`, called on every read).
+    async function refetchOpenConversation(conversationId: string) {
+      const page = await listMessages(conversationId, { limit: 50 }, controller.signal);
+      if (!alive) return;
+      setState((s) => ({
+        ...s,
+        messagesByConversationId: {
+          ...s.messagesByConversationId,
+          [conversationId]: mergeMessages(s.messagesByConversationId[conversationId] ?? [], page),
+        },
+      }));
+    }
 
     async function refetchConversations() {
       try {
@@ -78,18 +102,31 @@ export function useChatPoll() {
           const result = await pollChat(cursorRef.current, controller.signal);
           cursorRef.current = result.cursor;
           if (!alive) return;
-          if (result.messages.length === 0) continue;
-          setState((s) => {
-            const messagesByConversationId = { ...s.messagesByConversationId };
-            for (const msg of result.messages) {
-              const existing = messagesByConversationId[msg.conversation_id] ?? [];
-              messagesByConversationId[msg.conversation_id] = mergeMessages(existing, [msg]);
+          if (result.messages.length > 0) {
+            setState((s) => {
+              const messagesByConversationId = { ...s.messagesByConversationId };
+              for (const msg of result.messages) {
+                const existing = messagesByConversationId[msg.conversation_id] ?? [];
+                messagesByConversationId[msg.conversation_id] = mergeMessages(existing, [msg]);
+              }
+              return { ...s, messagesByConversationId };
+            });
+            // Poll carries no unread/last-message summary — refresh the list
+            // separately for those (plan/backend contract).
+            void refetchConversations();
+          }
+          // Every wake (see refetchOpenConversation's comment above), not
+          // only a non-empty one — an invite-state-only wake carries zero
+          // new messages but still needs this.
+          const openId = openConversationIdRef.current;
+          if (openId) {
+            try {
+              await refetchOpenConversation(openId);
+            } catch {
+              // best-effort — the next poll wake (or the 25s server timeout,
+              // whichever comes first) retries this on its own.
             }
-            return { ...s, messagesByConversationId };
-          });
-          // Poll carries no unread/last-message summary — refresh the list
-          // separately for those (plan/backend contract).
-          void refetchConversations();
+          }
         } catch (e) {
           if (!alive || controller.signal.aborted) return;
           if (e instanceof ApiError && (e.status === 401 || e.status === 403)) return;
@@ -151,6 +188,33 @@ export function useChatPoll() {
     }));
   }
 
+  /** Tells the poll loop which conversation is currently open (or `null`)
+   * — call from an effect keyed on the selected conversation's id, never
+   * during render (see ChatSection). */
+  function setOpenConversationId(conversationId: string | null): void {
+    openConversationIdRef.current = conversationId;
+  }
+
+  /** Optimistic-ish local patch of ONE message's `invite` after an
+   * accept/decline/cancel action resolves — the poll-driven refetch above
+   * will confirm it on the next wake regardless, this just avoids the UI
+   * waiting on that round trip. */
+  function applyLocalInvitePatch(
+    conversationId: string,
+    messageId: string,
+    invite: DuelInviteRead,
+  ): void {
+    setState((s) => ({
+      ...s,
+      messagesByConversationId: {
+        ...s.messagesByConversationId,
+        [conversationId]: (s.messagesByConversationId[conversationId] ?? []).map((m) =>
+          m.id === messageId ? { ...m, invite } : m,
+        ),
+      },
+    }));
+  }
+
   function applyLocalConversationPatch(
     conversationId: string,
     patch: Partial<ConversationSummary>,
@@ -168,6 +232,8 @@ export function useChatPoll() {
     applyLocalMessage,
     applyLocalDelete,
     applyLocalConversationPatch,
+    applyLocalInvitePatch,
+    setOpenConversationId,
   };
 }
 

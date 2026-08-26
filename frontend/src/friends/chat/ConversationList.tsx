@@ -7,6 +7,15 @@
 import type { ConversationSummary } from "../../api/chat";
 import { useT } from "../../i18n/t";
 
+// Этап B: `body` is always null on an invite message (the invite itself
+// carries the content) — without checking `last_message_kind` that null
+// would render as "Сообщение удалено" for a brand-new duel invite, which is
+// simply wrong.
+function previewText(c: ConversationSummary, t: (key: string) => string): string {
+  if (c.last_message_kind === "invite") return t("Приглашение на дуэль");
+  return c.last_message_body ?? t("Сообщение удалено");
+}
+
 export default function ConversationList({
   conversations,
   selectedConversationId,
@@ -46,9 +55,9 @@ export default function ConversationList({
               <span className="truncate font-sans text-small font-bold text-ink">
                 {c.display_name}
               </span>
-              {c.last_message_body !== null || c.last_message_at ? (
+              {c.last_message_body !== null || c.last_message_kind === "invite" || c.last_message_at ? (
                 <span className="truncate font-sans text-small text-muted">
-                  {c.last_message_body ?? t("Сообщение удалено")}
+                  {previewText(c, t)}
                 </span>
               ) : null}
             </span>

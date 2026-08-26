@@ -65,6 +65,12 @@ const RU_BY_CODE: Record<string, string> = {
   // Этап A чата (swarm-report/friend-chat-plan.md §7): фильтр сообщений и
   // блокировка/не-друг дают 403 без code, но 422 модерации приходит с ним.
   MESSAGE_NOT_ALLOWED: "Сообщение не разрешено.",
+  // friends-hub plan, Этап B/C: invite lifecycle + matchmaking 409s.
+  CHAT_INVITE_NOT_FOUND: "Приглашение не найдено.",
+  CHAT_INVITE_FORBIDDEN: "Это не твоё приглашение.",
+  CHAT_INVITE_NOT_ACTIONABLE: "Приглашение уже не активно.",
+  CHAT_INVITE_ALREADY_IN_GAME: "Соперник уже в дуэли.",
+  MATCHMAKING_ALREADY_IN_GAME: "У тебя уже есть активная дуэль.",
 };
 
 const RU_BY_STATUS: Record<number, string> = {

@@ -16,12 +16,15 @@ import { ApiError } from "../../api/client";
 import {
   blockFriend,
   deleteMessage,
+  sendInvite,
   sendMessage,
   unblockFriend,
   type ChatMessage,
   type ConversationSummary,
+  type DuelInviteRead,
 } from "../../api/chat";
 import { useT } from "../../i18n/t";
+import InviteMessage from "./InviteMessage";
 
 const MESSAGE_MAX_LENGTH = 2000;
 
@@ -35,6 +38,7 @@ export default function ConversationView({
   onMessageSent,
   onMessageDeleted,
   onBlockedChange,
+  onInviteUpdated,
 }: {
   conversation: ConversationSummary | null;
   /** Target for a brand-new conversation that has no summary yet. */
@@ -46,12 +50,14 @@ export default function ConversationView({
   onMessageSent: (friendshipId: string, message: ChatMessage) => void;
   onMessageDeleted: (messageId: string) => void;
   onBlockedChange: (blocked: boolean) => void;
+  onInviteUpdated: (messageId: string, invite: DuelInviteRead) => void;
 }) {
   const t = useT();
   const [draft, setDraft] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [blockBusy, setBlockBusy] = useState(false);
+  const [inviteBusy, setInviteBusy] = useState(false);
 
   // A resolved conversation's own friendship_id is authoritative (it may
   // have gone null since the chat was opened); the `friendshipId` prop is
@@ -119,21 +125,51 @@ export default function ConversationView({
 
   const canToggleBlock = blocked ? friendUserId !== null : effectiveFriendshipId !== null;
 
+  // friends-hub plan, Этап B: creates an invite-СООБЩЕНИЕ (no duel room yet
+  // — see api/chat.ts's sendInvite docstring). Reuses the same
+  // onMessageSent wiring a text send already uses to land it in the cache.
+  async function onSendInvite() {
+    if (!effectiveFriendshipId || inviteBusy) return;
+    setInviteBusy(true);
+    setError(null);
+    try {
+      const message = await sendInvite(effectiveFriendshipId);
+      onMessageSent(effectiveFriendshipId, message);
+    } catch (e) {
+      setError(
+        e instanceof ApiError ? t(e.message) : t("Не удалось отправить приглашение на дуэль."),
+      );
+    } finally {
+      setInviteBusy(false);
+    }
+  }
+
   return (
     <div className="flex flex-col gap-3">
-      <div className="flex items-center justify-between gap-3">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <h3 className="font-sans text-small font-bold text-ink">
           {conversation?.display_name ?? t("Новая переписка")}
         </h3>
-        {!readOnly || blocked ? (
-          <Button
-            variant="secondary"
-            disabled={blockBusy || !canToggleBlock}
-            onClick={() => void onToggleBlock()}
-          >
-            {blocked ? t("Разблокировать") : t("Заблокировать")}
-          </Button>
-        ) : null}
+        <div className="flex items-center gap-2">
+          {!readOnly ? (
+            <Button
+              variant="secondary"
+              disabled={inviteBusy}
+              onClick={() => void onSendInvite()}
+            >
+              {inviteBusy ? t("Отправляю приглашение…") : t("Позвать на дуэль")}
+            </Button>
+          ) : null}
+          {!readOnly || blocked ? (
+            <Button
+              variant="secondary"
+              disabled={blockBusy || !canToggleBlock}
+              onClick={() => void onToggleBlock()}
+            >
+              {blocked ? t("Разблокировать") : t("Заблокировать")}
+            </Button>
+          ) : null}
+        </div>
       </div>
 
       {error ? (
@@ -147,6 +183,18 @@ export default function ConversationView({
           <li className="font-sans text-small text-muted">{t("Сообщений пока нет.")}</li>
         ) : null}
         {messages.map((m) => {
+          if (m.kind === "invite") {
+            return (
+              <li key={m.id} className="flex justify-center">
+                <InviteMessage
+                  message={m}
+                  meUserId={meUserId}
+                  friendDisplayName={conversation?.display_name ?? t("Собеседник")}
+                  onInviteUpdated={onInviteUpdated}
+                />
+              </li>
+            );
+          }
           const mine = meUserId !== null && m.sender_id === meUserId;
           const deleted = m.body === null;
           return (

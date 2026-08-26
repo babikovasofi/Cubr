@@ -45,6 +45,8 @@ const MESSAGE: ChatMessage = {
   seq: 1,
   sender_id: "friend-1",
   body: "hi",
+  kind: "text",
+  invite: null,
   created_at: "2026-08-24T10:00:00Z",
   deleted_at: null,
 };
@@ -99,6 +101,62 @@ describe("useChatPoll", () => {
     renderHook(() => useChatPoll());
 
     await waitFor(() => expect(calls).toEqual([null, "cursor-1"]));
+  });
+
+  it("Этап B: пустой poll-wake всё равно рефетчит ОТКРЫТУЮ переписку (смена state инвайта — не новое сообщение)", async () => {
+    listConversationsMock.mockResolvedValue([CONVERSATION]);
+    let resolvePoll: ((r: ChatPollResult) => void) | null = null;
+    pollChatMock.mockImplementation(
+      () =>
+        new Promise<ChatPollResult>((resolve) => {
+          resolvePoll = resolve;
+        }),
+    );
+    const REFRESHED_INVITE_MESSAGE: ChatMessage = {
+      ...MESSAGE,
+      id: "msg-invite-1",
+      kind: "invite",
+      body: null,
+      invite: {
+        id: "invite-1",
+        inviter_id: "me",
+        invitee_id: "friend-1",
+        state: "accepted",
+        room_id: "room-9",
+        expires_at: "2026-08-24T10:03:00Z",
+        can_accept: false,
+        can_decline: false,
+        can_cancel: false,
+        seconds_left: 0,
+        session_token: "sess-9",
+      },
+    };
+    listMessagesMock.mockResolvedValue([REFRESHED_INVITE_MESSAGE]);
+
+    const { result } = renderHook(() => useChatPoll());
+    await waitFor(() => expect(result.current.conversations).toHaveLength(1));
+
+    act(() => {
+      result.current.setOpenConversationId("conv-1");
+    });
+
+    await act(async () => {
+      resolvePoll?.({ cursor: "c1", messages: [] }); // no new messages — just a wake
+      await Promise.resolve();
+    });
+
+    await waitFor(() =>
+      expect(listMessagesMock).toHaveBeenCalledWith(
+        "conv-1",
+        { limit: 50 },
+        expect.any(AbortSignal),
+      ),
+    );
+    await waitFor(() =>
+      expect(result.current.messagesByConversationId["conv-1"]?.[0]?.invite?.state).toBe(
+        "accepted",
+      ),
+    );
   });
 
   it("отмена запроса при уходе со страницы: unmount абортит AbortSignal, переданный в pollChat", async () => {
