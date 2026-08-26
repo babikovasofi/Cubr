@@ -964,6 +964,7 @@ export const EN: Record<string, string> = {
   "Отправляю приглашение…": "Sending the invite…",
   "Не удалось отправить приглашение на дуэль.": "Could not send the duel invite.",
   "Приглашение на дуэль": "Duel invite",
+  Собеседник: "Chat partner",
   VS: "VS",
   "Отменяю…": "Canceling…",
   "Принимаю…": "Accepting…",
