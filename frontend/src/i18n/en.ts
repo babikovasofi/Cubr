@@ -951,7 +951,6 @@ export const EN: Record<string, string> = {
   "в сети": "online",
   "не в сети": "offline",
   "Все чаты": "All chats",
-  Дуэль: "Duel",
   "Найди соперника онлайн, позови друга из тех, кто в сети, или сыграй по ссылке.":
     "Find an opponent online, invite a friend who's online, or play by link.",
   "Выбери, как начать: случайный соперник, друг из тех, кто в сети, или ссылка.":
