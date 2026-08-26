@@ -30,6 +30,10 @@ export interface DuelRoomRead {
   event: string;
   your_slot: "a" | "b";
   opponent_present: boolean;
+  opponent_display_name: string | null;
+  opponent_avatar_url: string | null;
+  opponent_cups: number | null;
+  opponent_cups_rank: string | null;
 }
 
 // POST /duel/join/{invite_token}

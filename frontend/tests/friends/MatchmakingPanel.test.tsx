@@ -16,12 +16,14 @@ const {
   cancelMatchmakingMock,
   pollMatchmakingMock,
   saveDuelSessionTokenMock,
+  getRoomMock,
   navigateMock,
 } = vi.hoisted(() => ({
   enqueueMatchmakingMock: vi.fn(),
   cancelMatchmakingMock: vi.fn(),
   pollMatchmakingMock: vi.fn(),
   saveDuelSessionTokenMock: vi.fn(),
+  getRoomMock: vi.fn(),
   navigateMock: vi.fn(),
 }));
 
@@ -33,7 +35,7 @@ vi.mock("../../src/api/matchmaking", () => ({
 
 vi.mock("../../src/api/duel", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../../src/api/duel")>();
-  return { ...actual, saveDuelSessionToken: saveDuelSessionTokenMock };
+  return { ...actual, saveDuelSessionToken: saveDuelSessionTokenMock, getRoom: getRoomMock };
 });
 
 const { toastMock } = vi.hoisted(() => ({ toastMock: vi.fn() }));
@@ -58,18 +60,33 @@ beforeEach(() => {
     cancelMatchmakingMock,
     pollMatchmakingMock,
     saveDuelSessionTokenMock,
+    getRoomMock,
     navigateMock,
     toastMock,
   ]) {
     m.mockReset();
   }
   cancelMatchmakingMock.mockResolvedValue(undefined);
+  // The "match found" splash fetches the room for opponent info — best-effort,
+  // so a resolved stub keeps it from hitting the network.
+  getRoomMock.mockResolvedValue({
+    room_id: "room-1",
+    status: "active",
+    mode: "fast",
+    event: "333",
+    your_slot: "a",
+    opponent_present: true,
+    opponent_display_name: "Rival",
+    opponent_avatar_url: null,
+    opponent_cups: 120,
+    opponent_cups_rank: "yellow",
+  });
 });
 
 afterEach(cleanup);
 
 describe("MatchmakingPanel — сразу нашёлся соперник", () => {
-  it("enqueue с matched:true сразу переходит в дуэль", async () => {
+  it("enqueue с matched:true показывает сплеш, «Войти» переводит в дуэль", async () => {
     enqueueMatchmakingMock.mockResolvedValue({
       matched: true,
       room_id: "room-1",
@@ -81,8 +98,15 @@ describe("MatchmakingPanel — сразу нашёлся соперник", () =
       fireEvent.click(screen.getByRole("button", { name: "Случайный соперник" }));
     });
 
-    await waitFor(() => expect(navigateMock).toHaveBeenCalledWith("/duel/room-1"));
+    // "Match found" splash first — token already saved, but no navigate yet.
+    await waitFor(() => expect(screen.getByText("Соперник найден!")).toBeTruthy());
     expect(saveDuelSessionTokenMock).toHaveBeenCalledWith("room-1", "sess-1");
+    expect(navigateMock).not.toHaveBeenCalled();
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Войти в дуэль" }));
+    });
+    await waitFor(() => expect(navigateMock).toHaveBeenCalledWith("/duel/room-1"));
   });
 });
 
@@ -110,6 +134,10 @@ describe("MatchmakingPanel — ждём в очереди", () => {
       await Promise.resolve();
     });
 
+    await waitFor(() => expect(screen.getByText("Соперник найден!")).toBeTruthy());
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Войти в дуэль" }));
+    });
     await waitFor(() => expect(navigateMock).toHaveBeenCalledWith("/duel/room-2"));
   });
 

@@ -998,6 +998,8 @@ export const EN: Record<string, string> = {
   "Отменяю…": "Canceling…",
   "Принимаю…": "Accepting…",
   "Войти в дуэль": "Enter the duel",
+  "Соперник найден!": "Opponent found!",
+  "Входим через": "Entering in",
   "Приглашение отклонено.": "Invite declined.",
   "Приглашение отменено.": "Invite canceled.",
   "Время приглашения истекло.": "The invite has expired.",

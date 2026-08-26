@@ -65,6 +65,7 @@ from app.services.duel import PlayerOutcome
 from app.services.duel_manager import ConnectionManager
 from app.services.duel_token import DuelTokenError
 from app.services.ratelimit import ip_rate_limit
+from app.services.tournament import display_name_for
 from app.services.ws_auth import get_ws_user
 
 logger = logging.getLogger("cubr.duel")
@@ -182,7 +183,8 @@ def _room_create_read(room: DuelRoom, session_token: str) -> DuelRoomCreateRead:
     )
 
 
-def _room_read(room: DuelRoom, user_id: uuid.UUID) -> DuelRoomRead:
+def _room_read(room: DuelRoom, user_id: uuid.UUID, opponent: User | None = None) -> DuelRoomRead:
+    rank = cups_service.tier_bounds(opponent.cups)[0] if opponent is not None else None
     return DuelRoomRead(
         room_id=room.id,
         status=room.status,
@@ -190,6 +192,10 @@ def _room_read(room: DuelRoom, user_id: uuid.UUID) -> DuelRoomRead:
         event=room.event,
         your_slot=_your_slot(room, user_id),
         opponent_present=room.player_b_id is not None,
+        opponent_display_name=display_name_for(opponent.handle) if opponent is not None else None,
+        opponent_avatar_url=opponent.avatar_url if opponent is not None else None,
+        opponent_cups=opponent.cups if opponent is not None else None,
+        opponent_cups_rank=rank,
     )
 
 
@@ -238,7 +244,9 @@ async def get_room(
     room = await session.get(DuelRoom, room_id)
     if room is None or user.id not in (room.player_a_id, room.player_b_id):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Duel room not found")
-    return _room_read(room, user.id)
+    opponent_id = room.player_b_id if user.id == room.player_a_id else room.player_a_id
+    opponent = await session.get(User, opponent_id) if opponent_id is not None else None
+    return _room_read(room, user.id, opponent)
 
 
 @router.delete("/rooms/{room_id}", status_code=status.HTTP_204_NO_CONTENT)

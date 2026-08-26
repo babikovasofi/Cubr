@@ -14,6 +14,13 @@ import {
 } from "../../src/duel/duelMachine";
 import type { DuelRoomRead } from "../../src/api/duel";
 
+const NO_OPPONENT = {
+  opponent_display_name: null,
+  opponent_avatar_url: null,
+  opponent_cups: null,
+  opponent_cups_rank: null,
+};
+
 const ROOM_OPEN: DuelRoomRead = {
   room_id: "room-1",
   status: "open",
@@ -21,6 +28,7 @@ const ROOM_OPEN: DuelRoomRead = {
   event: "333",
   your_slot: "a",
   opponent_present: false,
+  ...NO_OPPONENT,
 };
 
 const ROOM_FULL: DuelRoomRead = {
@@ -30,6 +38,7 @@ const ROOM_FULL: DuelRoomRead = {
   event: "333",
   your_slot: "a",
   opponent_present: true,
+  ...NO_OPPONENT,
 };
 
 describe("duelMachine — fallbackPhaseFromRoomStatus", () => {

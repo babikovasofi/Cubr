@@ -18,21 +18,23 @@ import { saveDuelSessionToken, existingRoomIdFrom } from "../api/duel";
 import { toast } from "../components/Toast";
 import { useT } from "../i18n/t";
 
-export type MatchmakingPhase = "idle" | "searching";
+export type MatchmakingPhase = "idle" | "searching" | "found";
 
 interface MatchmakingState {
   phase: MatchmakingPhase;
   error: string | null;
   existingRoomId: string | null;
+  // Set in "found": the paired room, ready to enter. The session token is
+  // already saved by then, so entering is a plain navigate.
+  matchedRoomId: string | null;
 }
 
-const IDLE: MatchmakingState = { phase: "idle", error: null, existingRoomId: null };
-
-function enterRoom(navigate: ReturnType<typeof useNavigate>, result: MatchmakingStatusRead): void {
-  if (!result.room_id || !result.session_token) return;
-  saveDuelSessionToken(result.room_id, result.session_token);
-  navigate(`/duel/${result.room_id}`);
-}
+const IDLE: MatchmakingState = {
+  phase: "idle",
+  error: null,
+  existingRoomId: null,
+  matchedRoomId: null,
+};
 
 export function useMatchmaking() {
   const t = useT();
@@ -41,6 +43,23 @@ export function useMatchmaking() {
   // Poll loop's own abort handle — cancel() and unmount both need to stop an
   // in-flight long-poll immediately, not just flip a flag it hasn't read yet.
   const controllerRef = useRef<AbortController | null>(null);
+  const matchedRoomIdRef = useRef<string | null>(null);
+
+  // A pairing landed: save the token now, then show the "match found" splash
+  // (phase "found") instead of jumping straight into the cube calibration —
+  // the splash's own "Войти"/countdown calls proceed() to navigate (owner:
+  // "как в настоящих играх").
+  function onMatched(result: MatchmakingStatusRead): void {
+    if (!result.room_id || !result.session_token) return;
+    saveDuelSessionToken(result.room_id, result.session_token);
+    matchedRoomIdRef.current = result.room_id;
+    setState({ phase: "found", error: null, existingRoomId: null, matchedRoomId: result.room_id });
+  }
+
+  function proceed(): void {
+    const id = matchedRoomIdRef.current;
+    if (id) navigate(`/duel/${id}`);
+  }
 
   // External sync: leaving the queue is a real side effect on the server —
   // a tab closed or navigated away mid-search must not strand the caller
@@ -63,8 +82,7 @@ export function useMatchmaking() {
         if (controller.signal.aborted) return;
         if (result.matched) {
           controllerRef.current = null;
-          setState(IDLE);
-          enterRoom(navigate, result);
+          onMatched(result);
           return;
         }
         // matched: false — server timed out waiting (~25s); loop again.
@@ -81,13 +99,12 @@ export function useMatchmaking() {
   }
 
   async function search(): Promise<void> {
-    setState({ phase: "searching", error: null, existingRoomId: null });
+    setState({ phase: "searching", error: null, existingRoomId: null, matchedRoomId: null });
     try {
       const result = await enqueueMatchmaking();
       if (result.matched) {
         controllerRef.current = null;
-        setState(IDLE);
-        enterRoom(navigate, result);
+        onMatched(result);
         return;
       }
       const controller = new AbortController();
@@ -105,6 +122,7 @@ export function useMatchmaking() {
           phase: "idle",
           error: message,
           existingRoomId: existingRoomIdFrom(e),
+          matchedRoomId: null,
         });
         return;
       }
@@ -112,6 +130,7 @@ export function useMatchmaking() {
         phase: "idle",
         error: e instanceof ApiError ? t(e.message) : t("Не удалось найти соперника."),
         existingRoomId: null,
+        matchedRoomId: null,
       });
     }
   }
@@ -128,5 +147,5 @@ export function useMatchmaking() {
     }
   }
 
-  return { ...state, search, cancel };
+  return { ...state, search, cancel, proceed };
 }

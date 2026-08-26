@@ -9,6 +9,7 @@ import { Link } from "react-router-dom";
 import Button from "../components/Button";
 import MiniGrid from "../components/MiniGrid";
 import { useMatchmaking } from "./useMatchmaking";
+import MatchFoundSplash from "./MatchFoundSplash";
 import { useT } from "../i18n/t";
 
 // §5.8 "перемешивает": diagonal 3 of 9 cells lit.
@@ -16,10 +17,13 @@ const SEARCHING_CELLS = [true, false, false, false, true, false, false, false, t
 
 export default function MatchmakingPanel() {
   const t = useT();
-  const { phase, error, existingRoomId, search, cancel } = useMatchmaking();
+  const { phase, error, existingRoomId, matchedRoomId, search, cancel, proceed } = useMatchmaking();
 
   return (
     <div className="flex flex-col gap-3">
+      {phase === "found" && matchedRoomId ? (
+        <MatchFoundSplash roomId={matchedRoomId} onProceed={proceed} />
+      ) : null}
       {error ? (
         <div role="alert" className="flex flex-wrap items-center gap-3">
           <p className="font-sans text-small text-danger">{error}</p>
@@ -31,9 +35,7 @@ export default function MatchmakingPanel() {
         </div>
       ) : null}
 
-      {phase === "idle" ? (
-        <Button onClick={() => void search()}>{t("Случайный соперник")}</Button>
-      ) : (
+      {phase === "searching" ? (
         <div className="flex flex-wrap items-center gap-3">
           <div className="flex items-center gap-2.5 rounded-md border border-line px-3.5 py-2.5">
             <MiniGrid
@@ -49,6 +51,8 @@ export default function MatchmakingPanel() {
             {t("Отменить поиск")}
           </Button>
         </div>
+      ) : (
+        <Button onClick={() => void search()}>{t("Случайный соперник")}</Button>
       )}
     </div>
   );

@@ -47,6 +47,14 @@ class DuelRoomRead(BaseModel):
     event: str
     your_slot: PlayerSlot
     opponent_present: bool
+    # Opponent identity for the "match found" / duel header (owner: show who
+    # you're facing, like real games). All None until an opponent has joined.
+    # In a random matchmaking duel this reveals a stranger's handle/cups — the
+    # owner-approved scope of "поиск рандомных" (see friends-hub plan Этап C).
+    opponent_display_name: str | None = None
+    opponent_avatar_url: str | None = None
+    opponent_cups: int | None = None
+    opponent_cups_rank: str | None = None
 
 
 class DuelH2HRead(BaseModel):
