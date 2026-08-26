@@ -220,6 +220,26 @@ export default function SolveProgressChart({ solves }: { solves: SolveRead[] }) 
 
   if (model.kind === "empty") return <EmptyCard />;
 
+  // One solve can't be a "trend" — a lone dot on empty axes reads as noise
+  // (owner). Show the time plainly instead; the line chart appears from the
+  // second solve on, when there's actually a change to draw.
+  if (model.validPoints.length <= 1) {
+    const only = model.validPoints[0];
+    return (
+      <div className="flex flex-col gap-2 rounded-lg border-2 border-ink bg-surface p-5">
+        <span className="font-sans text-caption uppercase tracking-wide text-muted">
+          {t("Последняя сборка")}
+        </span>
+        <span className="font-mono text-h1 font-black text-ink [font-variant-numeric:tabular-nums]">
+          {fmtMs(only.timeMs, timeFormat)}
+        </span>
+        <p className="font-sans text-small text-muted">
+          {t("Собери ещё пару кубиков — здесь появится график, как меняется время.")}
+        </p>
+      </div>
+    );
+  }
+
   const baselineY = PAD.top + PLOT_H;
 
   return (

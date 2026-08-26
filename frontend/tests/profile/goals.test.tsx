@@ -91,10 +91,10 @@ describe("goalProgress", () => {
 
 describe("milestoneLabel", () => {
   it.each([
-    [30_000, "sub-30"],
-    [45_000, "sub-45"],
-    [60_000, "sub-1:00"],
-    [90_000, "sub-1:30"],
+    [30_000, "0:30"],
+    [45_000, "0:45"],
+    [60_000, "1:00"],
+    [90_000, "1:30"],
   ])("%i → %s", (ms, label) => {
     expect(milestoneLabel(ms)).toBe(label);
   });
@@ -109,10 +109,10 @@ describe("GoalCard", () => {
   it("показывает следующий рубеж и разрыв до него", () => {
     render(<GoalCard solves={[solve(33_000), solve(31_000)]} />);
 
-    expect(screen.getByText(/Цель: sub-30/)).toBeTruthy();
+    expect(screen.getByText(/Цель: собрать быстрее 0:30/)).toBeTruthy();
     expect(screen.getByText(/До рубежа/)).toBeTruthy();
-    // sub-35 уже пробит рекордом 31.0 — его и закрепляем.
-    expect(screen.getByText(/подряд ниже sub-35/)).toBeTruthy();
+    // 0:35 уже пробит рекордом 31.0 — его и закрепляем.
+    expect(screen.getByText(/подряд ниже 0:35/)).toBeTruthy();
     expect(screen.getAllByTestId("goal-cell")).toHaveLength(STREAK_TARGET);
   });
 

@@ -48,7 +48,7 @@ export default function GoalCard({ solves }: { solves: SolveRead[] }) {
       <h3 className="font-sans text-h3 text-ink">
         {nextMs === null
           ? t("Цель: все рубежи взяты")
-          : t("Цель: {milestone}", { milestone: milestoneLabel(nextMs) })}
+          : t("Цель: собрать быстрее {milestone}", { milestone: milestoneLabel(nextMs) })}
       </h3>
 
       <p className="font-sans text-body text-muted">

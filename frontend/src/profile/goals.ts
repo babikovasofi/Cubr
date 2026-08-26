@@ -90,11 +90,11 @@ export function goalProgress(solves: SolveRead[]): GoalProgress {
   };
 }
 
-/** «sub-30», «sub-1:30» — как рубеж называют вслух. */
+/** Рубеж как понятное время: «0:30», «1:30» (без жаргона «sub-N», который
+ * owner-у был непонятен — теперь везде читается «быстрее 1:30» / «ниже 1:30»). */
 export function milestoneLabel(ms: number): string {
   const totalSec = Math.round(ms / 1000);
-  if (totalSec < 60) return `sub-${totalSec}`;
   const mm = Math.floor(totalSec / 60);
   const ss = totalSec % 60;
-  return `sub-${mm}:${String(ss).padStart(2, "0")}`;
+  return `${mm}:${String(ss).padStart(2, "0")}`;
 }

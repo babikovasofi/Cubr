@@ -953,6 +953,10 @@ export const EN: Record<string, string> = {
   "Все чаты": "All chats",
   "Выйти из дуэли": "Leave the duel",
   "Выхожу…": "Leaving…",
+  "Цель: собрать быстрее {milestone}": "Goal: solve faster than {milestone}",
+  "Последняя сборка": "Last solve",
+  "Собери ещё пару кубиков — здесь появится график, как меняется время.":
+    "Solve a couple more cubes — a chart of how your time changes will appear here.",
   Режимы: "Modes",
   "Твой прогресс": "Your progress",
   "Найди соперника онлайн, позови друга из тех, кто в сети, или сыграй по ссылке.":
