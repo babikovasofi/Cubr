@@ -38,6 +38,11 @@ interface Lists {
   outgoing: FriendRequestRead[];
 }
 
+// How often to silently re-pull the friend list so presence dots (and any
+// new requests) stay fresh without a manual reload. 15s: responsive against
+// the 60s server presence window, well under the 60/min /friends limit.
+const FRIENDS_POLL_MS = 15000;
+
 type LoadState = { kind: "loading" } | { kind: "error"; message: string } | { kind: "ok" };
 
 export default function FriendsSection() {
@@ -72,6 +77,31 @@ export default function FriendsSection() {
     };
     // reloadKey is the only real trigger — t() only reads from the lang store.
   }, [reloadKey]);
+
+  // Presence auto-refresh: a friend's `is_online` only changes server-side
+  // (their `user_presence.last_seen_at`), so without polling the list stays
+  // frozen at whatever it was on load — the owner had to reload by hand to
+  // see someone come online. Silently re-pull every FRIENDS_POLL_MS (no
+  // loading flicker; keep the last good data on a failed tick), and skip a
+  // backgrounded tab. 15s against a 60s presence window and a 60/min limit
+  // is comfortably within budget.
+  useEffect(() => {
+    let alive = true;
+    const id = setInterval(() => {
+      if (typeof document !== "undefined" && document.hidden) return;
+      Promise.all([listFriends(), listIncoming(), listOutgoing()])
+        .then(([friends, incoming, outgoing]) => {
+          if (!alive) return;
+          setLists({ friends, incoming, outgoing });
+          setState({ kind: "ok" });
+        })
+        .catch(() => undefined);
+    }, FRIENDS_POLL_MS);
+    return () => {
+      alive = false;
+      clearInterval(id);
+    };
+  }, []);
 
   function reload(): void {
     setReloadKey((k) => k + 1);
