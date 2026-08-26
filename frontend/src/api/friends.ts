@@ -24,6 +24,28 @@ export interface FriendRequestRead {
   created_at: string;
 }
 
+// A friend's profile — friends-only view (backend gates on an accepted
+// friendship). Mirrors backend FriendProfileRead. Still no email/user-id:
+// a friend is named by display_name, reached by friendship_id.
+export interface FriendProfile {
+  friendship_id: string;
+  display_name: string;
+  avatar_url: string | null;
+  friends_since: string;
+  cups: number;
+  cups_rank: string;
+  cups_floor: number;
+  cups_to_next: number | null;
+  best_single_ms: number | null;
+  best_ao5_ms: number | null;
+  method: string | null;
+  cubing_since_year: number | null;
+}
+
+export function getFriendProfile(friendshipId: string, signal?: AbortSignal): Promise<FriendProfile> {
+  return request<FriendProfile>(`/friends/${encodeURIComponent(friendshipId)}/profile`, { signal });
+}
+
 export function listFriends(signal?: AbortSignal): Promise<FriendRead[]> {
   return request<FriendRead[]>("/friends", { signal });
 }

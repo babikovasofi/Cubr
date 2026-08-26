@@ -10,7 +10,9 @@ former is a bug, not a style choice.
 from datetime import datetime
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, computed_field, field_validator
+
+from app.services.cups import tier_bounds
 
 
 class FriendRequestCreate(BaseModel):
@@ -58,3 +60,44 @@ class FriendRequestRead(BaseModel):
     friendship_id: UUID
     display_name: str
     created_at: datetime
+
+
+class FriendProfileRead(BaseModel):
+    """`GET /friends/{friendship_id}/profile` — a FRIEND's profile, visible
+    only to someone with an accepted friendship to them (see
+    `app.services.friends.friend_profile`). Still no `email`/user-UUID here:
+    a person is named by their `handle` (via `display_name`) and reached by
+    `friendship_id` only. `cups_*` are derived from `cups` the same single
+    way as `/users/me` (`app.services.cups.tier_bounds`), never stored twice.
+    """
+
+    friendship_id: UUID
+    display_name: str
+    avatar_url: str | None = None
+    # When the two became friends (accepted-at, or created-at as a fallback).
+    friends_since: datetime
+    cups: int = 0
+    best_single_ms: int | None = None
+    best_ao5_ms: int | None = None
+    # Showcase (V3): what they cube with, and since when. Opt-in content the
+    # user entered specifically to display — shown here to friends.
+    method: str | None = None
+    cubing_since_year: int | None = None
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def cups_rank(self) -> str:
+        rank, _floor, _to_next = tier_bounds(self.cups)
+        return rank
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def cups_floor(self) -> int:
+        _rank, floor, _to_next = tier_bounds(self.cups)
+        return floor
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def cups_to_next(self) -> int | None:
+        _rank, _floor, to_next = tier_bounds(self.cups)
+        return to_next

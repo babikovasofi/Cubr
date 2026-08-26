@@ -17,7 +17,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.config import get_settings
 from app.db import get_session
 from app.models import User
-from app.schemas.friend import FriendRead, FriendRequestCreate, FriendRequestRead
+from app.schemas.friend import (
+    FriendProfileRead,
+    FriendRead,
+    FriendRequestCreate,
+    FriendRequestRead,
+)
 from app.services import friends as friends_service
 from app.services.auth import current_active_user
 from app.services.ratelimit import ip_rate_limit, user_rate_limit
@@ -111,6 +116,36 @@ async def list_outgoing(
 ) -> list[FriendRequestRead]:
     entries = await friends_service.list_outgoing(session, user.id)
     return [FriendRequestRead.model_validate(entry) for entry in entries]
+
+
+@router.get("/{friendship_id}/profile", response_model=FriendProfileRead, dependencies=[_ip_limit])
+async def friend_profile(
+    friendship_id: uuid.UUID,
+    user: User = Depends(current_active_user),
+    session: AsyncSession = Depends(get_session),
+) -> FriendProfileRead:
+    """A friend's profile (cups/rank, best times, showcase). Visible only
+    with an accepted friendship to them — 404 otherwise (unknown id,
+    someone else's row, or a still-pending request), the same
+    non-distinguishing 404 as the other `{friendship_id}` routes.
+    """
+    try:
+        other, since = await friends_service.friend_profile(session, user, friendship_id)
+    except friends_service.FriendNotFoundError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Friend not found"
+        ) from exc
+    return FriendProfileRead(
+        friendship_id=friendship_id,
+        display_name=display_name_for(other.handle),
+        avatar_url=other.avatar_url,
+        friends_since=since,
+        cups=other.cups,
+        best_single_ms=other.best_single_ms,
+        best_ao5_ms=other.best_ao5_ms,
+        method=other.method,
+        cubing_since_year=other.cubing_since_year,
+    )
 
 
 @router.post(

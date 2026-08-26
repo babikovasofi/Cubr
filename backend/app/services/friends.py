@@ -304,6 +304,40 @@ def _as_utc(value: datetime) -> datetime:
     return value
 
 
+async def friend_profile(
+    session: AsyncSession, caller: User, friendship_id: uuid.UUID
+) -> tuple[User, datetime]:
+    """The OTHER party's user row for a friendship the caller is part of,
+    plus the date the two became friends. Only an ACCEPTED friendship the
+    caller belongs to resolves — anything else (unknown id, someone else's
+    row, a still-`pending` request) is the SAME `FriendNotFoundError` (404),
+    for the same reason as `accept`/`remove_friend`: `friendship_id` alone
+    must not let a caller probe rows they have no business seeing.
+
+    This is the ONLY place a user's showcase/cups/records become visible to
+    anyone but themselves, and it is gated on a mutual accepted friendship —
+    there are still no PUBLIC profiles in Cubr (see `app.models.user`); a
+    friend's profile is a friends-only view, not a public one.
+    """
+    friendship = await session.get(Friendship, friendship_id)
+    valid = (
+        friendship is not None
+        and friendship.status == "accepted"
+        and caller.id in (friendship.user_low_id, friendship.user_high_id)
+    )
+    if not valid or friendship is None:
+        raise FriendNotFoundError()
+    other_id = (
+        friendship.user_high_id if friendship.user_low_id == caller.id else friendship.user_low_id
+    )
+    other = await session.get(User, other_id)
+    assert other is not None  # FK (ON DELETE CASCADE) guarantees this row exists
+    since = (
+        friendship.responded_at if friendship.responded_at is not None else friendship.created_at
+    )
+    return other, _as_utc(since)
+
+
 async def list_friends(
     session: AsyncSession,
     user_id: uuid.UUID,

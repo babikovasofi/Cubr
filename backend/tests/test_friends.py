@@ -104,6 +104,51 @@ async def test_request_accept_then_both_see_friend(
     assert bob_friends[0]["display_name"] == "alicehandle"
 
 
+async def test_friend_profile_visible_only_to_a_friend(
+    client: AsyncClient, email_spy: EmailSpy
+) -> None:
+    await _register_and_login(client, "pa@example.com")
+    await _set_handle(client, "pahandle")
+    # Showcase is opt-in content; a friend should see it.
+    r = await client.patch("/users/me", json={"method": "cfop", "cubing_since_year": 2020})
+    assert r.status_code == 200, r.text
+
+    await _switch_user(client, "pb@example.com")
+    await _set_handle(client, "pbhandle")
+    resp = await client.post("/friends/requests", json={"handle": "pahandle"})
+    friendship_id = resp.json()["friendship_id"]
+
+    # Still only pending → profile is 404 (no accepted friendship yet).
+    assert (await client.get(f"/friends/{friendship_id}/profile")).status_code == 404
+
+    await _relogin(client, "pa@example.com")
+    assert (await client.post(f"/friends/requests/{friendship_id}/accept")).status_code == 200
+
+    # Accepted: alice sees bob's profile (shape + no PII).
+    prof = await client.get(f"/friends/{friendship_id}/profile")
+    assert prof.status_code == 200, prof.text
+    body = prof.json()
+    assert body["display_name"] == "pbhandle"
+    assert body["friendship_id"] == friendship_id
+    assert body["cups"] == 0
+    assert body["cups_rank"] == "white"
+    assert "cups_floor" in body and "friends_since" in body
+    assert "email" not in body and "id" not in body  # no PII
+
+    # Bob sees alice's showcase.
+    await _relogin(client, "pb@example.com")
+    prof2 = (await client.get(f"/friends/{friendship_id}/profile")).json()
+    assert prof2["display_name"] == "pahandle"
+    assert prof2["method"] == "cfop"
+    assert prof2["cubing_since_year"] == 2020
+
+    # A stranger with no tie to the pair → same non-distinguishing 404 as an
+    # unknown id.
+    await _switch_user(client, "pc@example.com")
+    assert (await client.get(f"/friends/{friendship_id}/profile")).status_code == 404
+    assert (await client.get(f"/friends/{uuid.uuid4()}/profile")).status_code == 404
+
+
 # --------------------------------------------------------------------------- #
 # send_request error mapping
 # --------------------------------------------------------------------------- #

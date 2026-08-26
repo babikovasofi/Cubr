@@ -29,6 +29,7 @@ import { stripHandlePrefix } from "../lib/handle";
 import { useT } from "../i18n/t";
 import ChatSection from "./chat/ChatSection";
 import PresenceAvatar from "./PresenceAvatar";
+import FriendProfileModal from "./FriendProfileModal";
 import ProfileCard, { CARD_MOTIFS } from "../profile/ProfileCard";
 
 interface Lists {
@@ -45,6 +46,7 @@ export default function FriendsSection() {
   const [state, setState] = useState<LoadState>({ kind: "loading" });
   const [reloadKey, setReloadKey] = useState(0);
   const [openChatFriendshipId, setOpenChatFriendshipId] = useState<string | null>(null);
+  const [profileFriend, setProfileFriend] = useState<FriendRead | null>(null);
 
   // External sync: friend/request lists live on the server only, no local
   // source of truth to derive from — a plain fetch-on-mount(+reloadKey), same
@@ -120,6 +122,7 @@ export default function FriendsSection() {
             friends={lists.friends}
             onRemoved={reload}
             onOpenChat={setOpenChatFriendshipId}
+            onOpenProfile={setProfileFriend}
           />
         </ProfileCard>
       ) : null}
@@ -132,6 +135,15 @@ export default function FriendsSection() {
         >
           <ChatSection openFriendshipId={openChatFriendshipId} />
         </ProfileCard>
+      ) : null}
+
+      {profileFriend ? (
+        <FriendProfileModal
+          friendshipId={profileFriend.friendship_id}
+          displayName={profileFriend.display_name}
+          online={profileFriend.is_online}
+          onClose={() => setProfileFriend(null)}
+        />
       ) : null}
     </>
   );
@@ -265,10 +277,12 @@ function FriendList({
   friends,
   onRemoved,
   onOpenChat,
+  onOpenProfile,
 }: {
   friends: FriendRead[];
   onRemoved: () => void;
   onOpenChat: (friendshipId: string) => void;
+  onOpenProfile: (friend: FriendRead) => void;
 }) {
   const t = useT();
   const challenge = useChallengeFriend();
@@ -301,7 +315,12 @@ function FriendList({
         key={f.friendship_id}
         className="flex flex-wrap items-center justify-between gap-3 bg-surface px-3.5 py-3"
       >
-        <span className="flex min-w-0 items-center gap-3">
+        <button
+          type="button"
+          onClick={() => onOpenProfile(f)}
+          aria-label={t("Открыть профиль игрока")}
+          className="flex min-w-0 items-center gap-3 rounded-md text-left hover:opacity-80"
+        >
           <PresenceAvatar displayName={f.display_name} online={f.is_online} size={40} />
           <span className="flex min-w-0 flex-col">
             <span className="truncate font-sans text-small font-bold text-ink">
@@ -313,7 +332,7 @@ function FriendList({
               {f.is_online ? t("в сети") : t("не в сети")}
             </span>
           </span>
-        </span>
+        </button>
         <div className="flex flex-wrap items-center justify-end gap-2">
           <Button variant="secondary" onClick={() => onOpenChat(f.friendship_id)}>
             {t("Написать")}
