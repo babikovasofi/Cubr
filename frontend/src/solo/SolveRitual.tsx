@@ -12,13 +12,7 @@ import ScrambleWalkthrough from "./ScrambleWalkthrough";
 import type { useSoloSession } from "./useSoloSession";
 import { verifyMismatchRu } from "../vision/guide";
 import { useT } from "../i18n/t";
-import {
-  facePrompt,
-  facePromptFor,
-  FACE_COLOR_LETTER,
-  SOLO_FACE_ORDER,
-  type SoloFace,
-} from "./facePrompts";
+import { facePrompt, facePromptFor, SOLO_FACE_ORDER, type SoloFace } from "./facePrompts";
 
 type Session = ReturnType<typeof useSoloSession>;
 
@@ -255,68 +249,6 @@ function nextFaceToShow(captured: readonly string[]): SoloFace | null {
 }
 
 /**
- * Шесть плиток-слотов — одна на грань (U R F D L B), а не голое «прочитано
- * X/6»: видно СРАЗУ какая грань снята и какая ещё нужна, а не только сколько.
- * Снятая плитка кликабельна — «переснять» освобождает ровно её слот, остальные
- * пять остаются (owner bug 2026-08-24: раньше любая ошибка чтения заставляла
- * переснимать все шесть граней заново ради одной).
- */
-function FaceSlots({
-  captured,
-  flagged,
-  onRedo,
-}: {
-  captured: readonly string[];
-  flagged: string | null;
-  onRedo: (face: SoloFace) => void;
-}) {
-  const t = useT();
-  return (
-    <div className="flex flex-wrap gap-1.5" role="list" aria-label={t("Грани кубика")}>
-      {SOLO_FACE_ORDER.map((face) => {
-        const isCaptured = captured.includes(face) && flagged !== face;
-        if (isCaptured) {
-          return (
-            <div key={face} role="listitem">
-              <button
-                type="button"
-                onClick={() => onRedo(face)}
-                className="flex h-8 w-8 items-center justify-center rounded-sm border-2 border-success bg-surface font-mono text-caption font-bold text-ink transition-transform hover:-translate-y-0.5"
-              >
-                <span aria-hidden>{FACE_COLOR_LETTER[face]}</span>
-                <span className="sr-only">
-                  {t("Грань снята: {letter}. Нажми, чтобы переснять.", {
-                    letter: FACE_COLOR_LETTER[face],
-                  })}
-                </span>
-              </button>
-            </div>
-          );
-        }
-        const isFlagged = flagged === face;
-        return (
-          <div
-            key={face}
-            role="listitem"
-            aria-label={
-              isFlagged ? t("Грань не подошла, нужна пересъёмка") : t("Грань ещё не снята")
-            }
-            className={[
-              "flex h-8 w-8 items-center justify-center rounded-sm border-2 font-mono text-caption font-bold",
-              isFlagged
-                ? "border-danger bg-surface text-danger"
-                : "border-dashed border-faint bg-surface text-faint",
-            ].join(" ")}
-          >
-            {isFlagged ? "!" : "?"}
-          </div>
-        );
-      })}
-    </div>
-  );
-}
-
-/**
  * Какую грань нести к рамке на этом шаге.
  *
  * Порядок — совет: грань узнаётся по центру, поэтому чтение переживёт любой
@@ -357,11 +289,6 @@ function SolveVerifyPanel({ s }: { s: Session }) {
               total,
             })}
           </p>
-          <FaceSlots
-            captured={s.verifyCapturedFaces}
-            flagged={s.state.mismatch?.face ?? null}
-            onRedo={s.dropVerifyFace}
-          />
           {nextFace ? (
             <p className="font-sans text-body font-extrabold text-ink">
               {t(facePromptFor(nextFace, true))}
@@ -410,11 +337,6 @@ function VerifyPanel({ s }: { s: Session }) {
               total,
             })}
           </p>
-          <FaceSlots
-            captured={s.verifyCapturedFaces}
-            flagged={s.state.mismatch?.face ?? null}
-            onRedo={s.dropVerifyFace}
-          />
           {nextFace ? (
             <p className="font-sans text-body font-extrabold text-ink">
               {t(facePromptFor(nextFace, false))}

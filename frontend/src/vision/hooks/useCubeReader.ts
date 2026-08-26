@@ -841,12 +841,20 @@ export function useCubeReader(workRef: React.RefObject<HTMLCanvasElement | null>
       // выбрасываем его весь: половина набора негодна так же, как весь.
       const problem = checkCalibration(refs);
       if (problem) {
-        calibRgbRef.current = {};
+        // KEEP the first five faces; drop only the LAST one so the user
+        // re-shoots ONE face, not all six (owner: "если не прочиталась одна
+        // грань — пусть только одну и перефоткает"). The set-level check can
+        // only run once all six exist, and re-sampling the most recent face
+        // is the cheapest way to clear a single bad read. A set that stays
+        // invalid keeps surfacing `calibrationProblem` (which names the two
+        // colours at fault), and the "Снять заново" button is still there as
+        // a full-reset escape when a mid-set face was the culprit.
+        delete calibRgbRef.current[COLOR_NAMES[step]];
         refsRef.current = null;
         setCalibrationProblem(problem);
         setSeeded(false);
         setValidated(false);
-        setCalibrationStep(0);
+        setCalibrationStep(step);
         return false;
       }
       refsRef.current = refs;
