@@ -1000,6 +1000,7 @@ export const EN: Record<string, string> = {
   "Войти в дуэль": "Enter the duel",
   "Соперник найден!": "Opponent found!",
   "Входим через": "Entering in",
+  "Тебя зовут на дуэль — открой «Друзья»": "You've been challenged to a duel — open “Friends”",
   "Приглашение отклонено.": "Invite declined.",
   "Приглашение отменено.": "Invite canceled.",
   "Время приглашения истекло.": "The invite has expired.",

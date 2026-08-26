@@ -13,7 +13,8 @@ import DesktopOnlyGate from "./components/DesktopOnlyGate";
 import Spinner from "./components/Spinner";
 import RouteErrorBoundary from "./components/RouteErrorBoundary";
 import TrophyIcon from "./components/TrophyIcon";
-import { ToastViewport } from "./components/Toast";
+import { ToastViewport, toast } from "./components/Toast";
+import { listConversations } from "./api/chat";
 import { useAuthStore } from "./store/authStore";
 import { useLangStore, type Lang } from "./store/langStore";
 import { useUiStore, type Theme } from "./store/uiStore";
@@ -66,6 +67,66 @@ const UnsubscribePage = lazy(() => import("./pages/UnsubscribePage"));
 // DesktopOnlyGate (it's more usable on a phone than most ritual modes).
 const TrainerPage = lazy(() => import("./pages/TrainerPage"));
 
+// Site-wide chat indicator in the header (owner: "мне не приходит уведомление,
+// что меня позвали на дуэль — приходится самой лезть в чат"). Polls the
+// conversation list every 15s (skips a hidden tab), shows an unread badge, and
+// toasts once when a NEW incoming duel invite appears — so an invite is
+// visible from any screen, not only inside /friends. Clicking goes to Друзья.
+function ChatBell() {
+  const t = useT();
+  const [unread, setUnread] = useState(0);
+  const seenInvites = useRef<Set<string>>(new Set());
+  const firstRun = useRef(true);
+
+  useEffect(() => {
+    let alive = true;
+    async function tick(): Promise<void> {
+      if (typeof document !== "undefined" && document.hidden) return;
+      try {
+        const convs = await listConversations();
+        if (!alive) return;
+        setUnread(convs.reduce((n, c) => n + (c.unread_count || 0), 0));
+        // A conversation whose newest message is an unread invite ≈ "someone
+        // invited me to a duel". Toast once per such conversation (never on the
+        // first tick, which is just the current state, not a fresh arrival).
+        const invited = convs.filter((c) => c.last_message_kind === "invite" && c.unread_count > 0);
+        if (!firstRun.current) {
+          for (const c of invited) {
+            if (!seenInvites.current.has(c.id)) {
+              toast(t("Тебя зовут на дуэль — открой «Друзья»"), "info");
+            }
+          }
+        }
+        seenInvites.current = new Set(invited.map((c) => c.id));
+        firstRun.current = false;
+      } catch {
+        // best-effort — the badge just keeps its last value on a failed tick
+      }
+    }
+    void tick();
+    const id = setInterval(() => void tick(), 15000);
+    return () => {
+      alive = false;
+      clearInterval(id);
+    };
+  }, [t]);
+
+  return (
+    <Link
+      to="/friends"
+      aria-label={t("Друзья и сообщения")}
+      className="relative inline-flex h-11 items-center gap-2 rounded-full border-2 border-ink bg-surface px-4 font-sans text-small font-extrabold text-ink no-underline hover:bg-surface-2"
+    >
+      {t("Друзья")}
+      {unread > 0 ? (
+        <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1 font-sans text-caption font-black text-white">
+          {unread}
+        </span>
+      ) : null}
+    </Link>
+  );
+}
+
 function AuthMenu() {
   const t = useT();
   const user = useAuthStore((s) => s.user);
@@ -95,6 +156,7 @@ function AuthMenu() {
 
   return (
     <div className="flex items-center gap-3" ref={ref}>
+      <ChatBell />
       {/* Бейдж кубков. Отступление от §5.6: заливка нейтральная, а не `warning` —
           жёлтая пилюля в шапке перетягивала на себя весь экран. Кубок — контуром
           `ink`, не эмодзи. Кликабелен — ведёт на отдельный экран дороги кубков.
