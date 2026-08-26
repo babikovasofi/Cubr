@@ -230,7 +230,7 @@ export default function SolveProgressChart({ solves }: { solves: SolveRead[] }) 
         <span className="font-sans text-caption uppercase tracking-wide text-muted">
           {t("Последняя сборка")}
         </span>
-        <span className="font-mono text-h1 font-black text-ink [font-variant-numeric:tabular-nums]">
+        <span className="font-sans text-h1 font-black text-ink [font-variant-numeric:tabular-nums]">
           {fmtMs(only.timeMs, timeFormat)}
         </span>
         <p className="font-sans text-small text-muted">
