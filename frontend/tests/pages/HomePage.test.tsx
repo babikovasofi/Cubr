@@ -152,7 +152,8 @@ describe("HomePage", () => {
     renderHome();
 
     expect(screen.getByText("С чего начнём?")).toBeTruthy();
-    expect(screen.getByRole("button", { name: "Дуэль по ссылке" })).toBeTruthy();
+    // Дуэль — единая карточка-ссылка в лобби (не отдельная кнопка), как все режимы.
+    expect(screen.getByRole("link", { name: /Дуэль/ }).getAttribute("href")).toBe("/duel");
     expect(screen.getByRole("link", { name: /Челлендж недели/ }).getAttribute("href")).toBe(
       "/tournament",
     );
@@ -167,8 +168,8 @@ describe("HomePage", () => {
     useAuthStore.setState({ status: "authed" });
     renderHome();
 
-    // Соло, челлендж, скрамбл дня, тренажёр PLL, случайный соперник, дуэль по ссылке.
-    expect(screen.getAllByTestId("mini-grid")).toHaveLength(6);
+    // Соло, дуэль, челлендж недели, скрамбл дня, тренажёр — по одной карточке-режиму.
+    expect(screen.getAllByTestId("mini-grid")).toHaveLength(5);
   });
 
   it("дашборд предлагает тренажёр PLL без гейта по регистрации", () => {

@@ -951,6 +951,21 @@ export const EN: Record<string, string> = {
   "в сети": "online",
   "не в сети": "offline",
   "Все чаты": "All chats",
+  Дуэль: "Duel",
+  "Найди соперника онлайн, позови друга из тех, кто в сети, или сыграй по ссылке.":
+    "Find an opponent online, invite a friend who's online, or play by link.",
+  "Выбери, как начать: случайный соперник, друг из тех, кто в сети, или ссылка.":
+    "Choose how to start: a random opponent, a friend who's online, or a link.",
+  "Найдём соперника онлайн с близким рангом кубков — как только есть пара, оба в дуэль.":
+    "We'll find an online opponent with a close cups rank — once there's a pair, both go straight into the duel.",
+  "Позвать друга": "Invite a friend",
+  Позвать: "Invite",
+  Позвали: "Invited",
+  "Сейчас никого из друзей нет в сети.": "None of your friends are online right now.",
+  "Приглашение отправлено — ждём ответа.": "Invite sent — waiting for a reply.",
+  "Не удалось позвать друга.": "Could not invite the friend.",
+  "Все друзья и заявки →": "All friends and requests →",
+  "Создать ссылку на дуэль": "Create a duel link",
   "Профиль игрока": "Player profile",
   "Открыть профиль игрока": "Open player profile",
   "Не удалось загрузить профиль.": "Could not load the profile.",

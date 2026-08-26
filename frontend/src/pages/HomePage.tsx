@@ -4,8 +4,7 @@
 // Dev-заглушки (демо-таймер, disabled-кнопка "Недоступно") с главной убраны —
 // на публичной странице им не место; dev-роут /accuracy остаётся под import.meta.env.DEV.
 
-import { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link } from "react-router-dom";
 import Button from "../components/Button";
 import HeroStickers from "../components/HeroStickers";
 import MiniGrid from "../components/MiniGrid";
@@ -13,15 +12,12 @@ import EmptyState from "../components/EmptyState";
 import TrophyIcon from "../components/TrophyIcon";
 import { RANKS } from "../components/CupsRoad";
 import BadgeGrid from "../components/BadgeGrid";
-import MatchmakingPanel from "../friends/MatchmakingPanel";
-import { CARD_MOTIFS } from "../profile/ProfileCard";
 import GoalCard from "../profile/GoalCard";
 import SolveProgressChart from "../components/SolveProgressChart";
 import { useIsHandheld } from "../lib/useIsHandheld";
 import { useSolves } from "../lib/useSolves";
 import { useT } from "../i18n/t";
 import { useAuthStore } from "../store/authStore";
-import { createRoom, saveDuelSessionToken } from "../api/duel";
 
 // §5.5 карточка-ссылка: 1px line, hover — граница 2px ink (паддинг компенсирован).
 const CARD_LINK =
@@ -269,22 +265,6 @@ function CupsTeaser() {
 
 function Dashboard() {
   const t = useT();
-  const navigate = useNavigate();
-  const [duelBusy, setDuelBusy] = useState(false);
-  const [duelError, setDuelError] = useState<string | null>(null);
-
-  async function startDuel(): Promise<void> {
-    setDuelBusy(true);
-    setDuelError(null);
-    try {
-      const room = await createRoom();
-      saveDuelSessionToken(room.room_id, room.session_token);
-      navigate(`/duel/${room.room_id}`, { state: { joinUrl: room.join_url } });
-    } catch {
-      setDuelError(t("Не удалось создать дуэль. Попробуй ещё раз."));
-      setDuelBusy(false);
-    }
-  }
 
   return (
     <div className="flex flex-col gap-7">
@@ -292,14 +272,21 @@ function Dashboard() {
         <h1 className="font-sans text-h1 text-ink">{t("С чего начнём?")}</h1>
       </section>
 
-      {/* §6.2 карточки-режимы: surface + 1px line, live-бейдж «идёт запись».
-          Соло — первым: это разогрев и единственный режим без соперника. Карточка,
-          как у всех режимов (раньше была голой кнопкой снизу — выбивалась). */}
+      {/* §6.2 карточки-режимы: единый вид для ВСЕХ режимов — кликабельная
+          карточка, без отдельных кнопок (owner: «странно, что где-то кнопки,
+          где-то нет»). «Дуэль» — тоже просто карточка, ведёт в лобби /duel,
+          где уже выбор: случайный соперник / позвать друга / ссылка. */}
       <ModeCard
         to="/solo"
         mode="solo"
         title={t("Соло-тренировка")}
         text={t("Вся сборка целиком, без аккаунта. Сборки сохраняются, если войти.")}
+      />
+      <ModeCard
+        to="/duel"
+        mode="duel"
+        title={t("Дуэль")}
+        text={t("Найди соперника онлайн, позови друга из тех, кто в сети, или сыграй по ссылке.")}
       />
       <ModeCard
         to="/tournament"
@@ -321,47 +308,6 @@ function Dashboard() {
         title={t("Тренажёр")}
         text={t("78 случаев OLL и PLL, скрамбл под конкретный случай — без аккаунта.")}
       />
-
-      {/* friends-hub Этап C: случайный соперник — вход в дуэль «поиск → игра»,
-          как в играх. Живёт здесь, рядом с «Дуэль по ссылке» (два входа в
-          дуэль), а не на /friends — это не друзья, а способ начать дуэль. */}
-      <section className="flex flex-col gap-3 rounded-lg border-2 border-ink bg-surface p-4.5">
-        <div className="flex items-center gap-4">
-          <MiniGrid accent="var(--live)" cells={[...CARD_MOTIFS.matchmaking]} />
-          <div className="flex flex-col gap-1">
-            <span className="font-sans text-body font-bold text-ink">
-              {t("Случайный соперник")}
-            </span>
-            <span className="font-sans text-small text-muted">
-              {t("Поиск соперника онлайн — как только найдётся пара, оба сразу в дуэль.")}
-            </span>
-          </div>
-        </div>
-        <MatchmakingPanel />
-      </section>
-
-      {/* Этап 4: дуэль по ссылке — create-room + invite, без матчмейкинга. */}
-      <section className="flex flex-col gap-3 rounded-lg border-2 border-ink bg-surface p-4.5">
-        <div className="flex items-center gap-4">
-          <MiniGrid accent={MODE_ICON.duel.accent} cells={[...MODE_ICON.duel.cells]} />
-          <div className="flex flex-col gap-1">
-            <span className="font-sans text-body font-bold text-ink">{t("Дуэль по ссылке")}</span>
-            <span className="font-sans text-small text-muted">
-              {t(
-                "Создай комнату и пришли ссылку сопернику — старт синхронный, один общий скрамбл.",
-              )}
-            </span>
-          </div>
-        </div>
-        <Button onClick={() => void startDuel()} disabled={duelBusy} className="self-start">
-          {duelBusy ? t("Создаю комнату…") : t("Дуэль по ссылке")}
-        </Button>
-        {duelError ? (
-          <p role="alert" className="font-sans text-small text-danger">
-            {duelError}
-          </p>
-        ) : null}
-      </section>
 
       {import.meta.env.DEV ? (
         <section className="flex flex-wrap items-center gap-4">

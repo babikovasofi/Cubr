@@ -14,7 +14,7 @@ import uuid
 
 import pytest
 from httpx import ASGITransport, AsyncClient
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 import app.routers.matchmaking as matchmaking_router
@@ -372,3 +372,54 @@ async def test_deleting_user_cascades_matchmaking_queue_row(
 
     async with session_maker() as session:
         assert await session.get(MatchmakingQueue, alice_id) is None
+
+
+async def _set_cups(
+    session_maker: async_sessionmaker[AsyncSession], user_id: uuid.UUID, cups: int
+) -> None:
+    async with session_maker() as session:
+        await session.execute(update(User).where(User.id == user_id).values(cups=cups))
+        await session.commit()
+
+
+async def test_pairs_with_nearest_cups_not_oldest_waiting(
+    chat_client: AsyncClient, session_maker: async_sessionmaker[AsyncSession]
+) -> None:
+    """Ladder match: among the waiting pool the enqueuer pairs with the
+    NEAREST cups rank, not simply the oldest-waiting (owner: "искаться
+    соперник с таким же рангом примерно кубков").
+    """
+    # Two users at opposite cups. They're registered (so the FK rows exist)
+    # but NOT enqueued through the API — enqueuing the second would have
+    # paired the two with each other on the spot. Instead their waiting rows
+    # are seeded straight into the queue below, so BOTH sit waiting when the
+    # caller arrives — the only way to present the pairing query with a real
+    # choice of candidates.
+    await _register_and_login(chat_client, "low@example.com")
+    low_id = await _user_id(session_maker, "low@example.com")
+    await _set_cups(session_maker, low_id, 0)
+
+    await _switch_user(chat_client, "high@example.com")
+    high_id = await _user_id(session_maker, "high@example.com")
+    await _set_cups(session_maker, high_id, 1000)
+
+    await _switch_user(chat_client, "caller@example.com")
+    caller_id = await _user_id(session_maker, "caller@example.com")
+    await _set_cups(session_maker, caller_id, 900)
+
+    async with session_maker() as session:
+        session.add(MatchmakingQueue(user_id=low_id))
+        session.add(MatchmakingQueue(user_id=high_id))
+        await session.commit()
+
+    # Caller at cups 900 is far closer to `high` (Δ100) than `low` (Δ900) →
+    # pairs with `high`.
+    assert (await chat_client.post("/matchmaking/enqueue")).json()["matched"] is True
+
+    async with session_maker() as session:
+        high_row = await session.get(MatchmakingQueue, high_id)
+        low_row = await session.get(MatchmakingQueue, low_id)
+        # `high` was claimed (room set, awaiting its own consume); `low` is
+        # untouched and still waiting.
+        assert high_row is not None and high_row.room_id is not None
+        assert low_row is not None and low_row.room_id is None

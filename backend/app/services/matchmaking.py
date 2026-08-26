@@ -135,21 +135,34 @@ async def _claim_pair(
 
 
 async def _attempt_pair(
-    session: AsyncSession, caller_id: uuid.UUID, now: datetime
+    session: AsyncSession, caller_id: uuid.UUID, caller_cups: int, now: datetime
 ) -> tuple[DuelRoom, uuid.UUID] | tuple[None, None]:
     """Returns `(room, matched_candidate_id)` on success, `(None, None)`
     while still waiting. Deliberately does NOT call `chat_service.
     notify_user` itself — that must fire only AFTER the caller's
     transaction actually commits (mirrors `app.routers.chat.send_message`'s
     own commit-then-notify order); see `enqueue`.
+
+    Candidates are ordered by CUPS PROXIMITY to the caller (`|cups - caller|`),
+    oldest-waiting as the tiebreak (owner: "искаться соперник с таким же
+    рангом примерно кубков") — a ladder-style match, not pure FIFO. Still a
+    best-effort within the `_MAX_CANDIDATES_PER_ATTEMPT` window, not a hard
+    band: with nobody close, the nearest available still pairs rather than
+    leaving both waiting forever.
     """
     result = await session.execute(
-        select(MatchmakingQueue.user_id)
+        select(MatchmakingQueue.user_id, MatchmakingQueue.created_at, User.cups)
+        .join(User, MatchmakingQueue.user_id == User.id)
         .where(MatchmakingQueue.user_id != caller_id, MatchmakingQueue.room_id.is_(None))
-        .order_by(MatchmakingQueue.created_at)
-        .limit(_MAX_CANDIDATES_PER_ATTEMPT)
     )
-    candidate_ids = [row[0] for row in result.all()]
+    # Sort in Python (not SQL ORDER BY) so the cups-proximity key stays a
+    # plain expression — avoids the ORM-join-onclause typing friction and is
+    # trivially cheap on the small waiting pool this query returns.
+    waiting = sorted(
+        result.all(),
+        key=lambda r: (abs(r[2] - caller_cups), r[1]),
+    )
+    candidate_ids = [row[0] for row in waiting[:_MAX_CANDIDATES_PER_ATTEMPT]]
     for candidate_id in candidate_ids:
         if await _blocked_pair(session, caller_id, candidate_id):
             continue
@@ -196,7 +209,7 @@ async def enqueue(
         session.add(row)
         await session.flush()
 
-    room, matched_candidate_id = await _attempt_pair(session, caller.id, effective_now)
+    room, matched_candidate_id = await _attempt_pair(session, caller.id, caller.cups, effective_now)
     if room is None:
         return None, None
 

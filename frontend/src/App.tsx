@@ -42,6 +42,7 @@ const GreenFrameDemoPage = import.meta.env.DEV
 const SoloPage = lazy(() => import("./pages/SoloPage"));
 const TournamentPage = lazy(() => import("./pages/TournamentPage"));
 const DailyPage = lazy(() => import("./pages/DailyPage"));
+const DuelLobbyPage = lazy(() => import("./pages/DuelLobbyPage"));
 const DuelPage = lazy(() => import("./pages/DuelPage"));
 const DuelJoinPage = lazy(() => import("./pages/DuelJoinPage"));
 const OnboardingPage = lazy(() => import("./pages/OnboardingPage"));
@@ -412,6 +413,14 @@ export default function App() {
                     <DesktopOnlyGate>
                       <DailyPage />
                     </DesktopOnlyGate>
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/duel"
+                element={
+                  <ProtectedRoute>
+                    <DuelLobbyPage />
                   </ProtectedRoute>
                 }
               />
