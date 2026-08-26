@@ -267,21 +267,23 @@ function Dashboard() {
   const t = useT();
 
   return (
-    <div className="flex flex-col gap-7">
-      <section className="flex flex-col gap-2">
-        <h1 className="font-sans text-h1 text-ink">{t("С чего начнём?")}</h1>
-      </section>
+    <div className="flex flex-col gap-8">
+      <h1 className="font-sans text-h1 text-ink">{t("С чего начнём?")}</h1>
 
       {/* §6.2 карточки-режимы: единый вид для ВСЕХ режимов — кликабельная
           карточка, без отдельных кнопок (owner: «странно, что где-то кнопки,
           где-то нет»). «Дуэль» — тоже просто карточка, ведёт в лобби /duel,
-          где уже выбор: случайный соперник / позвать друга / ссылка. */}
-      <ModeCard
-        to="/solo"
-        mode="solo"
-        title={t("Соло-тренировка")}
-        text={t("Вся сборка целиком, без аккаунта. Сборки сохраняются, если войти.")}
-      />
+          где уже выбор: случайный соперник / позвать друга / ссылка.
+          Сгруппированы под заголовком «Режимы» и отделены от блока прогресса —
+          иначе одинаково-бледные карточки сливаются в одну ленту (owner). */}
+      <section className="flex flex-col gap-3">
+        <h2 className="font-sans text-h3 text-muted">{t("Режимы")}</h2>
+        <ModeCard
+          to="/solo"
+          mode="solo"
+          title={t("Соло-тренировка")}
+          text={t("Вся сборка целиком, без аккаунта. Сборки сохраняются, если войти.")}
+        />
       <ModeCard
         to="/duel"
         mode="duel"
@@ -302,12 +304,13 @@ function Dashboard() {
         text={t("Общий скрамбл на сутки, одна попытка — без турнирной таблицы.")}
         live
       />
-      <ModeCard
-        to="/trainer"
-        mode="trainer"
-        title={t("Тренажёр")}
-        text={t("78 случаев OLL и PLL, скрамбл под конкретный случай — без аккаунта.")}
-      />
+        <ModeCard
+          to="/trainer"
+          mode="trainer"
+          title={t("Тренажёр")}
+          text={t("78 случаев OLL и PLL, скрамбл под конкретный случай — без аккаунта.")}
+        />
+      </section>
 
       {import.meta.env.DEV ? (
         <section className="flex flex-wrap items-center gap-4">
@@ -320,11 +323,12 @@ function Dashboard() {
         </section>
       ) : null}
 
-      <CupsTeaser />
-
-      <DashboardProgress />
-
-      <BadgeGrid />
+      <section className="flex flex-col gap-4">
+        <h2 className="font-sans text-h3 text-muted">{t("Твой прогресс")}</h2>
+        <CupsTeaser />
+        <DashboardProgress />
+        <BadgeGrid />
+      </section>
     </div>
   );
 }

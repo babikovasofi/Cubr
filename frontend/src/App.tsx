@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, lazy, Suspense } from "react";
-import { Routes, Route, Link, useNavigate } from "react-router-dom";
+import { Routes, Route, Link, useNavigate, useLocation } from "react-router-dom";
 import HomePage from "./pages/HomePage";
 import DecorBackdrop from "./components/DecorBackdrop";
 import LoginPage from "./pages/LoginPage";
@@ -170,6 +170,35 @@ function AuthMenu() {
   );
 }
 
+// Сквозная кнопка «Назад» на всех страницах, кроме главной (owner: «выйти из
+// челленджа можно было только через логотип»). В стиле сайта — таблетка с
+// обводкой 2px ink, как вторичные кнопки. Идёт назад по истории приложения;
+// если человек открыл ссылку напрямую (истории внутри сайта нет — router
+// ставит `idx === 0`), ведёт на главную, а не наружу с сайта.
+function BackBar() {
+  const t = useT();
+  const location = useLocation();
+  const navigate = useNavigate();
+
+  if (location.pathname === "/") return null;
+
+  function goBack(): void {
+    const idx = (window.history.state as { idx?: number } | null)?.idx ?? 0;
+    if (idx > 0) navigate(-1);
+    else navigate("/");
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={goBack}
+      className="mb-5 inline-flex h-10 items-center gap-1.5 self-start rounded-full border-2 border-ink bg-surface px-4 font-sans text-small font-extrabold text-ink hover:bg-surface-2"
+    >
+      <span aria-hidden>←</span> {t("Назад")}
+    </button>
+  );
+}
+
 function Header() {
   const t = useT();
   const status = useAuthStore((s) => s.status);
@@ -288,7 +317,8 @@ export default function App() {
     <div className="min-h-screen text-ink">
       <DecorBackdrop />
       <Header />
-      <main className="mx-auto max-w-content px-4 py-7">
+      <main className="mx-auto flex max-w-content flex-col px-4 py-7">
+        <BackBar />
         <RouteErrorBoundary>
           <Suspense
             fallback={
