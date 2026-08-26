@@ -167,8 +167,8 @@ describe("HomePage", () => {
     useAuthStore.setState({ status: "authed" });
     renderHome();
 
-    // Соло, челлендж, скрамбл дня, тренажёр PLL, дуэль.
-    expect(screen.getAllByTestId("mini-grid")).toHaveLength(5);
+    // Соло, челлендж, скрамбл дня, тренажёр PLL, случайный соперник, дуэль по ссылке.
+    expect(screen.getAllByTestId("mini-grid")).toHaveLength(6);
   });
 
   it("дашборд предлагает тренажёр PLL без гейта по регистрации", () => {

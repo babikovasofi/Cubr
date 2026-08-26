@@ -13,6 +13,8 @@ import EmptyState from "../components/EmptyState";
 import TrophyIcon from "../components/TrophyIcon";
 import { RANKS } from "../components/CupsRoad";
 import BadgeGrid from "../components/BadgeGrid";
+import MatchmakingPanel from "../friends/MatchmakingPanel";
+import { CARD_MOTIFS } from "../profile/ProfileCard";
 import GoalCard from "../profile/GoalCard";
 import SolveProgressChart from "../components/SolveProgressChart";
 import { useIsHandheld } from "../lib/useIsHandheld";
@@ -319,6 +321,24 @@ function Dashboard() {
         title={t("Тренажёр")}
         text={t("78 случаев OLL и PLL, скрамбл под конкретный случай — без аккаунта.")}
       />
+
+      {/* friends-hub Этап C: случайный соперник — вход в дуэль «поиск → игра»,
+          как в играх. Живёт здесь, рядом с «Дуэль по ссылке» (два входа в
+          дуэль), а не на /friends — это не друзья, а способ начать дуэль. */}
+      <section className="flex flex-col gap-3 rounded-lg border-2 border-ink bg-surface p-4.5">
+        <div className="flex items-center gap-4">
+          <MiniGrid accent="var(--live)" cells={[...CARD_MOTIFS.matchmaking]} />
+          <div className="flex flex-col gap-1">
+            <span className="font-sans text-body font-bold text-ink">
+              {t("Случайный соперник")}
+            </span>
+            <span className="font-sans text-small text-muted">
+              {t("Поиск соперника онлайн — как только найдётся пара, оба сразу в дуэль.")}
+            </span>
+          </div>
+        </div>
+        <MatchmakingPanel />
+      </section>
 
       {/* Этап 4: дуэль по ссылке — create-room + invite, без матчмейкинга. */}
       <section className="flex flex-col gap-3 rounded-lg border-2 border-ink bg-surface p-4.5">

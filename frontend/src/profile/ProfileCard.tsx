@@ -17,6 +17,7 @@ export const CARD_MOTIFS = {
   history: [true, true, true, false, false, false, false, false, false],
   friends: [true, false, false, false, true, false, false, false, true],
   matchmaking: [false, false, false, true, true, true, false, false, false],
+  chat: [true, true, false, false, false, true, false, false, false],
 } as const;
 
 export default function ProfileCard({

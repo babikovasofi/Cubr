@@ -29,6 +29,7 @@ import { stripHandlePrefix } from "../lib/handle";
 import { useT } from "../i18n/t";
 import ChatSection from "./chat/ChatSection";
 import PresenceAvatar from "./PresenceAvatar";
+import ProfileCard, { CARD_MOTIFS } from "../profile/ProfileCard";
 
 interface Lists {
   friends: FriendRead[];
@@ -75,59 +76,60 @@ export default function FriendsSection() {
   }
 
   return (
-    <section className="flex flex-col gap-4" aria-labelledby="friends-heading">
-      <h2 id="friends-heading" className="font-sans text-h3 text-ink">
-        {t("Друзья")}
-      </h2>
+    <>
+      <ProfileCard title={t("Друзья")} motif={CARD_MOTIFS.friends} accent="var(--danger)">
+        <AddFriendForm onSent={reload} />
 
-      <AddFriendForm onSent={reload} />
+        {state.kind === "loading" ? <Spinner label={t("Загружаю друзей…")} /> : null}
 
-      {state.kind === "loading" ? <Spinner label={t("Загружаю друзей…")} /> : null}
+        {state.kind === "error" ? (
+          <div role="alert" className="flex flex-col items-start gap-3">
+            <p className="font-sans text-small text-danger">{state.message}</p>
+            <Button onClick={reload}>{t("Повторить")}</Button>
+          </div>
+        ) : null}
 
-      {state.kind === "error" ? (
-        <div role="alert" className="flex flex-col items-start gap-3">
-          <p className="font-sans text-small text-danger">{state.message}</p>
-          <Button onClick={reload}>{t("Повторить")}</Button>
-        </div>
-      ) : null}
+        {state.kind === "ok" ? (
+          <>
+            {lists.incoming.length > 0 ? (
+              <RequestList
+                title={t("Входящие заявки")}
+                requests={lists.incoming}
+                primaryLabel={t("Принять")}
+                onPrimary={(id) => acceptRequest(id).then(reload)}
+                secondaryLabel={t("Отклонить")}
+                onSecondary={(id) => deleteRequest(id).then(reload)}
+              />
+            ) : null}
 
-      {state.kind === "ok" ? (
-        <>
-          {lists.incoming.length > 0 ? (
-            <RequestList
-              title={t("Входящие заявки")}
-              requests={lists.incoming}
-              primaryLabel={t("Принять")}
-              onPrimary={(id) => acceptRequest(id).then(reload)}
-              secondaryLabel={t("Отклонить")}
-              onSecondary={(id) => deleteRequest(id).then(reload)}
+            {lists.outgoing.length > 0 ? (
+              <RequestList
+                title={t("Исходящие заявки")}
+                requests={lists.outgoing}
+                secondaryLabel={t("Отменить")}
+                onSecondary={(id) => deleteRequest(id).then(reload)}
+              />
+            ) : null}
+
+            <FriendList
+              friends={lists.friends}
+              onRemoved={reload}
+              onOpenChat={setOpenChatFriendshipId}
             />
-          ) : null}
+          </>
+        ) : null}
+      </ProfileCard>
 
-          {lists.outgoing.length > 0 ? (
-            <RequestList
-              title={t("Исходящие заявки")}
-              requests={lists.outgoing}
-              secondaryLabel={t("Отменить")}
-              onSecondary={(id) => deleteRequest(id).then(reload)}
-            />
-          ) : null}
-
-          <FriendList
-            friends={lists.friends}
-            onRemoved={reload}
-            onOpenChat={setOpenChatFriendshipId}
-          />
-
-          {lists.friends.length > 0 ? (
-            <div className="flex flex-col gap-3">
-              <h3 className="font-sans text-small font-bold text-ink">{t("Личные сообщения")}</h3>
-              <ChatSection openFriendshipId={openChatFriendshipId} />
-            </div>
-          ) : null}
-        </>
+      {state.kind === "ok" && lists.friends.length > 0 ? (
+        <ProfileCard
+          title={t("Личные сообщения")}
+          motif={CARD_MOTIFS.chat}
+          accent="var(--primary)"
+        >
+          <ChatSection openFriendshipId={openChatFriendshipId} />
+        </ProfileCard>
       ) : null}
-    </section>
+    </>
   );
 }
 

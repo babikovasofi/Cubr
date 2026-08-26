@@ -20,10 +20,6 @@ export default function MatchmakingPanel() {
 
   return (
     <div className="flex flex-col gap-3">
-      <p className="font-sans text-small text-muted">
-        {t("Сразу в дуэль со случайным соперником — без заявки в друзья.")}
-      </p>
-
       {error ? (
         <div role="alert" className="flex flex-wrap items-center gap-3">
           <p className="font-sans text-small text-danger">{error}</p>
