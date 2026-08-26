@@ -138,14 +138,16 @@ export default function ChatSection({
     );
   }
 
+  // Master-detail (owner: "нажимаешь — отдельное окно"): the conversation list
+  // spans the full width; picking one REPLACES the list with that conversation
+  // (a back button returns), instead of a permanent side-by-side split with an
+  // empty-state hint. `selection` with either a resolved conversation or a
+  // pending friendshipId (brand-new chat from "Написать") counts as "open".
+  const isOpen = selection !== null && (selectedConversation !== null || selection.friendshipId !== null);
+
   return (
-    <div className="grid grid-cols-1 gap-4 md:grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)]">
-      <ConversationList
-        conversations={chat.conversations}
-        selectedConversationId={selection?.conversationId ?? null}
-        onSelect={handleSelectFromList}
-      />
-      {selection ? (
+    <div className="flex flex-col gap-4">
+      {isOpen ? (
         <ConversationView
           conversation={selectedConversation}
           friendshipId={selection.friendshipId}
@@ -153,15 +155,14 @@ export default function ChatSection({
           meUserId={meUserId}
           messages={selectedMessages}
           blocked={blocked}
+          onBack={() => setSelection(null)}
           onMessageSent={handleMessageSent}
           onMessageDeleted={handleMessageDeleted}
           onBlockedChange={handleBlockedChange}
           onInviteUpdated={handleInviteUpdated}
         />
       ) : (
-        <p className="font-sans text-small text-muted">
-          {t("Выбери переписку слева или напиши другу из списка выше.")}
-        </p>
+        <ConversationList conversations={chat.conversations} onSelect={handleSelectFromList} />
       )}
     </div>
   );

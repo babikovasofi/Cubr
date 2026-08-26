@@ -18,11 +18,9 @@ function previewText(c: ConversationSummary, t: (key: string) => string): string
 
 export default function ConversationList({
   conversations,
-  selectedConversationId,
   onSelect,
 }: {
   conversations: ConversationSummary[];
-  selectedConversationId: string | null;
   onSelect: (conversation: ConversationSummary) => void;
 }) {
   const t = useT();
@@ -36,42 +34,46 @@ export default function ConversationList({
   }
 
   return (
-    <ul className="flex flex-col gap-2">
-      {conversations.map((c) => (
-        <li key={c.id}>
-          <button
-            type="button"
-            onClick={() => onSelect(c)}
-            aria-current={c.id === selectedConversationId ? "true" : undefined}
-            className={[
-              "flex w-full items-center justify-between gap-3 rounded-md border-2 px-3.5 py-2.5 text-left",
-              "transition-colors",
-              c.id === selectedConversationId
-                ? "border-ink bg-surface-2"
-                : "border-line bg-surface hover:bg-surface-2",
-            ].join(" ")}
-          >
-            <span className="flex min-w-0 flex-col gap-0.5">
-              <span className="truncate font-sans text-small font-bold text-ink">
-                {c.display_name}
+    <ul className="divide-y divide-line overflow-hidden rounded-md border border-line">
+      {conversations.map((c) => {
+        const hasPreview =
+          c.last_message_body !== null || c.last_message_kind === "invite" || !!c.last_message_at;
+        return (
+          <li key={c.id}>
+            <button
+              type="button"
+              onClick={() => onSelect(c)}
+              className="flex w-full items-center gap-3 bg-surface px-3.5 py-3 text-left transition-colors hover:bg-surface-2"
+            >
+              <span
+                aria-hidden
+                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border-2 border-ink bg-surface-2 font-sans text-body font-black text-ink"
+              >
+                {c.display_name.trim().charAt(0).toUpperCase() || "?"}
               </span>
-              {c.last_message_body !== null || c.last_message_kind === "invite" || c.last_message_at ? (
-                <span className="truncate font-sans text-small text-muted">
-                  {previewText(c, t)}
+              <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+                <span className="truncate font-sans text-small font-bold text-ink">
+                  {c.display_name}
+                </span>
+                {hasPreview ? (
+                  <span className="truncate font-sans text-small text-muted">{previewText(c, t)}</span>
+                ) : null}
+              </span>
+              {c.unread_count > 0 ? (
+                <span
+                  className="inline-flex h-6 min-w-6 shrink-0 items-center justify-center rounded-full bg-primary px-1.5 font-sans text-small font-extrabold text-white"
+                  aria-label={t("Непрочитанных: {n}", { n: c.unread_count })}
+                >
+                  {c.unread_count}
                 </span>
               ) : null}
-            </span>
-            {c.unread_count > 0 ? (
-              <span
-                className="inline-flex h-6 min-w-6 shrink-0 items-center justify-center rounded-full bg-primary px-1.5 font-sans text-small font-extrabold text-white"
-                aria-label={t("Непрочитанных: {n}", { n: c.unread_count })}
-              >
-                {c.unread_count}
+              <span aria-hidden className="shrink-0 font-sans text-body text-muted">
+                ›
               </span>
-            ) : null}
-          </button>
-        </li>
-      ))}
+            </button>
+          </li>
+        );
+      })}
     </ul>
   );
 }

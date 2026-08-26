@@ -284,8 +284,67 @@ function FriendList({
     }
   }
 
+  // Presence-grouped, online first — the pattern every game friends list uses
+  // (Discord/Steam: "Online"/"Offline" sections, count in the header). Each
+  // group is a bordered list with hairline dividers between rows so entries
+  // read as distinct, not one blended stack (owner: "разграничь как в играх").
+  const online = friends.filter((f) => f.is_online);
+  const offline = friends.filter((f) => !f.is_online);
+
+  function friendRow(f: FriendRead) {
+    return (
+      <li
+        key={f.friendship_id}
+        className="flex flex-wrap items-center justify-between gap-3 bg-surface px-3.5 py-3"
+      >
+        <span className="flex min-w-0 items-center gap-3">
+          <PresenceAvatar displayName={f.display_name} online={f.is_online} size={40} />
+          <span className="flex min-w-0 flex-col">
+            <span className="truncate font-sans text-small font-bold text-ink">
+              {f.display_name}
+            </span>
+            <span
+              className={`font-sans text-caption ${f.is_online ? "text-success" : "text-muted"}`}
+            >
+              {f.is_online ? t("в сети") : t("не в сети")}
+            </span>
+          </span>
+        </span>
+        <div className="flex flex-wrap items-center justify-end gap-2">
+          <Button variant="secondary" onClick={() => onOpenChat(f.friendship_id)}>
+            {t("Написать")}
+          </Button>
+          <Button disabled={challenge.busy} onClick={() => void challenge.challenge()}>
+            {t("Вызвать")}
+          </Button>
+          <Button
+            variant="secondary"
+            disabled={busyId === f.friendship_id}
+            onClick={() => void onRemove(f.friendship_id)}
+          >
+            {t("Удалить")}
+          </Button>
+        </div>
+      </li>
+    );
+  }
+
+  function group(label: string, list: FriendRead[]) {
+    if (list.length === 0) return null;
+    return (
+      <div className="overflow-hidden rounded-md border border-line">
+        <div className="border-b border-line bg-surface-2 px-3.5 py-2">
+          <span className="font-sans text-caption font-black uppercase tracking-wide text-muted">
+            {label} · {list.length}
+          </span>
+        </div>
+        <ul className="divide-y divide-line">{list.map(friendRow)}</ul>
+      </div>
+    );
+  }
+
   return (
-    <div className="flex flex-col gap-2">
+    <div className="flex flex-col gap-3">
       <h3 className="font-sans text-small font-bold text-ink">{t("Список друзей")}</h3>
 
       {friends.length === 0 ? (
@@ -312,34 +371,10 @@ function FriendList({
       ) : null}
 
       {friends.length > 0 ? (
-        <ul className="flex flex-col gap-2">
-          {friends.map((f) => (
-            <li
-              key={f.friendship_id}
-              className="flex items-center justify-between gap-3 rounded-md border border-line bg-surface px-3.5 py-2.5"
-            >
-              <span className="flex min-w-0 items-center gap-2.5">
-                <PresenceAvatar displayName={f.display_name} online={f.is_online} size={36} />
-                <span className="truncate font-sans text-small text-ink">{f.display_name}</span>
-              </span>
-              <div className="flex items-center gap-2">
-                <Button variant="secondary" onClick={() => onOpenChat(f.friendship_id)}>
-                  {t("Написать")}
-                </Button>
-                <Button disabled={challenge.busy} onClick={() => void challenge.challenge()}>
-                  {t("Вызвать")}
-                </Button>
-                <Button
-                  variant="secondary"
-                  disabled={busyId === f.friendship_id}
-                  onClick={() => void onRemove(f.friendship_id)}
-                >
-                  {t("Удалить")}
-                </Button>
-              </div>
-            </li>
-          ))}
-        </ul>
+        <div className="flex flex-col gap-3">
+          {group(t("В сети"), online)}
+          {group(t("Не в сети"), offline)}
+        </div>
       ) : null}
     </div>
   );

@@ -35,6 +35,7 @@ export default function ConversationView({
   meUserId,
   messages,
   blocked,
+  onBack,
   onMessageSent,
   onMessageDeleted,
   onBlockedChange,
@@ -47,6 +48,9 @@ export default function ConversationView({
   meUserId: string | null;
   messages: ChatMessage[];
   blocked: boolean;
+  /** Return to the conversation list (master-detail): shown as a "← Все чаты"
+   * button in the header. Absent = no back affordance (e.g. embedded view). */
+  onBack?: () => void;
   onMessageSent: (friendshipId: string, message: ChatMessage) => void;
   onMessageDeleted: (messageId: string) => void;
   onBlockedChange: (blocked: boolean) => void;
@@ -146,10 +150,21 @@ export default function ConversationView({
 
   return (
     <div className="flex flex-col gap-3">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <h3 className="font-sans text-small font-bold text-ink">
-          {conversation?.display_name ?? t("Новая переписка")}
-        </h3>
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-line pb-3">
+        <div className="flex min-w-0 items-center gap-2.5">
+          {onBack ? (
+            <button
+              type="button"
+              onClick={onBack}
+              className="inline-flex h-9 items-center gap-1 rounded-full border-2 border-ink bg-surface px-3 font-sans text-small font-extrabold text-ink hover:bg-surface-2"
+            >
+              <span aria-hidden>←</span> {t("Все чаты")}
+            </button>
+          ) : null}
+          <h3 className="truncate font-sans text-body font-bold text-ink">
+            {conversation?.display_name ?? t("Новая переписка")}
+          </h3>
+        </div>
         <div className="flex items-center gap-2">
           {!readOnly ? (
             <Button

@@ -948,6 +948,9 @@ export const EN: Record<string, string> = {
   "Друзья и сообщения": "Friends and messages",
   "В сети": "Online",
   "Не в сети": "Offline",
+  "в сети": "online",
+  "не в сети": "offline",
+  "Все чаты": "All chats",
   "Случайный соперник": "Random opponent",
   "Сразу в дуэль со случайным соперником — без заявки в друзья.":
     "Straight into a duel with a random opponent — no friend request needed.",
