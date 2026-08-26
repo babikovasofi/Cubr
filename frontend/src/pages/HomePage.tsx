@@ -276,8 +276,8 @@ function Dashboard() {
           где уже выбор: случайный соперник / позвать друга / ссылка.
           Сгруппированы под заголовком «Режимы» и отделены от блока прогресса —
           иначе одинаково-бледные карточки сливаются в одну ленту (owner). */}
-      <section className="flex flex-col gap-3">
-        <h2 className="font-sans text-h3 text-muted">{t("Режимы")}</h2>
+      <section className="flex flex-col gap-4 rounded-xl border-2 border-ink bg-surface-2 p-5 shadow-sticker sm:p-6">
+        <h2 className="font-sans text-h2 font-black text-ink">{t("Режимы")}</h2>
         <ModeCard
           to="/solo"
           mode="solo"
@@ -323,8 +323,8 @@ function Dashboard() {
         </section>
       ) : null}
 
-      <section className="flex flex-col gap-4">
-        <h2 className="font-sans text-h3 text-muted">{t("Твой прогресс")}</h2>
+      <section className="flex flex-col gap-4 rounded-xl border-2 border-ink bg-surface-2 p-5 shadow-sticker sm:p-6">
+        <h2 className="font-sans text-h2 font-black text-ink">{t("Твой прогресс")}</h2>
         <CupsTeaser />
         <DashboardProgress />
         <BadgeGrid />
