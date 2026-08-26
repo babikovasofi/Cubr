@@ -34,13 +34,23 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from fastapi_users_db_sqlalchemy import SQLAlchemyUserDatabase
 from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from app.config import get_settings
 from app.db import get_session
 from app.models import OAuthAccount, User
 from app.models.chat import ChatMessage, Conversation
-from app.schemas.chat import ChatMessageCreate, ChatMessageRead, ChatPollRead, ConversationRead
+from app.schemas.chat import (
+    ChatInviteCreate,
+    ChatMessageCreate,
+    ChatMessageRead,
+    ChatPollRead,
+    ConversationRead,
+    DuelInviteActionRead,
+)
 from app.services import chat as chat_service
+from app.services import chat_invite as chat_invite_service
+from app.services import duel as duel_service
 from app.services import ratelimit
 from app.services.auth import UserManager, current_active_user, get_jwt_strategy, password_helper
 from app.services.friends import now_utc
@@ -69,6 +79,9 @@ _send_conv_limit = Depends(
 )
 _send_daily_limit = Depends(
     ratelimit.user_rate_limit(settings.CHAT_SEND_DAILY_LIMIT, scope="chat-send-daily")
+)
+_invite_user_limit = Depends(
+    ratelimit.user_rate_limit(settings.CHAT_INVITE_RATE_LIMIT, scope="chat-invite")
 )
 
 
@@ -128,6 +141,7 @@ async def _poll_query(
 ) -> list[ChatMessage]:
     result = await session.execute(
         select(ChatMessage)
+        .options(selectinload(ChatMessage.invite))
         .join(Conversation, Conversation.id == ChatMessage.conversation_id)
         .where(
             or_(Conversation.user_low_id == user_id, Conversation.user_high_id == user_id),
@@ -214,7 +228,7 @@ async def send_message(
         },
     )
     chat_service.notify_user(other.id)
-    return ChatMessageRead.model_validate(message)
+    return chat_invite_service.build_message_read(message, sender_id, now_utc())
 
 
 @router.get("/conversations", response_model=list[ConversationRead])
@@ -242,7 +256,8 @@ async def list_messages(
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Conversation not found"
         ) from exc
-    return [ChatMessageRead.model_validate(m) for m in messages]
+    now = now_utc()
+    return [chat_invite_service.build_message_read(m, user.id, now) for m in messages]
 
 
 @router.post("/conversations/{conversation_id}/read", status_code=status.HTTP_204_NO_CONTENT)
@@ -336,6 +351,181 @@ async def poll(request: Request, cursor: str | None = None) -> ChatPollRead:
     else:
         new_cursor = _encode_cursor(cursor_ts, cursor_id)
 
+    poll_now = now_utc()
     return ChatPollRead(
-        cursor=new_cursor, messages=[ChatMessageRead.model_validate(m) for m in messages]
+        cursor=new_cursor,
+        messages=[chat_invite_service.build_message_read(m, user.id, poll_now) for m in messages],
     )
+
+
+# ---------------------------------------------------------------------------
+# Этап B — duel invite lifecycle (see app.services.chat_invite)
+# ---------------------------------------------------------------------------
+
+_INVITE_DETAIL = {"code": "CHAT_INVITE_NOT_FOUND", "reason": "Invite not found."}
+_INVITE_FORBIDDEN_DETAIL = {
+    "code": "CHAT_INVITE_FORBIDDEN",
+    "reason": "Not your invite to act on.",
+}
+_INVITE_NOT_ACTIONABLE_DETAIL = {
+    "code": "CHAT_INVITE_NOT_ACTIONABLE",
+    "reason": "Invite is no longer pending.",
+}
+
+
+def _already_in_game_detail(exc: duel_service.DuelConflictError) -> dict[str, str]:
+    return {
+        "code": "CHAT_INVITE_ALREADY_IN_GAME",
+        "existing_room_id": str(exc.existing_room_id),
+    }
+
+
+@router.post(
+    "/conversations/{friendship_id}/invite",
+    response_model=ChatMessageRead,
+    status_code=status.HTTP_201_CREATED,
+    dependencies=[_invite_user_limit],
+)
+async def send_invite(
+    friendship_id: uuid.UUID,
+    _body: ChatInviteCreate | None = None,
+    user: User = Depends(current_active_user),
+    session: AsyncSession = Depends(get_session),
+) -> ChatMessageRead:
+    """Send a duel-invite chat message. 403 `CHAT_NOT_FRIENDS` under the
+    same conditions as a text message (see `app.services.chat_invite.
+    send_invite`). **No duel room exists yet** — see that function's
+    docstring (skeptic HIGH#1): sending never costs a duel slot, so N
+    invites to N different friends all succeed.
+    """
+    sender_id = user.id
+    try:
+        message = await chat_invite_service.send_invite(
+            session,
+            user,
+            friendship_id,
+            settings.INVITE_TTL_SECONDS,
+            settings.CHAT_NOTIFY_DELAY_SECONDS,
+        )
+    except chat_service.ChatNotFriendsError as exc:
+        await session.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, detail=_NOT_FRIENDS_DETAIL
+        ) from exc
+    await session.commit()
+    logger.info(
+        "chat_invite_sent",
+        extra={
+            "sender_id": str(sender_id),
+            "conversation_id": str(message.conversation_id),
+            "seq": message.seq,
+        },
+    )
+    assert message.invite is not None  # chat_invite_service.send_invite always attaches it
+    chat_service.notify_user(message.invite.invitee_id)
+    return chat_invite_service.build_message_read(message, sender_id, now_utc())
+
+
+@router.post("/invites/{invite_id}/accept", response_model=DuelInviteActionRead)
+async def accept_invite(
+    invite_id: uuid.UUID,
+    user: User = Depends(current_active_user),
+    session: AsyncSession = Depends(get_session),
+) -> DuelInviteActionRead:
+    """Accept a pending invite addressed to the caller — creates/joins the
+    duel room (via `app.services.duel.create_room`/`join_room`) and returns
+    the caller's own fresh `session_token`. 404 unknown invite or no longer
+    actionable (already resolved, or just discovered expired — same
+    response either way, idempotent); 403 the invite isn't the caller's to
+    accept; 409 `CHAT_INVITE_ALREADY_IN_GAME` if creating/joining the room
+    hits П11 (either side already has another active duel) — the invite
+    stays `pending`.
+    """
+    try:
+        invite, room, session_token = await chat_invite_service.accept_invite(
+            session, user, invite_id
+        )
+    except chat_invite_service.ChatInviteNotFoundError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=_INVITE_DETAIL) from exc
+    except chat_invite_service.ChatInviteForbiddenError as exc:
+        await session.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, detail=_INVITE_FORBIDDEN_DETAIL
+        ) from exc
+    except chat_invite_service.ChatInviteNotActionableError as exc:
+        await session.commit()  # persists an opportunistic pending->expired flip, if any
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail=_INVITE_NOT_ACTIONABLE_DETAIL
+        ) from exc
+    except duel_service.DuelConflictError as exc:
+        await session.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT, detail=_already_in_game_detail(exc)
+        ) from exc
+    await session.commit()
+    logger.info(
+        "chat_invite_accepted",
+        extra={"invite_id": str(invite.id), "room_id": str(room.id), "user_id": str(user.id)},
+    )
+    chat_service.notify_user(invite.inviter_id)
+    return DuelInviteActionRead(
+        id=invite.id, state=invite.state, room_id=invite.room_id, session_token=session_token
+    )
+
+
+@router.post("/invites/{invite_id}/decline", response_model=DuelInviteActionRead)
+async def decline_invite(
+    invite_id: uuid.UUID,
+    user: User = Depends(current_active_user),
+    session: AsyncSession = Depends(get_session),
+) -> DuelInviteActionRead:
+    """Decline a pending invite addressed to the caller. Same 404/403/404
+    shape as `accept`. A race lost to a concurrent accept is honored as a
+    decline anyway — the just-created room is abandoned (see
+    `app.services.chat_invite._resolve_non_accept`).
+    """
+    try:
+        invite = await chat_invite_service.decline_invite(session, user, invite_id)
+    except chat_invite_service.ChatInviteNotFoundError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=_INVITE_DETAIL) from exc
+    except chat_invite_service.ChatInviteForbiddenError as exc:
+        await session.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, detail=_INVITE_FORBIDDEN_DETAIL
+        ) from exc
+    except chat_invite_service.ChatInviteNotActionableError as exc:
+        await session.commit()
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail=_INVITE_NOT_ACTIONABLE_DETAIL
+        ) from exc
+    await session.commit()
+    chat_service.notify_user(invite.inviter_id)
+    return DuelInviteActionRead(id=invite.id, state=invite.state, room_id=invite.room_id)
+
+
+@router.post("/invites/{invite_id}/cancel", response_model=DuelInviteActionRead)
+async def cancel_invite(
+    invite_id: uuid.UUID,
+    user: User = Depends(current_active_user),
+    session: AsyncSession = Depends(get_session),
+) -> DuelInviteActionRead:
+    """Cancel a pending invite the caller SENT. Same 404/403/404 shape as
+    `accept`/`decline`; same race courtesy for a concurrent accept.
+    """
+    try:
+        invite = await chat_invite_service.cancel_invite(session, user, invite_id)
+    except chat_invite_service.ChatInviteNotFoundError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=_INVITE_DETAIL) from exc
+    except chat_invite_service.ChatInviteForbiddenError as exc:
+        await session.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, detail=_INVITE_FORBIDDEN_DETAIL
+        ) from exc
+    except chat_invite_service.ChatInviteNotActionableError as exc:
+        await session.commit()
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail=_INVITE_NOT_ACTIONABLE_DETAIL
+        ) from exc
+    await session.commit()
+    chat_service.notify_user(invite.invitee_id)
+    return DuelInviteActionRead(id=invite.id, state=invite.state, room_id=invite.room_id)

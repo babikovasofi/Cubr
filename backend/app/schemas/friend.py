@@ -33,13 +33,21 @@ class FriendRequestCreate(BaseModel):
 
 
 class FriendRead(BaseModel):
-    """One row of `GET /friends`."""
+    """One row of `GET /friends`.
+
+    `is_online` (friends-hub plan, Этап A): the friend's presence dot — see
+    `app.services.friends.list_friends`. `POST /friends/requests/{id}/accept`
+    hands back a freshly-accepted friendship where the other side's
+    presence is unknown at that instant (no LEFT JOIN done there) — defaults
+    to `False`, corrected on the caller's next `GET /friends`.
+    """
 
     model_config = ConfigDict(from_attributes=True)
 
     friendship_id: UUID
     display_name: str
     since: datetime
+    is_online: bool = False
 
 
 class FriendRequestRead(BaseModel):

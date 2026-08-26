@@ -19,7 +19,17 @@ Table set (see `swarm-report/friend-chat-plan.md` §3):
   stage ever reads or writes `notify_state` except `'pending'` (its
   default) and the one place a friendship is removed
   (`app.services.friends.remove_friend` -> `'unfriended'`, see that
-  module).
+  module). `kind` (friends-hub plan, Этап B) distinguishes an ordinary
+  `'text'` message from an `'invite'` one — a duel invitation rendered as a
+  chat bubble instead of raw text. An `'invite'` row always has `body IS
+  NULL` and is created with `notify_state='undeliverable'` from the start
+  (friends-hub plan MED: an invite must NEVER be picked up by
+  `app.jobs.chat_notify`'s sweep — that job only ever looks at
+  `notify_state = 'pending'`, so a terminal state set at INSERT time keeps
+  it out unconditionally, no special-case needed in the sweep itself). Its
+  one-to-one `invite` relationship points at `app.models.duel_invite.
+  DuelInvite`, the source of truth for the invite's lifecycle state — see
+  that model's docstring.
 * `ChatRead` — a per-`(conversation, user)` CURSOR (`last_read_seq`), not a
   per-message read receipt: "opened the conversation" is one UPSERT, not N
   updates. Unread count = `COUNT(*) WHERE sender_id <> me AND seq >
@@ -56,6 +66,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.db import Base
 
 if TYPE_CHECKING:
+    from app.models.duel_invite import DuelInvite
     from app.models.user import User
 
 # App-level enum, validated in the app layer AND by the DB CHECK below, NOT a
@@ -71,6 +82,9 @@ CHAT_NOTIFY_STATES = (
     "blocked",
     "undeliverable",
 )
+
+# friends-hub plan, Этап B — see ChatMessage.kind's docstring.
+CHAT_MESSAGE_KINDS = ("text", "invite")
 
 
 class Conversation(Base):
@@ -112,6 +126,7 @@ class ChatMessage(Base):
             "'unsubscribed','unfriended','blocked','undeliverable')",
             name="ck_chat_messages_notify_state",
         ),
+        CheckConstraint("kind IN ('text','invite')", name="ck_chat_messages_kind"),
         Index("ix_chat_messages_unread", "conversation_id", "sender_id", "seq"),
         Index("ix_chat_messages_sender_created", "sender_id", "created_at"),
         # Partial index — see plan §3: without `WHERE`, this index grows with
@@ -143,8 +158,17 @@ class ChatMessage(Base):
     notify_resolved_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
     )
+    # friends-hub plan, Этап B — see class docstring.
+    kind: Mapped[str] = mapped_column(String(length=16), default="text", server_default="text")
 
     sender: Mapped["User"] = relationship("User", foreign_keys=[sender_id])
+    # One-to-one, populated ONLY for `kind == "invite"` rows — always
+    # eager-loaded (`selectinload`) by every read path that serializes a
+    # message, never lazily (async SQLAlchemy forbids it). See
+    # `app.models.duel_invite.DuelInvite`.
+    invite: Mapped["DuelInvite | None"] = relationship(
+        "DuelInvite", back_populates="message", uselist=False
+    )
 
 
 class ChatRead(Base):

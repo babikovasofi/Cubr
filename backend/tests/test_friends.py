@@ -372,7 +372,13 @@ async def test_friend_list_has_no_pii(client: AsyncClient, email_spy: EmailSpy) 
         assert "pii-a@example.com" not in text
         assert "pii-b@example.com" not in text
         for entry in payload:
-            assert set(entry.keys()) <= {"friendship_id", "display_name", "since", "created_at"}
+            assert set(entry.keys()) <= {
+                "friendship_id",
+                "display_name",
+                "since",
+                "created_at",
+                "is_online",  # friends-hub Этап A presence dot — never PII
+            }
 
 
 # --------------------------------------------------------------------------- #

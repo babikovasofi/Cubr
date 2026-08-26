@@ -175,6 +175,34 @@ class Settings(BaseSettings):
     # a 4th email (plan §4, "Ограничитель сверху").
     CHAT_EMAIL_MAX_PER_CONVERSATION_PER_DAY: int = 3
 
+    # --- friends-hub Этап A: presence dot on /friends ---
+    # A friend's `user_presence.last_seen_at` no older than this counts as
+    # "online" (green dot) on GET /friends — see app.services.friends.
+    # Separate from CHAT_PRESENCE_WRITE_INTERVAL_SECONDS (that one throttles
+    # WRITES to last_seen_at; this one governs how stale a read may be before
+    # the dot goes grey). Plan assumption: ~60s.
+    CHAT_PRESENCE_ONLINE_WINDOW_SECONDS: int = 60
+
+    # --- friends-hub Этап B: duel invite messages ---
+    # How long a "Позвать на дуэль" invite stays clickable (game/Discord-style
+    # short window — plan HIGH#1/MED: deliberately NOT the 24h open-link TTL,
+    # since a room now only exists once the invite is accepted; letting it sit
+    # pending for a day would just be a stale button, not a blocked slot).
+    INVITE_TTL_SECONDS: int = 180
+    # Per-CALLING-USER throttle on POST /chat/conversations/{id}/invite (own
+    # scope, independent of CHAT_SEND_RATE_LIMIT).
+    CHAT_INVITE_RATE_LIMIT: str = "10/minute"
+
+    # --- friends-hub Этап C: random-opponent matchmaking ---
+    # Queue rows live in the DB (matchmaking_queue), NOT in process memory —
+    # HIGH#3: unlike duel_manager's in-memory RoomState, a deploy restart must
+    # not strand a waiting player forever. GET /matchmaking/poll long-polls
+    # for a pairing exactly like GET /chat/poll long-polls for a message —
+    # same rationale, same NOT-Depends(get_session) shape (see that router).
+    MATCHMAKING_POLL_TIMEOUT_SECONDS: int = 25
+    MATCHMAKING_RATE_LIMIT: str = "30/minute"
+    MATCHMAKING_POLL_RATE_LIMIT: str = "30/minute"
+
     # --- Process topology ---
     # Duel rooms live in one process's memory (app.services.duel_manager) — no
     # Redis/shared-state backing this MVP brick. main.py's startup lifespan

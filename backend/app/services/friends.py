@@ -16,7 +16,7 @@ response-shape unification.
 
 import uuid
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from sqlalchemy import func, or_, select, update
 from sqlalchemy.exc import IntegrityError
@@ -63,6 +63,13 @@ class FriendEntry:
     friendship_id: uuid.UUID
     display_name: str
     since: datetime
+    # friends-hub plan, Этап A — presence dot. `True` iff the OTHER party's
+    # `user_presence.last_seen_at` (bumped by `GET /chat/poll`, see
+    # `app.models.chat.UserPresence`) is no older than
+    # `settings.CHAT_PRESENCE_ONLINE_WINDOW_SECONDS` as of `list_friends`'s
+    # own `now` — see that function for the LEFT JOIN. `False` (never
+    # `None`) when the friend has no presence row at all (never polled).
+    is_online: bool
 
 
 @dataclass
@@ -288,8 +295,34 @@ def _other(friendship: Friendship, user_id: uuid.UUID) -> User:
     return friendship.user_high if friendship.user_low_id == user_id else friendship.user_low
 
 
-async def list_friends(session: AsyncSession, user_id: uuid.UUID) -> list[FriendEntry]:
-    """Accepted friendships the caller is part of, newest-accepted first."""
+def _as_utc(value: datetime) -> datetime:
+    """sqlite hands back naive datetimes after flush, Postgres hands back
+    aware ones — mirrors `app.services.duel._as_utc` (same trap, same fix).
+    """
+    if value.tzinfo is None:
+        return value.replace(tzinfo=timezone.utc)
+    return value
+
+
+async def list_friends(
+    session: AsyncSession,
+    user_id: uuid.UUID,
+    *,
+    online_window_seconds: int,
+    now: datetime | None = None,
+) -> list[FriendEntry]:
+    """Accepted friendships the caller is part of, newest-accepted first.
+
+    friends-hub plan, Этап A: a LEFT JOIN onto `user_presence` per friend —
+    `is_online` is `True` iff a presence row exists AND its `last_seen_at`
+    is within `online_window_seconds` of `now`. Deliberately a Python-side
+    LEFT JOIN (fetch both, join by id in memory) rather than a SQL JOIN on
+    `Friendship` (whose `user_low`/`user_high` are already `selectinload`-ed
+    separately above) — one extra query for at most `len(rows)` presence
+    rows, simpler than juggling two different "other side" columns in one
+    JOIN condition.
+    """
+    effective_now = now if now is not None else now_utc()
     result = await session.execute(
         select(Friendship)
         .options(selectinload(Friendship.user_low), selectinload(Friendship.user_high))
@@ -300,14 +333,35 @@ async def list_friends(session: AsyncSession, user_id: uuid.UUID) -> list[Friend
         .order_by(Friendship.responded_at.desc())
     )
     rows = result.scalars().all()
-    return [
-        FriendEntry(
-            friendship_id=row.id,
-            display_name=display_name_for(_other(row, user_id).handle),
-            since=row.responded_at if row.responded_at is not None else row.created_at,
+
+    # Imported locally to avoid a module-level cycle (app.services.chat
+    # imports THIS module for now_utc/pair_key).
+    from app.models.chat import UserPresence
+
+    other_ids = [_other(row, user_id).id for row in rows]
+    last_seen_map: dict[uuid.UUID, datetime] = {}
+    if other_ids:
+        presence_result = await session.execute(
+            select(UserPresence).where(UserPresence.user_id.in_(other_ids))
         )
-        for row in rows
-    ]
+        last_seen_map = {p.user_id: p.last_seen_at for p in presence_result.scalars().all()}
+
+    entries = []
+    for row in rows:
+        other = _other(row, user_id)
+        last_seen = last_seen_map.get(other.id)
+        is_online = last_seen is not None and (
+            effective_now - _as_utc(last_seen) <= timedelta(seconds=online_window_seconds)
+        )
+        entries.append(
+            FriendEntry(
+                friendship_id=row.id,
+                display_name=display_name_for(other.handle),
+                since=row.responded_at if row.responded_at is not None else row.created_at,
+                is_online=is_online,
+            )
+        )
+    return entries
 
 
 async def list_incoming(session: AsyncSession, user_id: uuid.UUID) -> list[FriendRequestEntry]:

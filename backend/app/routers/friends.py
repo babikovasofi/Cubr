@@ -89,7 +89,9 @@ async def list_friends(
     user: User = Depends(current_active_user),
     session: AsyncSession = Depends(get_session),
 ) -> list[FriendRead]:
-    entries = await friends_service.list_friends(session, user.id)
+    entries = await friends_service.list_friends(
+        session, user.id, online_window_seconds=settings.CHAT_PRESENCE_ONLINE_WINDOW_SECONDS
+    )
     return [FriendRead.model_validate(entry) for entry in entries]
 
 

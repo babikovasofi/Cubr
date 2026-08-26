@@ -62,6 +62,10 @@ class ConversationEntry:
     friendship_id: uuid.UUID | None
     display_name: str
     last_message_body: str | None
+    # 'text' | 'invite' | None (no message yet). A `None` `last_message_body`
+    # is ambiguous on its own (deleted text vs. a bodyless invite) — the
+    # frontend preview needs this to tell them apart.
+    last_message_kind: str | None
     last_message_at: datetime | None
     unread_count: int
 
@@ -100,7 +104,7 @@ async def get_or_create_conversation(
     return conversation
 
 
-async def _resolve_friendship(
+async def resolve_accepted_friendship(
     session: AsyncSession, caller_id: uuid.UUID, friendship_id: uuid.UUID
 ) -> tuple[Friendship, User]:
     """An ACCEPTED friendship the caller is part of. Raises
@@ -125,6 +129,34 @@ async def _resolve_friendship(
     return friendship, other
 
 
+async def allocate_seq_and_mark_read(
+    session: AsyncSession, conversation: Conversation, caller_id: uuid.UUID, now: datetime
+) -> int:
+    """Hand out the next gapless `seq` for `conversation` (the UPDATE...
+    RETURNING dance from the module docstring) AND advance the CALLER's own
+    read cursor to it in the same transaction — shared by every message
+    writer (`send_message` here, and `app.services.chat_invite.send_invite`)
+    so a mixed text/invite conversation still numbers every row, of either
+    kind, off ONE gapless counter.
+    """
+    result = await session.execute(
+        update(Conversation)
+        .where(Conversation.id == conversation.id)
+        .values(last_seq=Conversation.last_seq + 1, last_message_at=now)
+        .returning(Conversation.last_seq)
+    )
+    new_seq = result.scalar_one()
+
+    read = await session.get(ChatRead, (conversation.id, caller_id))
+    if read is None:
+        session.add(
+            ChatRead(conversation_id=conversation.id, user_id=caller_id, last_read_seq=new_seq)
+        )
+    else:
+        read.last_read_seq = new_seq
+    return new_seq
+
+
 async def send_message(
     session: AsyncSession,
     caller: User,
@@ -147,35 +179,22 @@ async def send_message(
     if rejection is not None:
         raise ChatMessageRejectedError(rejection)
 
-    friendship, other = await _resolve_friendship(session, caller.id, friendship_id)
+    friendship, other = await resolve_accepted_friendship(session, caller.id, friendship_id)
     conversation = await get_or_create_conversation(session, caller.id, other.id)
 
     now = now_utc()
-    result = await session.execute(
-        update(Conversation)
-        .where(Conversation.id == conversation.id)
-        .values(last_seq=Conversation.last_seq + 1, last_message_at=now)
-        .returning(Conversation.last_seq)
-    )
-    new_seq = result.scalar_one()
+    new_seq = await allocate_seq_and_mark_read(session, conversation, caller.id, now)
 
     message = ChatMessage(
         conversation_id=conversation.id,
         sender_id=caller.id,
         seq=new_seq,
         body=body,
+        kind="text",
         created_at=now,
         notify_after=now + timedelta(seconds=notify_delay_seconds),
     )
     session.add(message)
-
-    read = await session.get(ChatRead, (conversation.id, caller.id))
-    if read is None:
-        session.add(
-            ChatRead(conversation_id=conversation.id, user_id=caller.id, last_read_seq=new_seq)
-        )
-    else:
-        read.last_read_seq = new_seq
 
     await session.flush()
     return message, other
@@ -200,10 +219,17 @@ async def list_messages(
     after_seq: int,
     limit: int,
 ) -> list[ChatMessage]:
-    """Feed page: `seq > after_seq`, oldest first, capped at `limit`."""
+    """Feed page: `seq > after_seq`, oldest first, capped at `limit`.
+
+    Eager-loads `.invite` (`selectinload` — async SQLAlchemy forbids lazy
+    loading) for every row: an `'invite'`-kind message's CURRENT lifecycle
+    state must be re-read fresh on every call, never cached from an earlier
+    poll — see `app.models.duel_invite.DuelInvite`'s module docstring.
+    """
     await _participant_conversation(session, caller_id, conversation_id)
     result = await session.execute(
         select(ChatMessage)
+        .options(selectinload(ChatMessage.invite))
         .where(ChatMessage.conversation_id == conversation_id, ChatMessage.seq > after_seq)
         .order_by(ChatMessage.seq)
         .limit(limit)
@@ -316,6 +342,7 @@ async def list_conversations(session: AsyncSession, user_id: uuid.UUID) -> list[
                 friendship_id=friendship_map.get((low, high)),
                 display_name=display_name_for(other.handle),
                 last_message_body=last_message.body if last_message is not None else None,
+                last_message_kind=last_message.kind if last_message is not None else None,
                 last_message_at=conversation.last_message_at,
                 unread_count=unread_map.get(conversation.id, 0),
             )
@@ -353,7 +380,7 @@ async def block_user(session: AsyncSession, caller: User, friendship_id: uuid.UU
     `'unfriended'` sweep — see `app.services.friends.remove_friend`).
     Returns the blocked user.
     """
-    friendship, other = await _resolve_friendship(session, caller.id, friendship_id)
+    friendship, other = await resolve_accepted_friendship(session, caller.id, friendship_id)
     await session.delete(friendship)
     await session.flush()
 

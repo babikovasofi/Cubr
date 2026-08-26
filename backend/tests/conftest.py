@@ -42,10 +42,12 @@ from app.models import (  # noqa: E402
     CupsEvent,
     DailyAttempt,
     DailyChallenge,
+    DuelInvite,
     DuelParticipant,
     DuelRoom,
     EmailPrefs,
     Friendship,
+    MatchmakingQueue,
     OAuthAccount,
     Scramble,
     Solve,
@@ -135,6 +137,8 @@ async def test_engine() -> AsyncGenerator[AsyncEngine, None]:
                     ChatBlock.__table__,
                     EmailPrefs.__table__,
                     ChatEmailState.__table__,
+                    DuelInvite.__table__,
+                    MatchmakingQueue.__table__,
                 ],
             )
         )
