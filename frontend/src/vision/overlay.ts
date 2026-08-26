@@ -28,6 +28,19 @@ export interface OverlayLabels {
   right: string; // over the right hand zone
 }
 
+// Guide-frame colour by "good frame" confidence (0..1): yellow (#ffd23f) when
+// there's nothing good yet, lerping to green (#39d98a) as the cube face lands
+// cleanly in the box. `undefined` = the plain yellow guide (every caller that
+// doesn't opt in). See solo/useSoloSession for where the confidence comes from.
+function guideColor(confidence: number | undefined): string {
+  if (confidence === undefined) return "#ffd23f";
+  const t = Math.max(0, Math.min(1, confidence));
+  const r = Math.round(255 + (57 - 255) * t);
+  const g = Math.round(210 + (217 - 210) * t);
+  const b = Math.round(63 + (138 - 63) * t);
+  return `rgb(${r}, ${g}, ${b})`;
+}
+
 export function drawOverlay(
   ctx: CanvasRenderingContext2D,
   w: number,
@@ -36,8 +49,10 @@ export function drawOverlay(
   zones: { left: Rect; right: Rect },
   guide: Rect,
   labels?: OverlayLabels,
+  guideConfidence?: number,
 ): void {
   ctx.clearRect(0, 0, w, h);
+  const frameColor = guideColor(guideConfidence);
 
   // Zones.
   for (const z of [zones.left, zones.right]) {
@@ -51,11 +66,11 @@ export function drawOverlay(
   // the cube to is EXACTLY the read region — a wider-than-square box would sample
   // the background in the side sticker columns (see useCubeReader.squareGuidePx).
   const g = squareGuidePx(guide, w, h);
-  ctx.strokeStyle = "#ffd23f";
-  ctx.lineWidth = 3;
+  ctx.strokeStyle = frameColor;
+  ctx.lineWidth = guideConfidence !== undefined && guideConfidence >= 1 ? 4 : 3;
   ctx.strokeRect(g.gx, g.gy, g.gw, g.gh);
   // Mark the U-edge (top) so the tester knows which way is up.
-  ctx.fillStyle = "#ffd23f";
+  ctx.fillStyle = frameColor;
   ctx.fillRect(g.gx, g.gy - 6, g.gw, 4);
 
   // Russian labels. Draw each inside a local horizontal-flip transform so the
@@ -72,7 +87,7 @@ export function drawOverlay(
       ctx.fillText(text, 0, 0);
       ctx.restore();
     };
-    label(labels.guide, g.gx + g.gw, g.gy - 8, "#ffd23f");
+    label(labels.guide, g.gx + g.gw, g.gy - 8, frameColor);
     label(labels.left, (zones.left.x + zones.left.w) * w, zones.left.y * h - 4, "#39d98a");
     label(labels.right, (zones.right.x + zones.right.w) * w, zones.right.y * h - 4, "#39d98a");
   }

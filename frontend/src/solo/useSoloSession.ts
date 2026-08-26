@@ -28,6 +28,7 @@ import { useCamera, CameraError, type FrameInfo } from "../vision/hooks/useCamer
 import { cameraErrorRu } from "../vision/cameraErrors";
 import { useHands, HandsInitError } from "../vision/hooks/useHands";
 import { useCubeReader } from "../vision/hooks/useCubeReader";
+import { GoodFrameTracker, classifyFrame } from "../proto/goodFrame";
 import type { ColorName } from "../vision/colors";
 import { useScramble } from "../scramble/hooks/useScramble";
 import {
@@ -178,6 +179,11 @@ export function useSoloSession(opts?: UseSoloSessionOpts): SoloSession {
     ready: false,
   });
   const lastSigRef = useRef(0);
+  // Зелёная рамка: троттл + гистерезис оценки «удачного кадра» грани. Только
+  // визуальная подсказка (гайд жёлтый→зелёный), на счёт/сохранение не влияет.
+  const lastGoodEvalRef = useRef(0);
+  const guideConfRef = useRef(0);
+  const goodTrackerRef = useRef(new GoodFrameTracker());
   const [saveState, setSaveState] = useState<SaveState>("idle");
   const savedRef = useRef(false);
 
@@ -256,16 +262,53 @@ export function useSoloSession(opts?: UseSoloSessionOpts): SoloSession {
     if (!width || !height) return;
 
     const obs = hands.detect(video, nowTs);
+    const st = stateRef.current;
+
+    // Зелёная рамка — только в фазах показа грани (калибровка/проверка), не во
+    // время рук/таймера. Троттл 100мс + гистерезис (GoodFrameTracker), сигналы
+    // структурные (readFace refs=null: решётка щелей/границ + кожа пальца), без
+    // цветовой калибровки — как в прото /proto/green-frame.
+    let guideConf: number | undefined;
+    const showingFace =
+      st.phase === "calibrate" || st.phase === "verify" || st.phase === "solve_verify";
+    const work = workRef.current;
+    if (showingFace && work) {
+      if (nowTs - lastGoodEvalRef.current >= 100) {
+        lastGoodEvalRef.current = nowTs;
+        const luma = reader.guideRegionLuma(video, width, height, work, config.GUIDE_RECT);
+        const sample = reader.readFace(
+          video,
+          width,
+          height,
+          work,
+          config.GUIDE_RECT,
+          config.CELL_CENTER_FRAC,
+          null,
+        );
+        const skinMax = sample.skin.length > 0 ? Math.max(...sample.skin) : 0;
+        const verdict = classifyFrame({
+          luma,
+          gap: sample.fit.gap,
+          edge: sample.fit.edge ?? 0,
+          skinMax,
+        });
+        guideConfRef.current = goodTrackerRef.current.push(verdict, nowTs).confidence;
+      }
+      guideConf = guideConfRef.current;
+    } else {
+      goodTrackerRef.current.reset();
+      guideConfRef.current = 0;
+    }
 
     const overlay = overlayRef.current;
     if (overlay) {
       overlay.width = width;
       overlay.height = height;
       const octx = overlay.getContext("2d");
-      if (octx) drawOverlay(octx, width, height, obs, ZONES, config.GUIDE_RECT, labelsRef.current);
+      if (octx)
+        drawOverlay(octx, width, height, obs, ZONES, config.GUIDE_RECT, labelsRef.current, guideConf);
     }
 
-    const st = stateRef.current;
     if (st.phase !== "armed" && st.phase !== "solving") return;
 
     const res = getFsm().step({
