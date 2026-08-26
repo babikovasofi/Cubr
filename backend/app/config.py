@@ -40,7 +40,10 @@ class Settings(BaseSettings):
     UNSUBSCRIBE_SIGN_SECRET: str = Field(min_length=32)
 
     # --- Auth cookie ---
-    JWT_LIFETIME_SECONDS: int = 3600
+    # 30 days: an hour (the old value) expired mid-play and lost a solo result
+    # (owner). A casual cubing game keeps people signed in for weeks, not one
+    # hour; the token is also the cookie's max-age, so both live this long.
+    JWT_LIFETIME_SECONDS: int = 2592000
     COOKIE_NAME: str = "cubr_auth"
     COOKIE_SAMESITE: Literal["lax", "strict", "none"] = "lax"
 
