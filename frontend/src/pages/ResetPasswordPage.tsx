@@ -7,6 +7,7 @@ import AuthShell from "../auth/AuthShell";
 import { PASSWORD_HINT, PASSWORD_MIN_LENGTH } from "../lib/password";
 import Button from "../components/Button";
 import Input from "../components/Input";
+import PasswordChecklist from "../components/PasswordChecklist";
 import { resetPassword } from "../api/auth";
 import { ApiError } from "../api/client";
 import { useT } from "../i18n/t";
@@ -63,16 +64,22 @@ export default function ResetPasswordPage() {
   return (
     <AuthShell title={t("Новый пароль")} subtitle={t("Придумай новый пароль для аккаунта.")}>
       <form className="flex flex-col gap-4" onSubmit={onSubmit} noValidate>
-        <Input
-          label={t("Новый пароль")}
-          type="password"
-          autoComplete="new-password"
-          required
-          minLength={PASSWORD_MIN_LENGTH}
-          hint={t(PASSWORD_HINT)}
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-        />
+        <div className="flex flex-col gap-2">
+          <Input
+            label={t("Новый пароль")}
+            type="password"
+            autoComplete="new-password"
+            required
+            minLength={PASSWORD_MIN_LENGTH}
+            hint={t(PASSWORD_HINT)}
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+          />
+          {/* Почта/ник тут неизвестны — экран открывают по ссылке из письма,
+              без сессии. Правило «не повторяет почту» всё равно показываем:
+              оно часть политики, и сервер его проверит. */}
+          <PasswordChecklist password={password} />
+        </div>
         <Input
           label={t("Повтори пароль")}
           type="password"

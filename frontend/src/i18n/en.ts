@@ -166,8 +166,12 @@ export const EN: Record<string, string> = {
   "Почта не подтверждена. Проверь письмо или запроси новое.":
     "Email is not confirmed. Check your inbox or request a new letter.",
   "Пользователь с такой почтой уже зарегистрирован.": "An account with this email already exists.",
-  "Минимум 10 символов. Не почта и не ник, не из списка самых частых паролей.":
-    "At least 10 characters. Not your email or nickname, and not a commonly used password.",
+  "Проще всего — несколько случайных слов подряд: «синий чайник шагает». Заглавные, цифры и знаки не обязательны.":
+    'Easiest is a few random words in a row: "blue kettle walks". Capitals, digits and symbols are not required.',
+  "Не короче 10 символов": "At least 10 characters",
+  "Не повторяет почту или ник": "Not the same as your email or nickname",
+  " — выполнено": " — done",
+  " — пока нет": " — not yet",
   "Ссылка сброса недействительна или устарела. Запроси новую.":
     "The reset link is invalid or expired. Request a new one.",
   "Ссылка подтверждения недействительна или устарела.":

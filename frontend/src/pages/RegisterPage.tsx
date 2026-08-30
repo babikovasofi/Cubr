@@ -8,6 +8,7 @@ import AuthShell from "../auth/AuthShell";
 import GoogleButton from "../auth/GoogleButton";
 import Button from "../components/Button";
 import Input from "../components/Input";
+import PasswordChecklist from "../components/PasswordChecklist";
 import { useAuthStore } from "../store/authStore";
 import { ApiError } from "../api/client";
 import { requestVerify } from "../api/auth";
@@ -108,17 +109,20 @@ export default function RegisterPage() {
           value={handle}
           onChange={(e) => setHandle(stripHandlePrefix(e.target.value))}
         />
-        <Input
-          label={t("Пароль")}
-          type="password"
-          autoComplete="new-password"
-          required
-          minLength={PASSWORD_MIN_LENGTH}
-          hint={t(PASSWORD_HINT)}
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          error={error}
-        />
+        <div className="flex flex-col gap-2">
+          <Input
+            label={t("Пароль")}
+            type="password"
+            autoComplete="new-password"
+            required
+            minLength={PASSWORD_MIN_LENGTH}
+            hint={t(PASSWORD_HINT)}
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            error={error}
+          />
+          <PasswordChecklist password={password} identity={{ email, handle }} />
+        </div>
         {/* Этап 6: согласие с правилами и политикой — текстом у кнопки, без
             отдельной галочки: одно действие «Зарегистрироваться», ссылки открыты
             анонимно. Тот же смысл распространяется и на вход через Google ниже. */}

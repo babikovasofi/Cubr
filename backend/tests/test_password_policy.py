@@ -142,3 +142,25 @@ def test_every_rejection_carries_a_russian_reason() -> None:
         assert rejection is not None
         assert rejection.reason
         assert rejection.reason[0].isupper()
+
+
+def test_weak_password_reasons_say_the_password_is_easy_to_guess() -> None:
+    """Слишком короткий / частый / равный почте — это ОДНА мысль для человека:
+    пароль легко подобрать. Формулировка «слишком распространён» не объясняла,
+    почему это плохо; тест держит все три отказа на общем языке.
+
+    Превышение максимума сюда не входит намеренно: длинный пароль не слабый,
+    у отказа другая причина (стоимость хеширования на сервере).
+    """
+    weak = [
+        check_password_policy("short"),
+        check_password_policy("password"),
+        check_password_policy("cuber@example.com", email="cuber@example.com"),
+    ]
+    for rejection in weak:
+        assert rejection is not None
+        assert "легко подобрать" in rejection.reason
+
+    too_long = check_password_policy("a" * (MAX_LENGTH + 1))
+    assert too_long is not None
+    assert "легко подобрать" not in too_long.reason

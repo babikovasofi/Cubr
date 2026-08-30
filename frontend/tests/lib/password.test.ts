@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 
-import { PASSWORD_HINT, PASSWORD_MIN_LENGTH } from "../../src/lib/password";
+import { PASSWORD_MIN_LENGTH, PASSWORD_RULES } from "../../src/lib/password";
 
 // Расхождение фронта и бэка по минимальной длине делало регистрацию
 // непроходимой: форма обещала 8 символов, сервер требовал 10, и человек
@@ -18,7 +18,8 @@ describe("минимальная длина пароля", () => {
     expect(PASSWORD_MIN_LENGTH).toBe(Number(match![1]));
   });
 
-  it("названа в подсказке под полем", () => {
-    expect(PASSWORD_HINT).toContain(String(PASSWORD_MIN_LENGTH));
+  it("названа в тексте правила, которое видит человек", () => {
+    const lengthRule = PASSWORD_RULES.find((rule) => rule.id === "length");
+    expect(lengthRule?.label).toContain(String(PASSWORD_MIN_LENGTH));
   });
 });

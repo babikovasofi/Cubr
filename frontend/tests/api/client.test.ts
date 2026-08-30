@@ -57,7 +57,9 @@ describe("parseErrorBody — fastapi-users detail shapes", () => {
 
   it("falls back to RU copy when a password error carries no reason", () => {
     const out = parseErrorBody(400, { detail: { code: "REGISTER_INVALID_PASSWORD" } });
-    expect(out.message).toBe("Пароль не подходит. Минимум 10 символов, не почта и не ник.");
+    expect(out.message).toBe(
+      "Такой пароль легко подобрать. Возьми не меньше 10 символов — проще всего несколько случайных слов подряд.",
+    );
     expect(out.message).not.toMatch(/object Object|undefined/);
   });
 

@@ -76,7 +76,9 @@ def check_password_policy(
     """Return why ``password`` is unacceptable, or ``None`` if it is fine."""
     if len(password) < MIN_LENGTH:
         return PasswordRejection(
-            CODE_TOO_SHORT, f"Пароль слишком короткий: минимум {MIN_LENGTH} символов."
+            CODE_TOO_SHORT,
+            f"Такой пароль легко подобрать: он короче {MIN_LENGTH} символов. "
+            "Возьми несколько случайных слов подряд.",
         )
     if len(password) > MAX_LENGTH:
         return PasswordRejection(
@@ -87,12 +89,16 @@ def check_password_policy(
 
     if lowered in COMMON_PASSWORDS:
         return PasswordRejection(
-            CODE_TOO_COMMON, "Этот пароль слишком распространён. Придумай другой."
+            CODE_TOO_COMMON,
+            "Такой пароль легко подобрать: он входит в список самых частых "
+            "паролей, которые перебирают первыми. Придумай другой.",
         )
 
     if lowered in _identity_values(email, handle):
         return PasswordRejection(
-            CODE_MATCHES_IDENTITY, "Пароль не должен совпадать с почтой или именем."
+            CODE_MATCHES_IDENTITY,
+            "Такой пароль легко подобрать: он совпадает с твоей почтой или "
+            "ником, а их видно другим. Придумай другой.",
         )
 
     return None
