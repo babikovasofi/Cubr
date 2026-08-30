@@ -42,7 +42,6 @@ const RU_BY_CODE: Record<string, string> = {
   LOGIN_BAD_CREDENTIALS: "Неверная почта или пароль.",
   LOGIN_USER_NOT_VERIFIED: "Почта не подтверждена. Проверь письмо или запроси новое.",
   REGISTER_USER_ALREADY_EXISTS: "Пользователь с такой почтой уже зарегистрирован.",
-  REGISTER_INVALID_PASSWORD: "Пароль слишком простой. Минимум 8 символов.",
   RESET_PASSWORD_BAD_TOKEN: "Ссылка сброса недействительна или устарела. Запроси новую.",
   VERIFY_USER_BAD_TOKEN: "Ссылка подтверждения недействительна или устарела.",
   VERIFY_USER_ALREADY_VERIFIED: "Почта уже подтверждена. Можно входить.",
@@ -87,6 +86,20 @@ const RU_BY_STATUS: Record<number, string> = {
 
 const RU_FALLBACK = "Что-то пошло не так. Попробуй ещё раз.";
 
+// Коды политики пароля (register / reset / PATCH users/me). Тут `reason` с
+// сервера ВАЖНЕЕ кода: бэкенд знает, что именно не так — «минимум 10 символов»,
+// «слишком распространён», «совпадает с почтой» — и правило может измениться в
+// `backend/app/services/password_policy.py` без правки фронта. Захардкоженный
+// текст на REGISTER_INVALID_PASSWORD врал про «минимум 8», пока сервер требовал
+// 10, и регистрация становилась непроходимой.
+const PASSWORD_CODES = new Set([
+  "REGISTER_INVALID_PASSWORD",
+  "RESET_PASSWORD_INVALID_PASSWORD",
+  "UPDATE_USER_INVALID_PASSWORD",
+]);
+
+const RU_PASSWORD_FALLBACK = "Пароль не подходит. Минимум 10 символов, не почта и не ник.";
+
 interface RawDetail {
   code?: unknown;
   reason?: unknown;
@@ -107,6 +120,10 @@ export function parseErrorBody(
     const d = detail as RawDetail;
     if (typeof d.code === "string") code = d.code;
     if (typeof d.reason === "string") reason = d.reason;
+  }
+
+  if (code && PASSWORD_CODES.has(code)) {
+    return { code, message: reason ?? RU_PASSWORD_FALLBACK };
   }
 
   const message = (code && RU_BY_CODE[code]) ?? RU_BY_STATUS[status] ?? reason ?? RU_FALLBACK;

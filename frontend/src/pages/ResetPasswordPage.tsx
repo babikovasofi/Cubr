@@ -4,6 +4,7 @@
 import { useState, type FormEvent } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import AuthShell from "../auth/AuthShell";
+import { PASSWORD_HINT, PASSWORD_MIN_LENGTH } from "../lib/password";
 import Button from "../components/Button";
 import Input from "../components/Input";
 import { resetPassword } from "../api/auth";
@@ -67,7 +68,8 @@ export default function ResetPasswordPage() {
           type="password"
           autoComplete="new-password"
           required
-          minLength={8}
+          minLength={PASSWORD_MIN_LENGTH}
+          hint={t(PASSWORD_HINT)}
           value={password}
           onChange={(e) => setPassword(e.target.value)}
         />
@@ -76,7 +78,7 @@ export default function ResetPasswordPage() {
           type="password"
           autoComplete="new-password"
           required
-          minLength={8}
+          minLength={PASSWORD_MIN_LENGTH}
           value={confirm}
           onChange={(e) => setConfirm(e.target.value)}
           error={error}

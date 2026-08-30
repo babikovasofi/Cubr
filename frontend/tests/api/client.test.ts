@@ -39,13 +39,26 @@ describe("parseErrorBody — fastapi-users detail shapes", () => {
     });
   });
 
-  it("maps an object {code,reason} detail to RU (never [object Object])", () => {
+  // Для кодов политики пароля побеждает серверный `reason`: правило живёт в
+  // backend/app/services/password_policy.py и меняется без правки фронта.
+  // Захардкоженный текст раньше врал про «минимум 8» при серверных 10.
+  it.each([
+    ["REGISTER_INVALID_PASSWORD"],
+    ["RESET_PASSWORD_INVALID_PASSWORD"],
+    ["UPDATE_USER_INVALID_PASSWORD"],
+  ])("shows the server reason for %s", (code) => {
     const out = parseErrorBody(400, {
-      detail: { code: "REGISTER_INVALID_PASSWORD", reason: "too short" },
+      detail: { code, reason: "Пароль слишком короткий: минимум 10 символов." },
     });
-    expect(out.code).toBe("REGISTER_INVALID_PASSWORD");
-    expect(out.message).toBe("Пароль слишком простой. Минимум 8 символов.");
+    expect(out.code).toBe(code);
+    expect(out.message).toBe("Пароль слишком короткий: минимум 10 символов.");
     expect(out.message).not.toContain("object Object");
+  });
+
+  it("falls back to RU copy when a password error carries no reason", () => {
+    const out = parseErrorBody(400, { detail: { code: "REGISTER_INVALID_PASSWORD" } });
+    expect(out.message).toBe("Пароль не подходит. Минимум 10 символов, не почта и не ник.");
+    expect(out.message).not.toMatch(/object Object|undefined/);
   });
 
   it.each([

@@ -166,7 +166,8 @@ export const EN: Record<string, string> = {
   "Почта не подтверждена. Проверь письмо или запроси новое.":
     "Email is not confirmed. Check your inbox or request a new letter.",
   "Пользователь с такой почтой уже зарегистрирован.": "An account with this email already exists.",
-  "Пароль слишком простой. Минимум 8 символов.": "The password is too weak. At least 8 characters.",
+  "Минимум 10 символов. Не почта и не ник, не из списка самых частых паролей.":
+    "At least 10 characters. Not your email or nickname, and not a commonly used password.",
   "Ссылка сброса недействительна или устарела. Запроси новую.":
     "The reset link is invalid or expired. Request a new one.",
   "Ссылка подтверждения недействительна или устарела.":

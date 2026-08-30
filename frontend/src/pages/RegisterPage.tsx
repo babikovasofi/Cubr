@@ -12,6 +12,7 @@ import { useAuthStore } from "../store/authStore";
 import { ApiError } from "../api/client";
 import { requestVerify } from "../api/auth";
 import { stripHandlePrefix } from "../lib/handle";
+import { PASSWORD_HINT, PASSWORD_MIN_LENGTH } from "../lib/password";
 import { useT } from "../i18n/t";
 
 export default function RegisterPage() {
@@ -112,7 +113,8 @@ export default function RegisterPage() {
           type="password"
           autoComplete="new-password"
           required
-          minLength={8}
+          minLength={PASSWORD_MIN_LENGTH}
+          hint={t(PASSWORD_HINT)}
           value={password}
           onChange={(e) => setPassword(e.target.value)}
           error={error}
