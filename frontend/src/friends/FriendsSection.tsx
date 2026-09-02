@@ -331,17 +331,23 @@ function FriendList({
   const online = friends.filter((f) => f.is_online);
   const offline = friends.filter((f) => !f.is_online);
 
+  // Grid, not flex-wrap: with wrap, a row's shape depended on how long the
+  // nickname happened to be — a short one kept the buttons inline, a long one
+  // pushed them onto their own line, so neighbouring rows looked like two
+  // different designs (owner: "по разному выглядит"). One column up to `sm`
+  // (name above, buttons below — the same for every row), two from `sm` on,
+  // where the name truncates instead of pushing anything anywhere.
   function friendRow(f: FriendRead) {
     return (
       <li
         key={f.friendship_id}
-        className="flex flex-wrap items-center justify-between gap-3 bg-surface px-3.5 py-3"
+        className="grid grid-cols-1 gap-2.5 bg-surface px-3.5 py-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center sm:gap-3"
       >
         <button
           type="button"
           onClick={() => onOpenProfile(f)}
           aria-label={t("Открыть профиль игрока")}
-          className="flex min-w-0 items-center gap-3 rounded-md text-left hover:opacity-80"
+          className="flex w-full min-w-0 items-center gap-3 rounded-md text-left hover:opacity-80"
         >
           <PresenceAvatar
             displayName={f.display_name}
@@ -360,7 +366,7 @@ function FriendList({
             </span>
           </span>
         </button>
-        <div className="flex flex-wrap items-center justify-end gap-2">
+        <div className="flex flex-wrap items-center gap-2 sm:justify-end">
           <Button variant="secondary" onClick={() => onOpenChat(f.friendship_id)}>
             {t("Написать")}
           </Button>
