@@ -1,10 +1,16 @@
-// Chat panel wired into FriendsSection (plan §7 Stage A): conversation list
-// on the left, active conversation on the right. Owns the single per-tab
-// poll loop via useChatPoll — mount this component exactly once.
+// The /messages screen (owner: "удобный чат, чтобы пользоваться... можно
+// сделать отдельным окном. в чате можно друзей сбоку и сами чаты"). A
+// two-pane messenger: a sidebar (conversations / friends, toggled) on the
+// left, the open conversation on the right. On narrow screens it collapses
+// to one column — the sidebar OR the open conversation, never both, with a
+// "←" back button to return. Owns the single per-tab poll loop via
+// useChatPoll — mount this component exactly once (MessagesPage is the only
+// caller).
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Spinner from "../../components/Spinner";
 import Button from "../../components/Button";
+import SegmentedToggle from "../../components/SegmentedToggle";
 import { useAuthStore } from "../../store/authStore";
 import { useT } from "../../i18n/t";
 import {
@@ -14,19 +20,28 @@ import {
   type DuelInviteRead,
 } from "../../api/chat";
 import { useChatPoll } from "./useChatPoll";
+import { useChatFriends } from "./useChatFriends";
 import ConversationList from "./ConversationList";
 import ConversationView from "./ConversationView";
+import ChatFriendsPanel from "./ChatFriendsPanel";
+
+type SidebarTab = "chats" | "friends";
 
 export default function ChatSection({
-  /** Friend the caller wants to open a chat with right away (e.g. from the
-   * "Написать" button on a friend row) — `null` leaves nothing selected. */
+  /** Friend the caller wants to open a chat with right away (e.g. the
+   * `?friendship=` deep link from the "Написать" button) — `null` leaves
+   * nothing selected. */
   openFriendshipId,
+  className = "",
 }: {
   openFriendshipId?: string | null;
+  className?: string;
 }) {
   const t = useT();
   const meUserId = useAuthStore((s) => s.user?.id ?? null);
   const chat = useChatPoll();
+  const chatFriends = useChatFriends();
+  const [tab, setTab] = useState<SidebarTab>("chats");
   const [selection, setSelection] = useState<{
     conversationId: string | null;
     friendshipId: string | null;
@@ -37,13 +52,42 @@ export default function ChatSection({
   // button. It does not survive a reload — acceptable for Stage A.
   const [blockedConversationIds, setBlockedConversationIds] = useState<Set<string>>(new Set());
 
+  function openFriendship(friendshipId: string): void {
+    const conv = chat.conversations.find((c) => c.friendship_id === friendshipId);
+    setSelection({ conversationId: conv?.id ?? null, friendshipId });
+  }
+
+  // Applies `openFriendshipId` (the `?friendship=` deep link) exactly ONCE
+  // per distinct value — a ref, not a dep-array trick, because `chat.conversations`
+  // gets a new array identity on every poll wake / local patch (send, refresh
+  // after a poll…). Depending on it here used to re-run this effect on every
+  // such change and clobber `selection` back to `openFriendshipId`, silently
+  // reopening the conversation after the reader had pressed "←" or switched
+  // to someone else (review finding #1 — regression covered by
+  // ChatSection.test.tsx "onBack переживает обновление списка переписок").
+  const appliedOpenFriendshipIdRef = useRef<string | null>(null);
   useEffect(() => {
     if (!openFriendshipId) return;
-    const conv = chat.conversations.find((c) => c.friendship_id === openFriendshipId);
-    setSelection({ conversationId: conv?.id ?? null, friendshipId: openFriendshipId });
-    // Re-run when the friend list changes (new "Написать" click) or once
-    // conversations load so a brand-new-chat friendshipId resolves to its id.
-  }, [openFriendshipId, chat.conversations]);
+    if (appliedOpenFriendshipIdRef.current === openFriendshipId) return;
+    appliedOpenFriendshipIdRef.current = openFriendshipId;
+    openFriendship(openFriendshipId);
+  }, [openFriendshipId]);
+
+  // Backfills a pending selection's conversationId once the conversation
+  // list has loaded (the deep link — or a friend picked from the "Друзья"
+  // tab — may fire before `chat.conversations` has that friend's existing
+  // history yet). Guarded on `prev.conversationId === null` so it only ever
+  // touches a selection that is STILL unresolved; it never re-opens a
+  // conversation the reader has since backed out of (`selection === null`)
+  // or switched away from (a different, already-resolved selection).
+  useEffect(() => {
+    setSelection((prev) => {
+      if (!prev || prev.conversationId !== null) return prev;
+      const conv = chat.conversations.find((c) => c.friendship_id === prev.friendshipId);
+      if (!conv) return prev;
+      return { conversationId: conv.id, friendshipId: prev.friendshipId };
+    });
+  }, [chat.conversations]);
 
   const selectedConversation = selection?.conversationId
     ? (chat.conversations.find((c) => c.id === selection.conversationId) ?? null)
@@ -56,6 +100,13 @@ export default function ChatSection({
   const blocked = selectedConversation
     ? blockedConversationIds.has(selectedConversation.id)
     : false;
+  const activeFriendshipIdForPresence = selectedConversation
+    ? selectedConversation.friendship_id
+    : (selection?.friendshipId ?? null);
+  const friendOnline = activeFriendshipIdForPresence
+    ? (chatFriends.friends.find((f) => f.friendship_id === activeFriendshipIdForPresence)
+        ?.is_online ?? null)
+    : null;
 
   // External sync: opening a conversation loads its history once — a plain
   // effect keyed on the resolved conversation id, not derivable during render.
@@ -123,47 +174,106 @@ export default function ChatSection({
     void chat.refreshConversations();
   }
 
-  if (chat.loadState === "loading") {
-    return <Spinner label={t("Загружаю переписки…")} />;
-  }
+  const rootClassName = [
+    "grid h-full min-h-0 overflow-hidden rounded-md border-2 border-ink bg-surface md:grid-cols-[minmax(16rem,20rem)_1fr]",
+    className,
+  ]
+    .filter(Boolean)
+    .join(" ");
 
-  if (chat.loadState === "error") {
+  if (chat.loadState === "loading") {
     return (
-      <div role="alert" className="flex flex-col items-start gap-3">
-        <p className="font-sans text-small text-danger">
-          {chat.error ?? t("Не удалось загрузить переписки.")}
-        </p>
-        <Button onClick={() => void chat.refreshConversations()}>{t("Повторить")}</Button>
+      <div className={`${rootClassName} items-center justify-center`}>
+        <Spinner label={t("Загружаю переписки…")} />
       </div>
     );
   }
 
-  // Master-detail (owner: "нажимаешь — отдельное окно"): the conversation list
-  // spans the full width; picking one REPLACES the list with that conversation
-  // (a back button returns), instead of a permanent side-by-side split with an
-  // empty-state hint. `selection` with either a resolved conversation or a
-  // pending friendshipId (brand-new chat from "Написать") counts as "open".
-  const isOpen = selection !== null && (selectedConversation !== null || selection.friendshipId !== null);
+  if (chat.loadState === "error") {
+    return (
+      <div className={`${rootClassName} items-center justify-center p-4`}>
+        <div role="alert" className="flex flex-col items-start gap-3">
+          <p className="font-sans text-small text-danger">
+            {chat.error ?? t("Не удалось загрузить переписки.")}
+          </p>
+          <Button onClick={() => void chat.refreshConversations()}>{t("Повторить")}</Button>
+        </div>
+      </div>
+    );
+  }
+
+  // Master-detail on narrow screens: nothing selected shows the sidebar
+  // (list of chats/friends) full width; a selection replaces it with the
+  // open conversation full width. Both panes are always visible side by side
+  // at md+ (grid-cols above), regardless of `showSidebarOnMobile`.
+  const showSidebarOnMobile = selection === null;
 
   return (
-    <div className="flex flex-col gap-4">
-      {isOpen ? (
-        <ConversationView
-          conversation={selectedConversation}
-          friendshipId={selection.friendshipId}
-          friendUserId={friendUserId}
-          meUserId={meUserId}
-          messages={selectedMessages}
-          blocked={blocked}
-          onBack={() => setSelection(null)}
-          onMessageSent={handleMessageSent}
-          onMessageDeleted={handleMessageDeleted}
-          onBlockedChange={handleBlockedChange}
-          onInviteUpdated={handleInviteUpdated}
-        />
-      ) : (
-        <ConversationList conversations={chat.conversations} onSelect={handleSelectFromList} />
-      )}
+    <div className={rootClassName}>
+      <aside
+        className={[
+          showSidebarOnMobile ? "flex" : "hidden",
+          "min-h-0 flex-col overflow-hidden md:flex md:border-r-2 md:border-ink",
+        ].join(" ")}
+      >
+        <div className="shrink-0 border-b border-line p-3">
+          <SegmentedToggle<SidebarTab>
+            value={tab}
+            onChange={setTab}
+            label={t("Раздел")}
+            options={[
+              { value: "chats", label: t("Чаты") },
+              { value: "friends", label: t("Друзья") },
+            ]}
+          />
+        </div>
+        <div className="min-h-0 flex-1 overflow-y-auto p-3">
+          {tab === "chats" ? (
+            <ConversationList
+              conversations={chat.conversations}
+              activeConversationId={selectedConversation?.id ?? null}
+              onSelect={handleSelectFromList}
+            />
+          ) : (
+            <ChatFriendsPanel
+              friends={chatFriends.friends}
+              loadState={chatFriends.loadState}
+              onSelect={openFriendship}
+              onRetry={chatFriends.refresh}
+            />
+          )}
+        </div>
+      </aside>
+
+      <section
+        className={[
+          showSidebarOnMobile ? "hidden" : "flex",
+          "min-h-0 flex-col overflow-hidden md:flex",
+        ].join(" ")}
+      >
+        {selection ? (
+          <ConversationView
+            conversation={selectedConversation}
+            friendshipId={selection.friendshipId}
+            friendUserId={friendUserId}
+            meUserId={meUserId}
+            online={friendOnline}
+            messages={selectedMessages}
+            blocked={blocked}
+            onBack={() => setSelection(null)}
+            onMessageSent={handleMessageSent}
+            onMessageDeleted={handleMessageDeleted}
+            onBlockedChange={handleBlockedChange}
+            onInviteUpdated={handleInviteUpdated}
+          />
+        ) : (
+          <div className="flex h-full flex-col items-center justify-center gap-1 p-6 text-center">
+            <p className="font-sans text-body font-bold text-ink">
+              {t("Выбери переписку или друга слева, чтобы начать")}
+            </p>
+          </div>
+        )}
+      </section>
     </div>
   );
 }

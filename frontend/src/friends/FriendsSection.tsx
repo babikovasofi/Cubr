@@ -8,7 +8,7 @@
 // daily/DailyBoard.tsx.
 
 import { useEffect, useState, type FormEvent } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import Button from "../components/Button";
 import Input from "../components/Input";
 import Spinner from "../components/Spinner";
@@ -27,7 +27,6 @@ import {
 import { useChallengeFriend } from "./useChallengeFriend";
 import { stripHandlePrefix } from "../lib/handle";
 import { useT } from "../i18n/t";
-import ChatSection from "./chat/ChatSection";
 import PresenceAvatar from "./PresenceAvatar";
 import FriendProfileModal from "./FriendProfileModal";
 import ProfileCard, { CARD_MOTIFS } from "../profile/ProfileCard";
@@ -47,10 +46,10 @@ type LoadState = { kind: "loading" } | { kind: "error"; message: string } | { ki
 
 export default function FriendsSection() {
   const t = useT();
+  const navigate = useNavigate();
   const [lists, setLists] = useState<Lists>({ friends: [], incoming: [], outgoing: [] });
   const [state, setState] = useState<LoadState>({ kind: "loading" });
   const [reloadKey, setReloadKey] = useState(0);
-  const [openChatFriendshipId, setOpenChatFriendshipId] = useState<string | null>(null);
   const [profileFriend, setProfileFriend] = useState<FriendRead | null>(null);
 
   // External sync: friend/request lists live on the server only, no local
@@ -151,19 +150,11 @@ export default function FriendsSection() {
           <FriendList
             friends={lists.friends}
             onRemoved={reload}
-            onOpenChat={setOpenChatFriendshipId}
+            onOpenChat={(friendshipId) =>
+              navigate(`/messages?friendship=${encodeURIComponent(friendshipId)}`)
+            }
             onOpenProfile={setProfileFriend}
           />
-        </ProfileCard>
-      ) : null}
-
-      {state.kind === "ok" && lists.friends.length > 0 ? (
-        <ProfileCard
-          title={t("Личные сообщения")}
-          motif={CARD_MOTIFS.chat}
-          accent="var(--primary)"
-        >
-          <ChatSection openFriendshipId={openChatFriendshipId} />
         </ProfileCard>
       ) : null}
 

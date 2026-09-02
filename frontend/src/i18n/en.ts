@@ -803,15 +803,12 @@ export const EN: Record<string, string> = {
 
   // --- чат (swarm-report/friend-chat-plan.md, этап A) ---
   Написать: "Message",
-  "Личные сообщения": "Direct messages",
   "Переписок пока нет — напиши другу из списка выше.":
     "No conversations yet — message a friend from the list above.",
   "Сообщение удалено": "Message deleted",
   "Непрочитанных: {n}": "Unread: {n}",
   "Загружаю переписки…": "Loading conversations…",
   "Не удалось загрузить переписки.": "Could not load conversations.",
-  "Выбери переписку слева или напиши другу из списка выше.":
-    "Pick a conversation on the left, or message a friend from the list above.",
   "Новая переписка": "New conversation",
   Заблокировать: "Block",
   Разблокировать: "Unblock",
@@ -819,6 +816,19 @@ export const EN: Record<string, string> = {
   "Сообщений пока нет.": "No messages yet.",
   Сообщение: "Message",
   "Напиши сообщение…": "Write a message…",
+
+  // --- /messages: full-screen messenger (owner: "удобный чат... отдельным
+  // окном, друзей сбоку и сами чаты") ---
+  Чаты: "Chats",
+  Раздел: "Section",
+  "Пока нет друзей — добавь их на странице «Друзья».":
+    "No friends yet — add some on the Friends page.",
+  "Выбери переписку или друга слева, чтобы начать":
+    "Pick a conversation or a friend on the left to start chatting",
+  Действия: "Actions",
+  "Назад к спискам": "Back to the list",
+  "Тебя зовут на дуэль — открой «Сообщения»":
+    "You've been challenged to a duel — open “Messages”",
   Отправить: "Send",
   "Слишком часто. Подожди {n} с.": "Too fast. Wait {n}s.",
   "Слишком много сообщений. Подожди немного.": "Too many messages. Wait a bit.",
@@ -955,7 +965,6 @@ export const EN: Record<string, string> = {
   "Не в сети": "Offline",
   "в сети": "online",
   "не в сети": "offline",
-  "Все чаты": "All chats",
   "Выйти из дуэли": "Leave the duel",
   "Выхожу…": "Leaving…",
   "Цель: собрать быстрее {milestone}": "Goal: solve faster than {milestone}",
@@ -1009,7 +1018,6 @@ export const EN: Record<string, string> = {
   "Войти в дуэль": "Enter the duel",
   "Соперник найден!": "Opponent found!",
   "Входим через": "Entering in",
-  "Тебя зовут на дуэль — открой «Друзья»": "You've been challenged to a duel — open “Friends”",
   "Приглашение отклонено.": "Invite declined.",
   "Приглашение отменено.": "Invite canceled.",
   "Время приглашения истекло.": "The invite has expired.",

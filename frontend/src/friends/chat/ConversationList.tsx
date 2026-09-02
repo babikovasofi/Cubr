@@ -18,9 +18,12 @@ function previewText(c: ConversationSummary, t: (key: string) => string): string
 
 export default function ConversationList({
   conversations,
+  activeConversationId = null,
   onSelect,
 }: {
   conversations: ConversationSummary[];
+  /** Highlights the currently open conversation (messenger sidebar). */
+  activeConversationId?: string | null;
   onSelect: (conversation: ConversationSummary) => void;
 }) {
   const t = useT();
@@ -38,12 +41,17 @@ export default function ConversationList({
       {conversations.map((c) => {
         const hasPreview =
           c.last_message_body !== null || c.last_message_kind === "invite" || !!c.last_message_at;
+        const active = c.id === activeConversationId;
         return (
           <li key={c.id}>
             <button
               type="button"
               onClick={() => onSelect(c)}
-              className="flex w-full items-center gap-3 bg-surface px-3.5 py-3 text-left transition-colors hover:bg-surface-2"
+              aria-current={active ? "true" : undefined}
+              className={[
+                "flex min-h-11 w-full items-center gap-3 px-3.5 py-3 text-left transition-colors",
+                active ? "bg-surface-2" : "bg-surface hover:bg-surface-2",
+              ].join(" ")}
             >
               <span
                 aria-hidden

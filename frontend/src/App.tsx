@@ -51,6 +51,9 @@ const ProfilePage = lazy(() => import("./pages/ProfilePage"));
 const SettingsPage = lazy(() => import("./pages/SettingsPage"));
 const CupsPage = lazy(() => import("./pages/CupsPage"));
 const FriendsPage = lazy(() => import("./pages/FriendsPage"));
+// Full-screen messenger (owner: "удобный чат... отдельным окном") — no
+// DesktopOnlyGate, it's meant to work on a phone.
+const MessagesPage = lazy(() => import("./pages/MessagesPage"));
 
 // Правила и приватность — длинная проза, и обе версии, русская и английская,
 // лежат в бандле целиком (перевод здесь пофайловый, а не по словарю). Читают их
@@ -71,7 +74,8 @@ const TrainerPage = lazy(() => import("./pages/TrainerPage"));
 // что меня позвали на дуэль — приходится самой лезть в чат"). Polls the
 // conversation list every 15s (skips a hidden tab), shows an unread badge, and
 // toasts once when a NEW incoming duel invite appears — so an invite is
-// visible from any screen, not only inside /friends. Clicking goes to Друзья.
+// visible from any screen, not only inside /messages. Clicking goes to the
+// messenger (owner: "давай сделаем удобный чат... отдельным окном").
 function ChatBell() {
   const t = useT();
   const [unread, setUnread] = useState(0);
@@ -93,7 +97,7 @@ function ChatBell() {
         if (!firstRun.current) {
           for (const c of invited) {
             if (!seenInvites.current.has(c.id)) {
-              toast(t("Тебя зовут на дуэль — открой «Друзья»"), "info");
+              toast(t("Тебя зовут на дуэль — открой «Сообщения»"), "info");
             }
           }
         }
@@ -113,11 +117,11 @@ function ChatBell() {
 
   return (
     <Link
-      to="/friends"
-      aria-label={t("Друзья и сообщения")}
+      to="/messages"
+      aria-label={t("Сообщения")}
       className="relative inline-flex h-11 items-center gap-2 rounded-full border-2 border-ink bg-surface px-4 font-sans text-small font-extrabold text-ink no-underline hover:bg-surface-2"
     >
-      {t("Друзья")}
+      {t("Сообщения")}
       {unread > 0 ? (
         <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1 font-sans text-caption font-black text-white">
           {unread}
@@ -379,10 +383,27 @@ export default function App() {
   }, [bootstrap]);
 
   return (
-    <div className="min-h-screen text-ink">
+    // flex-col root + `main` as the flex-1 min-h-0 item: `main` fills exactly
+    // the viewport height left over after the header and footer, with no
+    // arithmetic anywhere about their pixel sizes (review: height must not
+    // depend on the header). A page with ordinary (non-full-height) content
+    // just renders at its natural size inside that flex item — flex-grow only
+    // ever ADDS space below short content (pushing Footer down to the
+    // viewport's bottom instead of hugging the content, same as any sticky
+    // footer), it never clips or shrinks a long page; the whole document
+    // still scrolls exactly as before for those. A page that needs to fill
+    // the screen (currently only /messages) opts in with its OWN `flex-1
+    // min-h-0` on its root element, inheriting the real remaining height
+    // instead of computing it.
+    // min-h-dvh, not min-h-screen (100vh): 100vh is the mobile browser's
+    // LARGEST viewport, so on a phone with the address bar showing it either
+    // clips the bottom of a full-height page or leaves the footer stranded
+    // half a bar's-height below the fold — dvh tracks whichever viewport is
+    // actually visible right now, address bar included.
+    <div className="flex min-h-dvh flex-col text-ink">
       <DecorBackdrop />
       <Header />
-      <main className="mx-auto flex max-w-content flex-col px-4 py-7">
+      <main className="mx-auto flex w-full min-h-0 max-w-content flex-1 flex-col px-4 py-7">
         <BackBar />
         <RouteErrorBoundary>
           <Suspense
@@ -480,6 +501,14 @@ export default function App() {
                 element={
                   <ProtectedRoute>
                     <FriendsPage />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/messages"
+                element={
+                  <ProtectedRoute>
+                    <MessagesPage />
                   </ProtectedRoute>
                 }
               />
