@@ -1,0 +1,26 @@
+{
+  "_comment": [
+    "Single source of truth for the site's security response headers.",
+    "Two consumers read this file, so the local ZAP stand and production can",
+    "never drift apart:",
+    "  * production  — deploy/scripts/gen-security-headers.mjs renders it into",
+    "                  deploy/security-headers.caddy, which the Caddyfile imports;",
+    "  * local stand — frontend/vite.config.ts feeds `common` to `vite preview`.",
+    "frontend/tests/security/headers.test.ts fails if the .caddy file is stale.",
+    "Edit this file, then run: node deploy/scripts/gen-security-headers.mjs"
+  ],
+  "removeHeaders": ["Server"],
+  "common": {
+    "Content-Security-Policy": "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; form-action 'self'; script-src 'self' 'wasm-unsafe-eval' blob: https://cdn.cubing.net https://cdn.jsdelivr.net; worker-src 'self' blob: https://cdn.cubing.net https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' data: https://fonts.gstatic.com; img-src 'self' data: blob:; media-src 'self' blob:; connect-src 'self' https://cdn.cubing.net https://cdn.jsdelivr.net https://storage.googleapis.com https://fonts.googleapis.com https://fonts.gstatic.com; manifest-src 'self'",
+    "X-Content-Type-Options": "nosniff",
+    "X-Frame-Options": "DENY",
+    "Referrer-Policy": "strict-origin-when-cross-origin",
+    "Permissions-Policy": "camera=(self), microphone=(), geolocation=(), payment=(), usb=(), magnetometer=(), gyroscope=(), accelerometer=(), browsing-topics=()",
+    "Cross-Origin-Opener-Policy": "same-origin",
+    "Cross-Origin-Resource-Policy": "same-origin",
+    "X-XSS-Protection": "0"
+  },
+  "httpsOnly": {
+    "Strict-Transport-Security": "max-age=31536000; includeSubDomains"
+  }
+}

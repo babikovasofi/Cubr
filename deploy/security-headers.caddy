@@ -1,0 +1,26 @@
+# GENERATED FILE — do not edit.
+# Source: deploy/security-headers.json
+# Regenerate: node deploy/scripts/gen-security-headers.mjs
+
+# Every response, http and https alike.
+(security_headers) {
+	header {
+		-Server
+		Content-Security-Policy "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; form-action 'self'; script-src 'self' 'wasm-unsafe-eval' blob: https://cdn.cubing.net https://cdn.jsdelivr.net; worker-src 'self' blob: https://cdn.cubing.net https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' data: https://fonts.gstatic.com; img-src 'self' data: blob:; media-src 'self' blob:; connect-src 'self' https://cdn.cubing.net https://cdn.jsdelivr.net https://storage.googleapis.com https://fonts.googleapis.com https://fonts.gstatic.com; manifest-src 'self'"
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "DENY"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		Permissions-Policy "camera=(self), microphone=(), geolocation=(), payment=(), usb=(), magnetometer=(), gyroscope=(), accelerometer=(), browsing-topics=()"
+		Cross-Origin-Opener-Policy "same-origin"
+		Cross-Origin-Resource-Policy "same-origin"
+		X-XSS-Protection "0"
+	}
+}
+
+# HTTPS only: HSTS on a plain-http local stand would pin localhost to TLS
+# in the tester's browser and lock them out of every other localhost app.
+(hsts) {
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+	}
+}

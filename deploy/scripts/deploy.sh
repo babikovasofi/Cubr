@@ -27,6 +27,11 @@ REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 
 say() { printf '\n=== %s ===\n' "$1"; }
 
+say "0/6 рендер security-заголовков"
+# The Caddy snippet is generated, so regenerate it here rather than trusting that
+# whoever edited security-headers.json remembered to run the script.
+node "$REPO_ROOT/deploy/scripts/gen-security-headers.mjs"
+
 say "1/6 сборка фронтенда локально"
 # Built here, never on the server: the box has one core and two gigabytes, and
 # a build that fails must fail before production is touched.
@@ -46,9 +51,23 @@ say "4/6 миграции базы"
 # here leaves production exactly as it was.
 ssh "$HOST" 'cd /srv/cubr && docker compose run --rm api alembic upgrade head'
 
-say "5/6 перезапуск API и заливка статики"
+say "5/6 конфиг стека, перезапуск API, заливка статики"
+# The stack definition ships from the repository too: the security headers live
+# in security-headers.caddy (generated from security-headers.json) and are mounted
+# into the caddy container by docker-compose.yml, so a server whose copies were
+# edited by hand drifts away from what the local ZAP stand scans. Shipped BEFORE
+# `up -d`, since the compose file is what declares that mount.
+rsync -az \
+  "$REPO_ROOT/deploy/docker-compose.yml" \
+  "$REPO_ROOT/deploy/Caddyfile" \
+  "$REPO_ROOT/deploy/security-headers.caddy" \
+  "$HOST:/srv/cubr/"
 ssh "$HOST" 'cd /srv/cubr && docker compose up -d'
 rsync -az --delete "$REPO_ROOT/frontend/dist/" "$HOST:/srv/cubr/www/"
+# Reload, not restart: Caddy re-reads the config with zero downtime, and a broken
+# config makes it keep the running one and fail here rather than drop TLS. `up -d`
+# above only recreates the container when the mount list itself changed.
+ssh "$HOST" 'cd /srv/cubr && docker compose exec -w /etc/caddy caddy caddy reload --config /etc/caddy/Caddyfile'
 
 say "6/6 смоук"
 # The API needs a few seconds to boot after `up -d` returns: uvicorn starts,

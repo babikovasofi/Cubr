@@ -6,11 +6,21 @@
 # second copy. Two equal origins would mean the auth cookie (SameSite=Lax) and
 # the duel WebSocket Origin check work on whichever host the user happened to
 # type, and fail silently on the other.
+# Response security headers live in one place for both front doors (Caddy here,
+# `vite preview` on the local ZAP stand) — deploy/security-headers.json, rendered
+# into the imported file by deploy/scripts/gen-security-headers.mjs.
+import security-headers.caddy
+
 www.{$SITE_DOMAIN} {
+    import security_headers
+    import hsts
     redir https://{$SITE_DOMAIN}{uri} permanent
 }
 
 {$SITE_DOMAIN} {
+    import security_headers
+    import hsts
+
     encode zstd gzip
 
     handle /api/* {

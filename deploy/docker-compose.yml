@@ -71,6 +71,8 @@ services:
       - .env
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      # Imported by the Caddyfile; generated from security-headers.json.
+      - ./security-headers.caddy:/etc/caddy/security-headers.caddy:ro
       - ./www:/srv/www:ro
       - caddy_data:/data
       - caddy_config:/config
