@@ -17,6 +17,23 @@ import { render } from "../../../deploy/scripts/gen-security-headers.mjs";
 const deployDir = join(dirname(fileURLToPath(import.meta.url)), "../../../deploy");
 const generated = readFileSync(join(deployDir, "security-headers.caddy"), "utf8");
 
+// `caddy fmt` indents with tabs, and Caddy warns on every start and reload when
+// the Caddyfile is not formatted ("run the 'caddy fmt' command to fix
+// inconsistencies"). A warning nobody can fix by reading the log is noise that
+// hides the next real one, so the indentation is guarded here instead.
+describe("Caddyfile formatting", () => {
+  const caddyfile = readFileSync(join(deployDir, "Caddyfile"), "utf8");
+
+  it("indents with tabs, the way `caddy fmt` does", () => {
+    const spaceIndented = caddyfile
+      .split("\n")
+      .map((line, i) => ({ line, lineNo: i + 1 }))
+      .filter(({ line }) => line.startsWith(" "))
+      .map(({ line, lineNo }) => `${lineNo}: ${line}`);
+    expect(spaceIndented).toEqual([]);
+  });
+});
+
 describe("security headers", () => {
   it("security-headers.caddy matches the JSON source", () => {
     expect(generated).toBe(render(spec));
