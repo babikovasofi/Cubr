@@ -57,7 +57,13 @@ say "5/6 конфиг стека, перезапуск API, заливка ст�
 # into the caddy container by docker-compose.yml, so a server whose copies were
 # edited by hand drifts away from what the local ZAP stand scans. Shipped BEFORE
 # `up -d`, since the compose file is what declares that mount.
-rsync -az \
+# --inplace is load-bearing, not an optimisation. docker-compose.yml bind-mounts
+# Caddyfile and security-headers.caddy as SINGLE FILES, and such a mount binds
+# the file's inode: rsync's default write-temp-then-rename gives the host a NEW
+# inode, so the container keeps serving the old one and every later edit reaches
+# production only when the container is recreated. --inplace writes through the
+# existing inode, so the reload below actually reads what we just shipped.
+rsync -az --inplace \
   "$REPO_ROOT/deploy/docker-compose.yml" \
   "$REPO_ROOT/deploy/Caddyfile" \
   "$REPO_ROOT/deploy/security-headers.caddy" \
