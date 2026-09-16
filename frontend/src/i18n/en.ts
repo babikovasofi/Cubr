@@ -22,8 +22,7 @@ export const EN: Record<string, string> = {
   // --- обратная связь (футер + блок внизу главной) ---
   "Идеи и предложения": "Ideas and feedback",
   "Есть идея, как сделать лучше?": "Got an idea to make this better?",
-  "Напиши, что мешает или чего не хватает, — читаю все письма.":
-    "Write what gets in your way or what's missing — I read every letter.",
+  "Напиши, что мешает или чего не хватает.": "Write what gets in your way or what's missing.",
   "Написать письмо": "Send an email",
   "Cubr — идея или предложение": "Cubr — idea or feedback",
   "Кубки: {n}": "Cups: {n}",

@@ -38,7 +38,7 @@ export default function IdeaBox() {
             {t("Есть идея, как сделать лучше?")}
           </h2>
           <p className="font-sans text-small text-muted">
-            {t("Напиши, что мешает или чего не хватает, — читаю все письма.")}{" "}
+            {t("Напиши, что мешает или чего не хватает.")}{" "}
             <span className="select-all whitespace-nowrap font-mono text-small text-ink">
               {FEEDBACK_EMAIL}
             </span>
