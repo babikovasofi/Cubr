@@ -19,6 +19,7 @@ import { useAuthStore } from "./store/authStore";
 import { useLangStore, type Lang } from "./store/langStore";
 import { useUiStore, type Theme } from "./store/uiStore";
 import SegmentedToggle from "./components/SegmentedToggle";
+import { feedbackMailto } from "./components/IdeaBox";
 import { useT } from "./i18n/t";
 
 // DEV-only Stage-0.3 accuracy gate. React.lazy + import.meta.env.DEV so the whole
@@ -364,6 +365,16 @@ function Footer() {
         <Link to="/privacy" className="font-sans text-small font-bold text-muted no-underline">
           {t("Данные и приватность")}
         </Link>
+        {/* Сквозной вход в обратную связь. Футер — то место, куда за контактом
+            идут осознанно (рядом с правилами и приватностью), поэтому ссылка
+            стоит здесь, а не в шапке, где спорила бы с главным действием
+            экрана. Подробный блок с адресом — внизу главной (IdeaBox). */}
+        <a
+          href={feedbackMailto(t("Cubr — идея или предложение"))}
+          className="font-sans text-small font-bold text-muted no-underline"
+        >
+          {t("Идеи и предложения")}
+        </a>
         {/* Переключатель языка — в футере, единственной сквозной служебной точке
             (там же, где правила и приватность). В шапке он отвлекал бы от CTA. */}
         <LanguageSwitcher />

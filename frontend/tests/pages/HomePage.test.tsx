@@ -168,8 +168,9 @@ describe("HomePage", () => {
     useAuthStore.setState({ status: "authed" });
     renderHome();
 
-    // Соло, дуэль, челлендж недели, скрамбл дня, тренажёр — по одной карточке-режиму.
-    expect(screen.getAllByTestId("mini-grid")).toHaveLength(5);
+    // Соло, дуэль, челлендж недели, скрамбл дня, тренажёр — по одной карточке-режиму,
+    // плюс шестая сетка у блока обратной связи внизу страницы (IdeaBox).
+    expect(screen.getAllByTestId("mini-grid")).toHaveLength(6);
   });
 
   it("дашборд предлагает тренажёр PLL без гейта по регистрации", () => {

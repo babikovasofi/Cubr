@@ -9,6 +9,7 @@ import Button from "../components/Button";
 import HeroStickers from "../components/HeroStickers";
 import MiniGrid from "../components/MiniGrid";
 import EmptyState from "../components/EmptyState";
+import IdeaBox from "../components/IdeaBox";
 import TrophyIcon from "../components/TrophyIcon";
 import { RANKS } from "../components/CupsRoad";
 import BadgeGrid from "../components/BadgeGrid";
@@ -284,26 +285,26 @@ function Dashboard() {
           title={t("Соло-тренировка")}
           text={t("Вся сборка целиком, без аккаунта. Сборки сохраняются, если войти.")}
         />
-      <ModeCard
-        to="/duel"
-        mode="duel"
-        title={t("Дуэль")}
-        text={t("Найди соперника онлайн, позови друга из тех, кто в сети, или сыграй по ссылке.")}
-      />
-      <ModeCard
-        to="/tournament"
-        mode="week"
-        title={t("Челлендж недели")}
-        text={t("Общий скрамбл, одна попытка — без турнирной таблицы.")}
-        live
-      />
-      <ModeCard
-        to="/daily"
-        mode="daily"
-        title={t("Скрамбл дня")}
-        text={t("Общий скрамбл на сутки, одна попытка — без турнирной таблицы.")}
-        live
-      />
+        <ModeCard
+          to="/duel"
+          mode="duel"
+          title={t("Дуэль")}
+          text={t("Найди соперника онлайн, позови друга из тех, кто в сети, или сыграй по ссылке.")}
+        />
+        <ModeCard
+          to="/tournament"
+          mode="week"
+          title={t("Челлендж недели")}
+          text={t("Общий скрамбл, одна попытка — без турнирной таблицы.")}
+          live
+        />
+        <ModeCard
+          to="/daily"
+          mode="daily"
+          title={t("Скрамбл дня")}
+          text={t("Общий скрамбл на сутки, одна попытка — без турнирной таблицы.")}
+          live
+        />
         <ModeCard
           to="/trainer"
           mode="trainer"
@@ -366,5 +367,13 @@ function DashboardProgress() {
 
 export default function HomePage() {
   const authed = useAuthStore((s) => s.status === "authed");
-  return authed ? <Dashboard /> : <Landing />;
+  // Точка обратной связи — внизу главной, ПОСЛЕ всего содержимого: и на
+  // лендинге, и на дашборде. Человек сначала видит продукт, и только потом
+  // предложение написать; сквозной вход в неё живёт в футере.
+  return (
+    <>
+      {authed ? <Dashboard /> : <Landing />}
+      <IdeaBox />
+    </>
+  );
 }

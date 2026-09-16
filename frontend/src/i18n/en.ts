@@ -19,6 +19,13 @@ export const EN: Record<string, string> = {
   Правила: "Rules",
   "Данные и приватность": "Data and privacy",
   "Язык интерфейса": "Interface language",
+  // --- обратная связь (футер + блок внизу главной) ---
+  "Идеи и предложения": "Ideas and feedback",
+  "Есть идея, как сделать лучше?": "Got an idea to make this better?",
+  "Напиши, что мешает или чего не хватает, — читаю все письма.":
+    "Write what gets in your way or what's missing — I read every letter.",
+  "Написать письмо": "Send an email",
+  "Cubr — идея или предложение": "Cubr — idea or feedback",
   "Кубки: {n}": "Cups: {n}",
   Русский: "Русский",
   English: "English",
@@ -827,8 +834,7 @@ export const EN: Record<string, string> = {
     "Pick a conversation or a friend on the left to start chatting",
   Действия: "Actions",
   "Назад к спискам": "Back to the list",
-  "Тебя зовут на дуэль — открой «Сообщения»":
-    "You've been challenged to a duel — open “Messages”",
+  "Тебя зовут на дуэль — открой «Сообщения»": "You've been challenged to a duel — open “Messages”",
   Отправить: "Send",
   "Слишком часто. Подожди {n} с.": "Too fast. Wait {n}s.",
   "Слишком много сообщений. Подожди немного.": "Too many messages. Wait a bit.",
