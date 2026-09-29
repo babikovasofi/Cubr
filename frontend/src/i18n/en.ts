@@ -19,6 +19,7 @@ export const EN: Record<string, string> = {
   Правила: "Rules",
   "Данные и приватность": "Data and privacy",
   "Язык интерфейса": "Interface language",
+  "Исходный код": "Source code",
   // --- обратная связь (футер + блок внизу главной) ---
   "Идеи и предложения": "Ideas and feedback",
   "Есть идея, как сделать лучше?": "Got an idea to make this better?",

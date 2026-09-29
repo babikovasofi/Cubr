@@ -375,6 +375,16 @@ function Footer() {
         >
           {t("Идеи и предложения")}
         </a>
+        {/* Код открыт под AGPL v3, а она требует, чтобы пользователь сервиса
+            мог получить его исходники, — отсюда сквозная ссылка на репозиторий. */}
+        <a
+          href="https://github.com/babikovasofi/Cubr"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="font-sans text-small font-bold text-muted no-underline"
+        >
+          {t("Исходный код")}
+        </a>
         {/* Переключатель языка — в футере, единственной сквозной служебной точке
             (там же, где правила и приватность). В шапке он отвлекал бы от CTA. */}
         <LanguageSwitcher />
